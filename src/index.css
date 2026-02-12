@@ -7,8 +7,8 @@
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #f8f9fa;
-  color: #333;
+  background-color: #101010;
+  color: #e0e0e0;
   line-height: 1.6;
 }
 
@@ -26,12 +26,12 @@ body {
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #e9ecef;
+  border-bottom: 1px solid #333;
 }
 
 .dashboard-header h1 {
   font-size: 1.8rem;
-  color: #2c3e50;
+  color: #fff;
 }
 
 nav ul {
@@ -42,13 +42,13 @@ nav ul {
 
 nav a {
   text-decoration: none;
-  color: #6c757d;
+  color: #888;
   font-weight: 500;
   transition: color 0.3s ease;
 }
 
 nav a:hover {
-  color: #3498db;
+  color: #fff;
 }
 
 /* Stats Grid */
@@ -60,19 +60,20 @@ nav a:hover {
 }
 
 .stat-card {
-  background: white;
+  background: #1a1a1a;
   padding: 1.5rem;
   border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #333;
   transition: transform 0.2s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-5px);
+  border-color: #444;
 }
 
 .stat-card h3 {
-  color: #6c757d;
+  color: #888;
   font-size: 0.9rem;
   text-transform: uppercase;
   margin-bottom: 0.5rem;
@@ -81,13 +82,13 @@ nav a:hover {
 .stat-card p {
   font-size: 2rem;
   font-weight: 700;
-  color: #2c3e50;
+  color: #fff;
 }
 
 /* Projects Section */
 .projects-section h2 {
   margin-bottom: 1.5rem;
-  color: #2c3e50;
+  color: #fff;
 }
 
 .projects-list {
@@ -97,10 +98,10 @@ nav a:hover {
 }
 
 .project-card {
-  background: white;
+  background: #1a1a1a;
   padding: 1.5rem;
   border-radius: 12px;
-  border: 1px solid #e9ecef;
+  border: 1px solid #333;
 }
 
 .project-header {
@@ -113,34 +114,40 @@ nav a:hover {
 .project-header h3 {
   font-size: 1.2rem;
   margin: 0;
+  color: #eee;
 }
 
 .status {
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .status.in-progress {
-  background-color: #e3f2fd;
-  color: #1976d2;
+  background-color: rgba(52, 152, 219, 0.15);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.3);
 }
 
 .status.completed {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.3);
 }
 
 .status.pending {
-  background-color: #fef3e0;
-  color: #ef6c00;
+  background-color: rgba(243, 156, 18, 0.15);
+  color: #f39c12;
+  border: 1px solid rgba(243, 156, 18, 0.3);
 }
 
 /* Footer */
 footer {
   margin-top: 4rem;
   text-align: center;
-  color: #adb5bd;
+  color: #666;
   font-size: 0.9rem;
 }

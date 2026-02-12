@@ -17,7 +17,7 @@ const Dashboard = () => {
         <div className="dashboard-container">
             <header className="dashboard-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <img src="/assets/splash-icon-dark.png" alt="Createch Logo" style={{ height: '40px' }} />
+                    <img src="/assets/splash-icon-light-resized.png" alt="Createch Logo" style={{ height: '40px' }} />
                     <h1>CREATECH Dashboard</h1>
                 </div>
                 <nav>
