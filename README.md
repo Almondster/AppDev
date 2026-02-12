@@ -1,4 +1,4 @@
-# 🎨 Createch UI
+# 🎨 CREATECH UI
 
 > **The Operating System for Creative Work.**
 > *Simplified Dashboard Interface*
