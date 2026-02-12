@@ -4,19 +4,22 @@ const Dashboard = () => {
     const stats = [
         { id: 1, label: 'Total Creators', value: 1250 },
         { id: 2, label: 'Active Projects', value: 45 },
-        { id: 3, label: 'Revenue', value: '$24,500' },
+        { id: 3, label: 'Revenue', value: '₱24,500' },
     ];
 
     const recentProjects = [
-        { id: 1, title: 'Logo Design for EcoBrand', client: 'GreenCo', status: 'In Progress', budget: '$500' },
-        { id: 2, title: 'Website Redesign', client: 'TechStart', status: 'Completed', budget: '$1200' },
-        { id: 3, title: 'Social Media Campaign', client: 'FashionHub', status: 'Pending', budget: '$800' },
+        { id: 1, title: 'Logo Design for EcoBrand', client: 'GreenCo', status: 'In Progress', budget: '₱500' },
+        { id: 2, title: 'Website Redesign', client: 'TechStart', status: 'Completed', budget: '₱1200' },
+        { id: 3, title: '3D Video Animation', client: 'AniHub', status: 'Pending', budget: '₱800' },
     ];
 
     return (
         <div className="dashboard-container">
             <header className="dashboard-header">
-                <h1>Createch Dashboard</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <img src="/assets/splash-icon-dark.png" alt="Createch Logo" style={{ height: '40px' }} />
+                    <h1>CREATECH Dashboard</h1>
+                </div>
                 <nav>
                     <ul>
                         <li><a href="#overview">Overview</a></li>
@@ -59,7 +62,7 @@ const Dashboard = () => {
             </main>
 
             <footer>
-                <p>&copy; 2026 Createch Platform. All rights reserved.</p>
+                <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
             </footer>
         </div>
     );
