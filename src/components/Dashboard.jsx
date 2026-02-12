@@ -2,7 +2,7 @@
 const Dashboard = () => {
     // Mock Data
     const stats = [
-        { id: 1, label: 'Total Creators', value: 1250 },
+        { id: 1, label: 'Services Completed', value: 17 },
         { id: 2, label: 'Active Projects', value: 45 },
         { id: 3, label: 'Revenue', value: '₱24,500' },
     ];
@@ -22,9 +22,8 @@ const Dashboard = () => {
                 </div>
                 <nav>
                     <ul>
-                        <li><a href="#overview">Overview</a></li>
+                        <li><a href="#overview">Home</a></li>
                         <li><a href="#projects">Projects</a></li>
-                        <li><a href="#creators">Creators</a></li>
                         <li><a href="#settings">Settings</a></li>
                     </ul>
                 </nav>

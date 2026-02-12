@@ -17,6 +17,13 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
 }
 
 /* Header */
@@ -147,7 +154,7 @@ nav a:hover {
 /* Footer */
 footer {
   margin-top: 4rem;
-  text-align: center;
+  text-align: left;
   color: #666;
   font-size: 0.9rem;
 }
