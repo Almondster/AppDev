@@ -13,7 +13,7 @@
 git clone https://github.com/Almondster/AppDev.git
 
 # 2. Enter directory
-cd createch-ui
+cd appDEV
 
 # 3. Install dependencies
 npm install
