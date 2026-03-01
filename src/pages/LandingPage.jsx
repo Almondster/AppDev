@@ -2,11 +2,13 @@ import React from 'react';
 
 const LandingPage = () => {
     return (
-        <div className="section page-fade" style={{ textAlign: 'center', paddingTop: '4rem' }}>
-            <h1 style={{ fontSize: '3rem', color: '#fff', marginBottom: '1rem' }}>Welcome to CREATECH</h1>
-            <p style={{ color: '#a1a1aa', fontSize: '1.2rem', marginBottom: '2rem' }}>
-                Connect with top creators. Bring your projects to life.
-            </p>
+        <section className="section page-fade" style={{ textAlign: 'center', paddingTop: '4rem' }}>
+            <header>
+                <h1 style={{ fontSize: '3rem', color: '#fff', marginBottom: '1rem' }}>Welcome to CREATECH</h1>
+                <p style={{ color: '#a1a1aa', fontSize: '1.2rem', marginBottom: '2rem' }}>
+                    Connect with top creators. Bring your projects to life.
+                </p>
+            </header>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
                 <a href="/login" className="btn btn--primary" style={{ padding: '12px 24px', fontSize: '1rem' }}>Get Started</a>
             </div>
@@ -28,7 +30,7 @@ const LandingPage = () => {
                     <p style={{ color: '#71717a', fontSize: '0.85rem', marginTop: '0.5rem' }}>Your payments are protected until the job is done.</p>
                 </div>
             </div>
-        </div>
+        </section>
     );
 };
 

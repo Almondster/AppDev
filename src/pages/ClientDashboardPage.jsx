@@ -3,11 +3,11 @@ import { Target, CreditCard, Clock, Star, ArrowRight } from 'lucide-react';
 
 const ClientDashboardPage = () => {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-            <div className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2))' }}>
+        <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
+            <header className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2))' }}>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>Welcome, Client!</h1>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Manage your hired creators and active contracts.</p>
-            </div>
+            </header>
 
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
@@ -79,7 +79,7 @@ const ClientDashboardPage = () => {
                     </div>
                 </section>
             </div>
-        </div>
+        </main>
     );
 };
 

@@ -21,11 +21,11 @@ const CreatorDashboardPage = () => {
     });
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-            <div className="hero-gradient" style={{ padding: '3rem 2rem' }}>
+        <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
+            <header className="hero-gradient" style={{ padding: '3rem 2rem' }}>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>Creator Hub</h1>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Manage your services and track your freelance business.</p>
-            </div>
+            </header>
 
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/projects')}>
@@ -66,7 +66,9 @@ const CreatorDashboardPage = () => {
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <div style={{ position: 'relative' }}>
                             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
+                            <label htmlFor="dashboardSearch" className="sr-only">Search active orders</label>
                             <input
+                                id="dashboardSearch"
                                 type="text"
                                 placeholder="Search..."
                                 value={searchTerm}
@@ -74,7 +76,9 @@ const CreatorDashboardPage = () => {
                                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'white', fontSize: '0.9rem', outline: 'none' }}
                             />
                         </div>
+                        <label htmlFor="dashboardFilter" className="sr-only">Filter active orders by status</label>
                         <select
+                            id="dashboardFilter"
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
                             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px', borderRadius: '8px', color: 'white', fontSize: '0.9rem', outline: 'none', appearance: 'none' }}
@@ -118,7 +122,7 @@ const CreatorDashboardPage = () => {
                     )}
                 </div>
             </section>
-        </div>
+        </main>
     );
 };
 

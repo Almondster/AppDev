@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertOctagon, Scale, ShieldAlert, MessageSquare, CheckCircle } from 'lucide-react';
+import { AlertOctagon, Scale, MessageSquare, CheckCircle } from 'lucide-react';
 
 const mockDisputes = [
     { id: 'DSP-8842', client: 'TechFlow Solutions', creator: 'Alex Rivera', amount: '₱45,000', status: 'Requires Arbitration', date: 'Oct 24, 2026', issue: 'Client claims milestones were missed despite creator providing deliverable proof.' },
@@ -8,9 +8,9 @@ const mockDisputes = [
 
 const DisputesPage = () => {
     return (
-        <div className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
             {/* Header (Red Tinted for Alerts) */}
-            <div className="glass-card" style={{
+            <header className="glass-card" style={{
                 padding: '2.5rem',
                 marginBottom: '2.5rem',
                 display: 'flex',
@@ -30,7 +30,7 @@ const DisputesPage = () => {
                     <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Escrow in Dispute</p>
                     <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>₱57,500</h2>
                 </div>
-            </div>
+            </header>
 
             {/* Disputes Layout */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -80,7 +80,7 @@ const DisputesPage = () => {
                     </div>
                 ))}
             </div>
-        </div>
+        </main>
     );
 };
 

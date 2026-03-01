@@ -28,7 +28,7 @@ const WalletPage = ({ userRole }) => {
     }
 
     return (
-        <div className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
             {/* Header */}
             <div className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -58,8 +58,9 @@ const WalletPage = ({ userRole }) => {
                         </div>
                         <form onSubmit={handleWithdraw} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Withdrawal Amount (₱)</label>
+                                <label htmlFor="withdrawAmount" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Withdrawal Amount (₱)</label>
                                 <input
+                                    id="withdrawAmount"
                                     type="number"
                                     step="0.01"
                                     min="0"
@@ -89,8 +90,9 @@ const WalletPage = ({ userRole }) => {
                         </div>
                         <form onSubmit={handleDeposit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Deposit Amount (₱)</label>
+                                <label htmlFor="depositAmount" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Deposit Amount (₱)</label>
                                 <input
+                                    id="depositAmount"
                                     type="number"
                                     step="0.01"
                                     min="0"
@@ -110,7 +112,7 @@ const WalletPage = ({ userRole }) => {
 
             </div>
 
-        </div>
+        </main>
     );
 };
 

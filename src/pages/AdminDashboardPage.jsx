@@ -3,13 +3,13 @@ import { Users, BarChart3, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 const AdminDashboardPage = () => {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-            <div className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2))' }}>
+        <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
+            <header className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2))' }}>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <ShieldCheck size={36} color="#f43f5e" /> Admin Command
                 </h1>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Platform health, active disputes, and user metrics.</p>
-            </div>
+            </header>
 
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
@@ -77,7 +77,7 @@ const AdminDashboardPage = () => {
                     </div>
                 </div>
             </section>
-        </div>
+        </main>
     );
 };
 

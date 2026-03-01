@@ -79,14 +79,14 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
         </div>
       )}
 
-      <div className="section__header">
+      <header className="section__header">
         <h2 className="section__title">Projects ({projects.length})</h2>
         {userRole !== 'client' && (
           <Button variant="primary" onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData(emptyForm); }}>
             {showForm ? 'Close' : '+ New Project'}
           </Button>
         )}
-      </div>
+      </header>
 
       {showForm && (
         <form className="form-card page-fade" onSubmit={handleSubmit}>
@@ -133,7 +133,8 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
           <span className="search-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </span>
-          <input type="text" className="search-input" placeholder="Search projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <label htmlFor="projectsSearch" className="sr-only">Search projects</label>
+          <input id="projectsSearch" type="text" className="search-input" placeholder="Search projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="filter-group">
           {['all', 'in-progress', 'pending', 'completed', 'suspended'].map((s) => (
@@ -142,7 +143,8 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
             </button>
           ))}
         </div>
-        <select className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+        <label htmlFor="projectsSort" className="sr-only">Sort projects</label>
+        <select id="projectsSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="title">Sort: Name</option>
           <option value="budget">Sort: Budget</option>
           <option value="deadline">Sort: Deadline</option>

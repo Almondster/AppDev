@@ -2,7 +2,7 @@ import React from 'react';
 
 const CreatorProfilePage = () => {
     return (
-        <div className="section page-fade">
+        <section className="section page-fade">
             <header className="section__header" style={{ alignItems: 'flex-start', borderBottom: '1px solid #27272a', paddingBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
                     <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
@@ -40,7 +40,7 @@ const CreatorProfilePage = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
     );
 };
 

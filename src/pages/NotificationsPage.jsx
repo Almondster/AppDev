@@ -7,11 +7,11 @@ const NotificationsPage = () => {
     ]);
 
     const markAllRead = () => {
-        setNotifications(notifications.map(n => ({ ...n, read: true })));
+        setNotifications((prev) => prev.map(n => ({ ...n, read: true })));
     };
 
     return (
-        <div className="section page-fade">
+        <section className="section page-fade">
             <header className="section__header">
                 <h2 className="section__title">Notifications</h2>
                 <button className="btn btn--ghost" onClick={markAllRead}>Mark All as Read</button>
@@ -30,7 +30,7 @@ const NotificationsPage = () => {
                     </div>
                 ))}
             </div>
-        </div>
+        </section>
     );
 };
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, ShieldAlert, BadgeCheck, MoreVertical, Search, Filter } from 'lucide-react';
+import { ShieldAlert, BadgeCheck, MoreVertical, Search, Filter } from 'lucide-react';
 
 const mockUsers = [
     { id: 1, name: 'Alex Rivera', role: 'Creator', status: 'Active', joined: 'Jan 12, 2026', reports: 0 },
@@ -11,9 +11,9 @@ const mockUsers = [
 
 const UsersPage = () => {
     return (
-        <div className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
             {/* Header */}
-            <div className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Platform Users</h1>
@@ -25,13 +25,14 @@ const UsersPage = () => {
                     <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Users</p>
                     <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>12,842</h2>
                 </div>
-            </div>
+            </header>
 
             {/* Toolbar */}
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem' }}>
                     <Search size={18} color="#a1a1aa" />
-                    <input type="text" placeholder="Search users by name or ID..." style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none' }} />
+                    <label htmlFor="usersSearch" className="sr-only">Search users by name or ID</label>
+                    <input id="usersSearch" type="text" placeholder="Search users by name or ID..." style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none' }} />
                 </div>
                 <button className="glass-card" style={{ padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <Filter size={18} />
@@ -84,7 +85,7 @@ const UsersPage = () => {
                     </div>
                 ))}
             </div>
-        </div>
+        </main>
     );
 };
 

@@ -15,7 +15,7 @@ const OrdersPage = () => {
         : orders.filter(o => o.status === filter);
 
     return (
-        <div className="section page-fade">
+        <section className="section page-fade">
             <header className="section__header">
                 <h2 className="section__title">My Orders</h2>
                 <div className="filter-group">
@@ -49,7 +49,7 @@ const OrdersPage = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </section>
     );
 };
 
