@@ -1,76 +1,31 @@
-import { useState } from 'react';
-import { useProjects } from '../context/useProjects';
+import { useProjectForm } from '../context/hooks/useProjectForm';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import '../styles/ProjectsPage.css';
 
-const emptyForm = { title: '', client: '', status: 'Pending', budget: '', deadline: '', description: '' };
-
 const ProjectsPage = ({ userRole = 'creator' }) => {
-  const { projects, addProject, updateProject, deleteProject } = useProjects();
-  const [formData, setFormData] = useState(emptyForm);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [sortBy, setSortBy] = useState('title');
-  const [notification, setNotification] = useState(null);
-
-  const showNotification = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.title.trim() || !formData.client.trim()) return;
-
-    if (editingId) {
-      updateProject(editingId, formData);
-      showNotification('Project updated successfully!');
-      setEditingId(null);
-    } else {
-      addProject(formData);
-      showNotification('Project added successfully!');
-    }
-    setFormData(emptyForm);
-    setShowForm(false);
-  };
-
-  const handleEdit = (project) => {
-    setFormData({ ...project, budget: String(project.budget) });
-    setEditingId(project.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = (id) => {
-    deleteProject(id);
-    showNotification('Project removed.', 'info');
-  };
-
-  const handleCancel = () => {
-    setFormData(emptyForm);
-    setEditingId(null);
-    setShowForm(false);
-  };
-
-  const filtered = projects
-    .filter((p) => {
-      const matchSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.client.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchFilter = filterStatus === 'all' || p.status.toLowerCase().replace(' ', '-') === filterStatus;
-      return matchSearch && matchFilter;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'budget') return b.budget - a.budget;
-      if (sortBy === 'deadline') return new Date(a.deadline) - new Date(b.deadline);
-      return a.title.localeCompare(b.title);
-    });
+  const {
+    projects,
+    formData,
+    showForm,
+    editingId,
+    searchTerm,
+    filterStatus,
+    sortBy,
+    notification,
+    filtered,
+    handleChange,
+    handleSubmit,
+    handleEdit,
+    handleDelete,
+    handleCancel,
+    toggleForm,
+    setSearchTerm,
+    setFilterStatus,
+    setSortBy,
+    updateProject,
+    showNotification,
+  } = useProjectForm('service');
 
   return (
     <section className="section page-fade">
@@ -81,33 +36,21 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
       )}
 
       <header className="section__header">
-        <h2 className="section__title">Projects ({projects.length})</h2>
+        <h2 className="section__title">My Services ({projects.length})</h2>
         {userRole !== 'client' && (
-          <Button variant="primary" onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData(emptyForm); }}>
-            {showForm ? 'Close' : '+ New Project'}
+          <Button variant="primary" onClick={toggleForm}>
+            {showForm ? 'Close' : '+ New Service'}
           </Button>
         )}
       </header>
 
       {showForm && (
         <form className="form-card page-fade" onSubmit={handleSubmit}>
-          <h3 className="form-card__title">{editingId ? 'Edit Project' : 'Add New Project'}</h3>
+          <h3 className="form-card__title">{editingId ? 'Edit Service' : 'Add New Service'}</h3>
           <div className="form-grid">
             <div className="form-group">
-              <label className="form-label" htmlFor="title">Project Title *</label>
-              <input className="form-input" type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="Enter project title" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="client">Client Name *</label>
-              <input className="form-input" type="text" id="client" name="client" value={formData.client} onChange={handleChange} placeholder="Enter client name" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="status">Status</label>
-              <select className="form-input" id="status" name="status" value={formData.status} onChange={handleChange}>
-                <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-              </select>
+              <label className="form-label" htmlFor="title">Service Title *</label>
+              <input className="form-input" type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="Enter service title (e.g., Logo Design)" required />
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="budget">Budget (₱)</label>
@@ -123,7 +66,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
             </div>
           </div>
           <div className="form-actions">
-            <Button variant="primary" type="submit">{editingId ? 'Update Project' : 'Add Project'}</Button>
+            <Button variant="primary" type="submit">{editingId ? 'Update Service' : 'Add Service'}</Button>
             <Button variant="ghost" type="button" onClick={handleCancel}>Cancel</Button>
           </div>
         </form>
@@ -138,9 +81,9 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
           <input id="projectsSearch" type="text" className="search-input" placeholder="Search projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="filter-group">
-          {['all', 'in-progress', 'pending', 'completed', 'suspended'].map((s) => (
+          {['all', 'active', 'inactive'].map((s) => (
             <button key={s} className={`filter-btn${filterStatus === s ? ' filter-btn--active' : ''}`} onClick={() => setFilterStatus(s)}>
-              {s === 'all' ? 'All' : s === 'in-progress' ? 'Active' : s === 'pending' ? 'Pending' : s === 'suspended' ? 'Suspended' : 'Done'}
+              {s === 'all' ? 'All' : s === 'active' ? 'Active' : 'Inactive'}
             </button>
           ))}
         </div>
@@ -155,9 +98,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
       <div className="card-grid">
         {filtered.length > 0 ? (
           filtered.map((project) => (
-            <Card key={project.id} title={project.title} status={project.status}>
-              <p><strong>Client:</strong> {project.client}</p>
-
+            <Card key={project.id} title={project.title}>
               {userRole === 'admin' ? (
                 <>
                   <p><strong>Creator:</strong> {project.creator || 'Unknown'}</p>
@@ -191,11 +132,11 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                     className="card-action-btn card-action-btn--delete"
                     style={{ width: '100%' }}
                     onClick={() => {
-                      updateProject(project.id, { status: 'Suspended', adminNote: 'Force suspended by Administrator.' });
-                      showNotification(`Project ${project.id} Suspended.`, 'info');
+                      updateProject(project.id, { active: !project.active });
+                      showNotification(`Service ${project.active ? 'deactivated' : 'activated'}.`, 'info');
                     }}
                   >
-                    Force Suspend Project
+                    {project.active ? 'Deactivate Service' : 'Activate Service'}
                   </button>
                 </div>
               )}
@@ -204,7 +145,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
         ) : (
           <div className="empty-state">
             <span className="empty-state__icon">📂</span>
-            <p>No projects found.</p>
+            <p>No services found.</p>
           </div>
         )}
       </div>

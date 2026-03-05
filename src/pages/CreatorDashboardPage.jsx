@@ -1,25 +1,13 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../context/useProjects';
-import { CheckCircle2, Briefcase, Banknote, Search, Filter, Clock } from 'lucide-react';
+import { useOrders } from '../context/useOrders';
+import { CheckCircle2, Briefcase, Banknote, Clock } from 'lucide-react';
 import '../styles/CreatorDashboardPage.css';
 
 const CreatorDashboardPage = () => {
     const navigate = useNavigate();
-    const { projects, completedProjects, activeProjects, totalRevenue } = useProjects();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
-
-    const recentProjects = projects.filter((p) => p.status !== 'Completed');
-
-    const filteredProjects = recentProjects.filter((project) => {
-        const matchesSearch =
-            project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            project.client.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter =
-            filterStatus === 'all' || project.status.toLowerCase().replace(' ', '-') === filterStatus;
-        return matchesSearch && matchesFilter;
-    });
+    const { projects, completedProjects, activeProjects } = useProjects();
+    const { orders, completedOrders, activeOrders, totalEarnings } = useOrders();
 
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
@@ -29,13 +17,13 @@ const CreatorDashboardPage = () => {
             </header>
 
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/projects')}>
+                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/my-gigs')}>
                     <div style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '1rem', borderRadius: '16px' }}>
                         <CheckCircle2 size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services Completed</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{completedProjects.length}</p>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>My Gigs</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{projects.length}</p>
                     </div>
                 </div>
 
@@ -44,8 +32,8 @@ const CreatorDashboardPage = () => {
                         <Briefcase size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Projects</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{activeProjects.length}</p>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Orders</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{activeOrders.length}</p>
                     </div>
                 </div>
 
@@ -54,50 +42,30 @@ const CreatorDashboardPage = () => {
                         <Banknote size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>₱{totalRevenue.toLocaleString()}</p>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Earnings</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>₱{totalEarnings.toLocaleString()}</p>
                     </div>
                 </div>
             </section>
 
             <section className="glass-card">
                 <div className="glass-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', color: 'white', margin: 0 }}>Active Orders</h2>
-
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
-                            <label htmlFor="dashboardSearch" className="sr-only">Search active orders</label>
-                            <input
-                                id="dashboardSearch"
-                                type="text"
-                                placeholder="Search..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'white', fontSize: '0.9rem', outline: 'none' }}
-                            />
-                        </div>
-                        <label htmlFor="dashboardFilter" className="sr-only">Filter active orders by status</label>
-                        <select
-                            id="dashboardFilter"
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px', borderRadius: '8px', color: 'white', fontSize: '0.9rem', outline: 'none', appearance: 'none' }}
-                        >
-                            <option value="all" style={{ color: 'black' }}>All Status</option>
-                            <option value="in-progress" style={{ color: 'black' }}>In Progress</option>
-                            <option value="pending" style={{ color: 'black' }}>Pending</option>
-                        </select>
+                    <div>
+                        <h2 style={{ fontSize: '1.25rem', color: 'white', margin: 0 }}>Active Orders</h2>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{activeOrders.length} active order{activeOrders.length !== 1 ? 's' : ''}</p>
                     </div>
+                    <button onClick={() => navigate('/orders')} style={{ padding: '8px 16px', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' }}>
+                        View All Orders →
+                    </button>
                 </div>
 
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {filteredProjects.length > 0 ? (
-                        filteredProjects.map((project) => (
-                            <div key={project.id} style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    {activeOrders.length > 0 ? (
+                        activeOrders.slice(0, 3).map((order) => (
+                            <div key={order.id} style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div>
-                                    <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{project.title}</h3>
-                                    <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Client: {project.client} • ₱{(project.budget || 0).toLocaleString()}</p>
+                                    <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{order.service}</h3>
+                                    <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Client: {order.client} • ₱{(order.amount || 0).toLocaleString()}</p>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Clock size={14} color="#a1a1aa" />
@@ -107,18 +75,18 @@ const CreatorDashboardPage = () => {
                                         fontSize: '0.75rem',
                                         fontWeight: '600',
                                         textTransform: 'uppercase',
-                                        background: project.status === 'In Progress' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(250, 204, 21, 0.1)',
-                                        color: project.status === 'In Progress' ? '#38bdf8' : '#facc15'
+                                        background: order.status === 'In Progress' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(250, 204, 21, 0.1)',
+                                        color: order.status === 'In Progress' ? '#38bdf8' : '#facc15'
                                     }}>
-                                        {project.status}
+                                        {order.status}
                                     </span>
                                 </div>
                             </div>
                         ))
                     ) : (
                         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#71717a' }}>
-                            <Filter size={32} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-                            <p>No active orders found.</p>
+                            <p style={{ fontSize: '2rem', margin: '0 0 1rem' }}>🎯</p>
+                            <p>No active orders found. Create gigs and wait for clients to place orders!</p>
                         </div>
                     )}
                 </div>

@@ -1,5 +1,6 @@
-import { useState, memo } from 'react';
+import { memo } from 'react';
 import { User, Bell, Lock, FileText, Sparkles, Users, CreditCard, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import { useSettings } from '../context/hooks/useSettings';
 import '../styles/SettingsPage.css';
 
 const ToggleSwitch = memo(({ checked, onChange }) => (
@@ -36,19 +37,20 @@ const ToggleSwitch = memo(({ checked, onChange }) => (
 ToggleSwitch.displayName = 'ToggleSwitch';
 
 const SettingsPage = ({ userRole }) => {
-    const [activeSection, setActiveSection] = useState('profile');
-
-    // Shared Mocks
-    const [phone, setPhone] = useState('09123456789');
-    const [pushNotif, setPushNotif] = useState(true);
-    const [emailNotif, setEmailNotif] = useState(false);
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-
-    // Admin Mocks
-    const [maintenanceMode, setMaintenanceMode] = useState(false);
-    const [autoSuspend, setAutoSuspend] = useState(true);
-    const [commissionRate, setCommissionRate] = useState('15');
+    const {
+        activeSection,
+        setActiveSection,
+        phone,
+        currentPassword,
+        newPassword,
+        pushNotif,
+        emailNotif,
+        maintenanceMode,
+        autoSuspend,
+        commissionRate,
+        toggleSetting,
+        updateSetting,
+    } = useSettings();
 
     // Render logic switch based on activeSection
     const renderContent = () => {
@@ -80,7 +82,7 @@ const SettingsPage = ({ userRole }) => {
                     </div>
                     <div>
                         <label htmlFor="phone" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Phone Number</label>
-                        <input id="phone" type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
+                        <input id="phone" type="text" value={phone} onChange={(e) => updateSetting('phone', e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                     </div>
                     <button style={{ alignSelf: 'flex-start', background: '#3b82f6', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Save Changes</button>
                 </div>
@@ -95,14 +97,14 @@ const SettingsPage = ({ userRole }) => {
                             <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Push Notifications</h4>
                             <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Receive real-time alerts on your device for active order updates.</p>
                         </div>
-                        <ToggleSwitch checked={pushNotif} onChange={setPushNotif} />
+                        <ToggleSwitch checked={pushNotif} onChange={() => toggleSetting('pushNotif')} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
                             <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Email Updates</h4>
                             <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Receive daily digests and promotional materials to your inbox.</p>
                         </div>
-                        <ToggleSwitch checked={emailNotif} onChange={setEmailNotif} />
+                        <ToggleSwitch checked={emailNotif} onChange={() => toggleSetting('emailNotif')} />
                     </div>
                 </div>
             );
@@ -113,12 +115,12 @@ const SettingsPage = ({ userRole }) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div>
                         <label htmlFor="currentPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Current Password</label>
-                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
+                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => updateSetting('currentPassword', e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div>
                             <label htmlFor="newPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>New Password</label>
-                            <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
+                            <input id="newPassword" type="password" value={newPassword} onChange={(e) => updateSetting('newPassword', e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                         </div>
                         <div>
                             <label htmlFor="confirmNewPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Confirm New Password</label>
@@ -174,18 +176,18 @@ const SettingsPage = ({ userRole }) => {
                             <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Under Maintenance Mode</h4>
                             <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Restricts login access to Admin accounts only while deploying updates.</p>
                         </div>
-                        <ToggleSwitch checked={maintenanceMode} onChange={setMaintenanceMode} />
+                        <ToggleSwitch checked={maintenanceMode} onChange={() => toggleSetting('maintenanceMode')} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <div>
                             <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Automated Suspensions</h4>
                             <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Automatically suspend creators whose report threshold exceeds 5.</p>
                         </div>
-                        <ToggleSwitch checked={autoSuspend} onChange={setAutoSuspend} />
+                        <ToggleSwitch checked={autoSuspend} onChange={() => toggleSetting('autoSuspend')} />
                     </div>
                     <div>
                         <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Global Platform Commission Rate (%)</label>
-                        <input type="number" value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} style={{ width: '30%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
+                        <input type="number" value={commissionRate} onChange={(e) => updateSetting('commissionRate', e.target.value)} style={{ width: '30%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                     </div>
                     <button style={{ alignSelf: 'flex-start', background: '#10b981', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Save Configurations</button>
                 </div>

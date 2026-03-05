@@ -1,55 +1,28 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLoginForm } from '../context/hooks/useLoginForm';
 import Button from '../components/Button';
 import { Eye, EyeOff } from 'lucide-react';
 import '../styles/LoginPage.css';
 import '../styles/LogoutPage.css';
 
 const LoginPage = ({ onLogin }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    fullName: '',
-    role: 'creator',
-    rememberMe: false,
-  });
-  const [errors, setErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
-  };
-
-  const validate = () => {
-    const newErrors = {};
-    if (!form.email) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = 'Invalid email format';
-    if (!form.password) newErrors.password = 'Password is required';
-    else if (form.password.length < 6) newErrors.password = 'Minimum 6 characters';
-    if (isSignUp) {
-      if (!form.fullName.trim()) newErrors.fullName = 'Full name is required';
-      if (form.password !== form.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const {
+    isSignUp,
+    form,
+    errors,
+    showPassword,
+    handleChange,
+    validate,
+    toggleMode,
+    togglePasswordVisibility,
+  } = useLoginForm();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
-    onLogin(form.role); // Pass selected role to App
+    onLogin(form.role);
     navigate('/');
-  };
-
-  const toggleMode = () => {
-    setIsSignUp(!isSignUp);
-    setErrors({});
-    setForm({ email: '', password: '', confirmPassword: '', fullName: '', role: 'creator', rememberMe: false });
   };
 
   return (
@@ -76,7 +49,7 @@ const LoginPage = ({ onLogin }) => {
             <label className="form-label" htmlFor="login-password">Password</label>
             <div className="password-wrapper">
               <input className={`form-input${errors.password ? ' form-input--error' : ''}`} type={showPassword ? 'text' : 'password'} id="login-password" name="password" value={form.password} onChange={handleChange} placeholder="••••••••" />
-              <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
+              <button type="button" className="password-toggle" onClick={togglePasswordVisibility}>
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>

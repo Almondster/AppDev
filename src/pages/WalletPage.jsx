@@ -1,32 +1,9 @@
-import { useState, useCallback } from 'react';
-import { Wallet, ArrowUpRight, Plus, CreditCard } from 'lucide-react';
+import { Wallet, ArrowUpRight, Plus } from 'lucide-react';
+import { useWallet } from '../context/hooks/useWallet';
 import '../styles/WalletPage.css';
 
 const WalletPage = ({ userRole }) => {
-    const [balance, setBalance] = useState(150.00);
-    const [amount, setAmount] = useState('');
-
-    const handleWithdraw = useCallback((e) => {
-        e.preventDefault();
-        const numAmount = parseFloat(amount);
-        if (!numAmount || numAmount <= 0) return;
-        if (numAmount > balance) {
-            alert('Insufficient funds');
-            return;
-        }
-        setBalance(prev => prev - numAmount);
-        setAmount('');
-        alert(`Successfully withdrew ₱${numAmount.toFixed(2)}`);
-    }, [amount, balance]);
-
-    const handleDeposit = useCallback((e) => {
-        e.preventDefault();
-        const numAmount = parseFloat(amount);
-        if (!numAmount || numAmount <= 0) return;
-        setBalance(prev => prev + numAmount);
-        setAmount('');
-        alert(`Successfully deposited ₱${numAmount.toFixed(2)}`);
-    }, [amount]);
+    const { balance, amount, setAmount, handleWithdraw, handleDeposit } = useWallet();
 
     return (
         <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>

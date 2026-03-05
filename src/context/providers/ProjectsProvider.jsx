@@ -1,31 +1,19 @@
-import { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import defaultProjects from '../components/defaultProjects';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { ProjectsContext } from '../contexts/ProjectsContext';
+import { loadFromStorage, saveToStorage } from '../utils/storage';
+import { DEFAULT_PROJECTS } from '../utils/defaults';
 
 const STORAGE_KEY = 'createch_projects';
 
-const loadProjects = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch (e) {
-    console.error('Failed to load projects from localStorage', e);
-  }
-  return defaultProjects;
-};
-
-const ProjectsContext = createContext();
-
-export { ProjectsContext };
+const loadProjects = () => loadFromStorage(STORAGE_KEY, DEFAULT_PROJECTS);
 
 export const ProjectsProvider = ({ children }) => {
   const [projects, setProjects] = useState(loadProjects);
 
-  // Sync to localStorage whenever projects change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+    saveToStorage(STORAGE_KEY, projects);
   }, [projects]);
 
-  // Memoize callbacks to prevent unnecessary re-renders in consumers
   const addProject = useCallback((project) => {
     const newProject = { ...project, id: Date.now(), budget: Number(project.budget) };
     setProjects((prev) => [...prev, newProject]);
@@ -34,7 +22,7 @@ export const ProjectsProvider = ({ children }) => {
 
   const updateProject = useCallback((id, data) => {
     setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...data, budget: Number(data.budget) } : p))
+      prev.map((p) => (p.id === id ? { ...p, ...data, budget: data.budget !== undefined ? Number(data.budget) : p.budget } : p))
     );
   }, []);
 
@@ -42,13 +30,11 @@ export const ProjectsProvider = ({ children }) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  // Memoize derived data to avoid recalculating on every render
   const completedProjects = useMemo(() => projects.filter((p) => p.status === 'Completed'), [projects]);
   const activeProjects = useMemo(() => projects.filter((p) => p.status === 'In Progress'), [projects]);
   const pendingProjects = useMemo(() => projects.filter((p) => p.status === 'Pending'), [projects]);
   const totalRevenue = useMemo(() => completedProjects.reduce((sum, p) => sum + (p.budget || 0), 0), [completedProjects]);
 
-  // Memoize context value to prevent re-renders when object reference changes
   const contextValue = useMemo(() => ({
     projects,
     addProject,

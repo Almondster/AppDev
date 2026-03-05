@@ -9,7 +9,8 @@ import {
     LogOut,
     Users,
     AlertTriangle,
-    ShieldCheck
+    ShieldCheck,
+    Package
 } from 'lucide-react';
 
 const Sidebar = ({ userRole, onLogout }) => {
@@ -24,7 +25,8 @@ const Sidebar = ({ userRole, onLogout }) => {
 
     const creatorMenu = [
         { to: '/', label: 'Studio', icon: <LayoutGrid size={18} /> },
-        { to: '/projects', label: 'My Gigs', icon: <Briefcase size={18} /> },
+        { to: '/my-gigs', label: 'My Gigs', icon: <Briefcase size={18} /> },
+        { to: '/orders', label: 'Orders', icon: <Package size={18} /> },
         { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
         { to: '/notifications', label: 'Notifications', icon: <Bell size={18} /> },
         { to: '/wallet', label: 'Earnings', icon: <Wallet size={18} /> },
