@@ -26,26 +26,26 @@
 .wallet-header__title {
     font-size: 2rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--text-primary);
     margin: 0;
 }
 
 .wallet-header__subtitle {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 1rem;
     margin: 0;
 }
 
 .wallet-balance {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card-bg);
     padding: 1.5rem 2.5rem;
     border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     text-align: center;
 }
 
 .wallet-balance__label {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -55,7 +55,7 @@
 .wallet-balance__value {
     font-size: 2.5rem;
     font-weight: 800;
-    color: #fff;
+    color: var(--text-primary);
     margin: 0;
 }
 
@@ -94,7 +94,7 @@
 
 .wallet-card__title {
     font-size: 1.25rem;
-    color: #fff;
+    color: var(--text-primary);
     margin: 0;
 }
 

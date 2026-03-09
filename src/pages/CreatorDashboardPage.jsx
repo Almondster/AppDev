@@ -24,8 +24,8 @@ const CreatorDashboardPage = () => {
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
             <header className="hero-gradient" style={{ padding: '3rem 2rem' }}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>Creator Hub</h1>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Manage your services and track your freelance business.</p>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Creator Hub</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Manage your services and track your freelance business.</p>
             </header>
 
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
@@ -34,8 +34,8 @@ const CreatorDashboardPage = () => {
                         <CheckCircle2 size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services Completed</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{completedProjects.length}</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services Completed</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{completedProjects.length}</p>
                     </div>
                 </div>
 
@@ -44,8 +44,8 @@ const CreatorDashboardPage = () => {
                         <Briefcase size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Projects</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{activeProjects.length}</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Projects</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{activeProjects.length}</p>
                     </div>
                 </div>
 
@@ -54,19 +54,19 @@ const CreatorDashboardPage = () => {
                         <Banknote size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>₱{totalRevenue.toLocaleString()}</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>₱{totalRevenue.toLocaleString()}</p>
                     </div>
                 </div>
             </section>
 
             <section className="glass-card">
                 <div className="glass-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', color: 'white', margin: 0 }}>Active Orders</h2>
+                    <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Active Orders</h2>
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <div style={{ position: 'relative' }}>
-                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
+                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
                             <label htmlFor="dashboardSearch" className="sr-only">Search active orders</label>
                             <input
                                 id="dashboardSearch"
@@ -74,7 +74,7 @@ const CreatorDashboardPage = () => {
                                 placeholder="Search..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'white', fontSize: '0.9rem', outline: 'none' }}
+                                style={{ background: 'var(--input-bg)', border: `1px solid var(--border-color)`, padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
                             />
                         </div>
                         <label htmlFor="dashboardFilter" className="sr-only">Filter active orders by status</label>
@@ -82,7 +82,7 @@ const CreatorDashboardPage = () => {
                             id="dashboardFilter"
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px', borderRadius: '8px', color: 'white', fontSize: '0.9rem', outline: 'none', appearance: 'none' }}
+                            style={{ background: 'var(--input-bg)', border: `1px solid var(--border-color)`, padding: '8px 16px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', appearance: 'none' }}
                         >
                             <option value="all" style={{ color: 'black' }}>All Status</option>
                             <option value="in-progress" style={{ color: 'black' }}>In Progress</option>
@@ -94,13 +94,13 @@ const CreatorDashboardPage = () => {
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {filteredProjects.length > 0 ? (
                         filteredProjects.map((project) => (
-                            <div key={project.id} style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div key={project.id} style={{ padding: '1.25rem', background: 'var(--card-bg)', borderRadius: '12px', border: `1px solid var(--border-color)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div>
-                                    <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{project.title}</h3>
-                                    <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Client: {project.client} • ₱{(project.budget || 0).toLocaleString()}</p>
+                                    <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '4px' }}>{project.title}</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>Client: {project.client} • ₱{(project.budget || 0).toLocaleString()}</p>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Clock size={14} color="#a1a1aa" />
+                                    <Clock size={14} color="var(--text-secondary)" />
                                     <span style={{
                                         padding: '4px 12px',
                                         borderRadius: '20px',
@@ -116,7 +116,7 @@ const CreatorDashboardPage = () => {
                             </div>
                         ))
                     ) : (
-                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#71717a' }}>
+                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-tertiary)' }}>
                             <Filter size={32} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
                             <p>No active orders found.</p>
                         </div>

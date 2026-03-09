@@ -1,6 +1,7 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { ProjectsProvider } from './context/ProjectsContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Sidebar from './components/Sidebar';
 import './index.css';
 
@@ -66,15 +67,16 @@ function App() {
   }, []);
 
   return (
-    <ProjectsProvider>
-      <div className="app">
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/login" element={
-              isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
-            } />
+    <ThemeProvider>
+      <ProjectsProvider>
+        <div className="app">
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/landing" element={<LandingPage />} />
+              <Route path="/login" element={
+                isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
+              } />
 
             {/* Protected Routes */}
             <Route element={<ProtectedLayout isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
@@ -94,12 +96,13 @@ function App() {
               <Route path="/creator-profile" element={<CreatorProfilePage />} />
             </Route>
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </div>
-    </ProjectsProvider>
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </ProjectsProvider>
+    </ThemeProvider>
   );
 }
 

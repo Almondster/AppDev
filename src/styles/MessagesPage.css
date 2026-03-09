@@ -1,6 +1,6 @@
 .messages-panel {
-    background: #18181b;
-    border: 1px solid #27272a;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 24px;
 }
@@ -15,9 +15,9 @@
 
 .message-item {
     padding: 12px;
-    background: #0e0e11;
+    background: var(--input-bg);
     border-radius: 8px;
-    border: 1px solid #27272a;
+    border: 1px solid var(--border-color);
 }
 
 .message-item__header {
@@ -26,16 +26,16 @@
     align-items: center;
     margin-bottom: 6px;
     font-size: 0.82rem;
-    color: #fafafa;
+    color: var(--text-primary);
 }
 
 .message-item__text {
     font-size: 0.8rem;
-    color: #a1a1aa;
+    color: var(--text-secondary);
     margin-bottom: 4px;
 }
 
 .message-item__date {
     font-size: 0.68rem;
-    color: #52525b;
+    color: var(--text-tertiary);
 }

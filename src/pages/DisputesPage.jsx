@@ -22,14 +22,14 @@ const DisputesPage = () => {
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Active Disputes</h1>
+                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Active Disputes</h1>
                         <AlertOctagon size={28} color="#ef4444" />
                     </div>
                     <p style={{ color: '#fca5a5', fontSize: '1rem', margin: 0 }}>Arbitrate platform conflicts and review escrow claims.</p>
                 </div>
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
                     <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Escrow in Dispute</p>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>₱57,500</h2>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>₱57,500</h2>
                 </div>
             </header>
 
@@ -40,30 +40,30 @@ const DisputesPage = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                                    <h3 style={{ color: '#fff', fontSize: '1.1rem', margin: 0 }}>{dispute.id}</h3>
+                                    <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', margin: 0 }}>{dispute.id}</h3>
                                     <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#f87171' }}>
                                         {dispute.status}
                                     </span>
                                 </div>
-                                <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Filed on {dispute.date}</p>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>Filed on {dispute.date}</p>
                             </div>
-                            <h3 style={{ color: '#fff', fontSize: '1.25rem', margin: 0 }}>{dispute.amount}</h3>
+                            <h3 style={{ color: 'var(--text-primary)', fontSize: '1.25rem', margin: 0 }}>{dispute.amount}</h3>
                         </div>
 
-                        <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                        <div style={{ background: 'var(--card-bg)', padding: '1.25rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
                             <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem' }}>
                                 <div>
-                                    <span style={{ display: 'block', color: '#71717a', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Client</span>
-                                    <span style={{ color: '#fff', fontWeight: '500' }}>{dispute.client}</span>
+                                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Client</span>
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{dispute.client}</span>
                                 </div>
                                 <div>
-                                    <span style={{ display: 'block', color: '#71717a', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Creator</span>
-                                    <span style={{ color: '#fff', fontWeight: '500' }}>{dispute.creator}</span>
+                                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Creator</span>
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{dispute.creator}</span>
                                 </div>
                             </div>
                             <div>
-                                <span style={{ display: 'block', color: '#71717a', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Reported Issue</span>
-                                <p style={{ color: '#d4d4d8', fontSize: '0.95rem', margin: 0, lineHeight: '1.5' }}>{dispute.issue}</p>
+                                <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Reported Issue</span>
+                                <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', margin: 0, lineHeight: '1.5' }}>{dispute.issue}</p>
                             </div>
                         </div>
 
@@ -71,7 +71,7 @@ const DisputesPage = () => {
                             <button style={{ flex: 1, padding: '0.75rem', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
                                 <Scale size={18} /> Review Evidence
                             </button>
-                            <button style={{ padding: '0.75rem 1.5rem', background: 'transparent', color: '#d4d4d8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+                            <button style={{ padding: '0.75rem 1.5rem', background: 'transparent', color: 'var(--text-primary)', border: `1px solid var(--border-color)`, borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
                                 <MessageSquare size={18} /> Message Parties
                             </button>
                             <button style={{ padding: '0.75rem 1.5rem', background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>

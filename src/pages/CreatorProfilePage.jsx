@@ -4,14 +4,14 @@ import '../styles/CreatorProfilePage.css';
 const CreatorProfilePage = () => {
     return (
         <section className="section page-fade">
-            <header className="section__header" style={{ alignItems: 'flex-start', borderBottom: '1px solid #27272a', paddingBottom: '2rem' }}>
+            <header className="section__header" style={{ alignItems: 'flex-start', borderBottom: `1px solid var(--border-color)`, paddingBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
+                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
                         👩‍🎨
                     </div>
                     <div>
                         <h2 className="section__title" style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Jane Doe</h2>
-                        <p style={{ color: '#a1a1aa', fontSize: '1rem', marginBottom: '1rem' }}>Senior Web Designer</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginBottom: '1rem' }}>Senior Web Designer</p>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <span className="badge badge--completed">React</span>
                             <span className="badge badge--completed">TailwindCSS</span>
@@ -33,7 +33,7 @@ const CreatorProfilePage = () => {
                 <div className="card">
                     <h3 className="card__title">Services</h3>
                     <div className="card__body">
-                        <ul style={{ color: '#a1a1aa', paddingLeft: '1.2rem', fontSize: '0.85rem', lineHeight: '1.8' }}>
+                        <ul style={{ color: 'var(--text-secondary)', paddingLeft: '1.2rem', fontSize: '0.85rem', lineHeight: '1.8' }}>
                             <li>Wireframing</li>
                             <li>High-fidelity Mockups</li>
                             <li>Interactive Prototypes</li>

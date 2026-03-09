@@ -9,10 +9,14 @@ import {
     LogOut,
     Users,
     AlertTriangle,
-    ShieldCheck
+    ShieldCheck,
+    Moon,
+    Sun
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 const Sidebar = ({ userRole, onLogout }) => {
+    const { theme, toggleTheme } = useTheme();
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
@@ -77,6 +81,10 @@ const Sidebar = ({ userRole, onLogout }) => {
             </nav>
 
             <div className="sidebar-footer">
+                <button className="nav-item nav-item--theme" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                    <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+                </button>
                 {userRole !== 'admin' && (
                     <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
                         <Settings size={18} />

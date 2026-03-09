@@ -59,9 +59,9 @@
   width: 100%;
   padding: 8px 12px 8px 32px;
   border-radius: 8px;
-  border: 1px solid #27272a;
-  background: #18181b;
-  color: #e4e4e7;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-primary);
   font-size: 0.8rem;
   font-family: inherit;
   outline: none;
@@ -69,11 +69,11 @@
 }
 
 .search-input::placeholder {
-  color: #52525b;
+  color: var(--text-tertiary);
 }
 
 .search-input:focus {
-  border-color: #52525b;
+  border-color: var(--text-secondary);
 }
 
 /* Notification */
