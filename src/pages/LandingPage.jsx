@@ -5,8 +5,8 @@ const LandingPage = () => {
     return (
         <section className="section page-fade" style={{ textAlign: 'center', paddingTop: '4rem' }}>
             <header>
-                <h1 style={{ fontSize: '3rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>Welcome to CREATECH</h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', marginBottom: '2rem' }}>
+                <h1 style={{ fontSize: '3rem', color: '#fff', marginBottom: '1rem' }}>Welcome to CREATECH</h1>
+                <p style={{ color: '#a1a1aa', fontSize: '1.2rem', marginBottom: '2rem' }}>
                     Connect with top creators. Bring your projects to life.
                 </p>
             </header>

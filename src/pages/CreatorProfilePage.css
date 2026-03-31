@@ -1,0 +1,48 @@
+/* Profile Preview */
+.profile-preview {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 20px;
+    padding: 16px;
+    background: #0e0e11;
+    border-radius: 10px;
+    border: 1px solid #27272a;
+}
+
+.profile-preview__avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.profile-preview__info h4 {
+    color: #fafafa;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.profile-preview__info p {
+    color: #a1a1aa;
+    font-size: 0.78rem;
+}
+
+.profile-preview__email {
+    color: #71717a !important;
+    font-size: 0.72rem !important;
+}
+
+/* Contact Layout */
+.contact-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}

@@ -42,7 +42,6 @@ const NotificationsPage = ({ userRole = 'creator' }) => {
 
     const markAllRead = () => {
         setNotifications((prev) => prev.map(n => ({ ...n, read: true })));
-        showNotification('All notifications marked as read.');
     };
 
     const toggleRead = (id) => {
@@ -63,12 +62,6 @@ const NotificationsPage = ({ userRole = 'creator' }) => {
 
     return (
         <section className="section page-fade">
-            {notification && (
-                <div className={`notification notification--${notification.type}`} style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
-                    {notification.message}
-                </div>
-            )}
-
             <header className="section__header">
                 <h2 className="section__title">
                     Notifications

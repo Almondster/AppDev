@@ -1,0 +1,82 @@
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  background: #18181b;
+  padding: 48px 40px;
+  border-radius: 12px;
+  border: 1px solid #27272a;
+  max-width: 400px;
+  width: 100%;
+}
+
+.login-card h2 {
+  color: #fafafa;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.login-card p {
+  color: #71717a;
+  font-size: 0.85rem;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+  margin-top: 8px;
+}
+
+.login-form .btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper .form-input {
+  width: 100%;
+  padding-right: 56px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #71717a;
+  font-size: 0.72rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.password-toggle:hover {
+  color: #d4d4d8;
+}
+
+.login-toggle {
+  font-size: 0.8rem;
+  color: #71717a;
+}
+
+.login-toggle a {
+  color: #22c55e;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.login-toggle a:hover {
+  text-decoration: underline;
+}

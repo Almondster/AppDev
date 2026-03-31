@@ -1,10 +1,5 @@
-import { useState, memo } from 'react';
-import { useNotification } from '../hooks/useNotification';
-import {
-    User, Bell, Lock, FileText, Sparkles, Users, CreditCard,
-    Settings as SettingsIcon, ShieldAlert, ClipboardList, Activity, Save
-} from 'lucide-react';
-import '../styles/SettingsPage.css';
+import React, { useState } from 'react';
+import { User, Bell, Lock, FileText, Sparkles, Users, CreditCard, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
 
 const ToggleSwitch = memo(({ checked, onChange }) => (
     <button
@@ -73,21 +68,21 @@ const SettingsPage = ({ userRole }) => {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div>
-                            <label htmlFor="firstName" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>First Name</label>
-                            <input id="firstName" type="text" defaultValue={userRole === 'admin' ? 'Admin' : 'Test'} style={inputStyle} />
+                            <label htmlFor="firstName" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>First Name</label>
+                            <input id="firstName" type="text" defaultValue="Test" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                         </div>
                         <div>
-                            <label htmlFor="lastName" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Last Name</label>
-                            <input id="lastName" type="text" defaultValue="User" style={inputStyle} />
+                            <label htmlFor="lastName" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Last Name</label>
+                            <input id="lastName" type="text" defaultValue="User" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                         </div>
                     </div>
                     <div>
-                        <label htmlFor="email" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Email Address</label>
-                        <input id="email" type="email" defaultValue={userRole === 'admin' ? 'admin@createch.com' : 'user@example.com'} style={inputStyle} />
+                        <label htmlFor="email" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Email Address</label>
+                        <input id="email" type="email" defaultValue="user@example.com" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                     </div>
                     <div>
-                        <label htmlFor="phone" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Phone Number</label>
-                        <input id="phone" type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+                        <label htmlFor="phone" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Phone Number</label>
+                        <input id="phone" type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                     </div>
                     <button onClick={() => handleSave('Profile')} style={saveBtnStyle('#3b82f6')}><Save size={16} /> Save Changes</button>
                 </div>
@@ -119,17 +114,17 @@ const SettingsPage = ({ userRole }) => {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div>
-                        <label htmlFor="currentPassword" style={labelStyle}>Current Password</label>
-                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={inputStyle} />
+                        <label htmlFor="currentPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Current Password</label>
+                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div>
-                            <label htmlFor="newPassword" style={labelStyle}>New Password</label>
-                            <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} />
+                            <label htmlFor="newPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>New Password</label>
+                            <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                         </div>
                         <div>
-                            <label htmlFor="confirmNewPassword" style={labelStyle}>Confirm New Password</label>
-                            <input id="confirmNewPassword" type="password" style={inputStyle} />
+                            <label htmlFor="confirmNewPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Confirm New Password</label>
+                            <input id="confirmNewPassword" type="password" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
                         </div>
                     </div>
                     {userRole === 'admin' && (
@@ -143,6 +138,42 @@ const SettingsPage = ({ userRole }) => {
             );
         }
 
+        if (activeSection === 'support') {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div style={{ padding: '1.5rem', border: '1px solid #ef4444', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '12px' }}>
+                        <h4 style={{ color: '#f87171', fontSize: '1.1rem', margin: '0 0 0.5rem 0' }}>Danger Zone</h4>
+                        <p style={{ color: '#fca5a5', fontSize: '0.9rem', margin: '0 0 1rem 0' }}>Permanently delete your account and all associated data. This action cannot be undone.</p>
+                        <button style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Delete Account</button>
+                    </div>
+                </div>
+            )
+        }
+
+        // --- CREATOR SPECIFIC ---
+        if (activeSection === 'creator-profile') {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div>
+                        <label htmlFor="bio" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Professional Bio</label>
+                        <textarea id="bio" rows="4" defaultValue="Senior UX Designer with 5 years of experience." style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff', resize: 'vertical' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        <div>
+                            <label htmlFor="portfolio" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Portfolio URL</label>
+                            <input id="portfolio" type="text" defaultValue="https://myportfolio.com" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
+                        </div>
+                        <div>
+                            <label htmlFor="hourlyRate" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Hourly Rate (₱)</label>
+                            <input id="hourlyRate" type="number" defaultValue="750" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
+                        </div>
+                    </div>
+                    <button style={{ alignSelf: 'flex-start', background: '#a855f7', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Update Creator Profile</button>
+                </div>
+            );
+        }
+
+        // --- ADMIN SPECIFIC ---
         if (activeSection === 'platform-config') {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -351,12 +382,6 @@ const SettingsPage = ({ userRole }) => {
 
     return (
         <main className="dashboard-content page-fade" style={{ padding: '2rem 0', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            {notification && (
-                <div className={`notification notification--${notification.type}`} style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
-                    {notification.message}
-                </div>
-            )}
-
             <div style={{ marginBottom: '2rem' }}>
                 <h2 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>Settings</h2>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', margin: 0 }}>

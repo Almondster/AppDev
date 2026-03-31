@@ -105,8 +105,8 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
       )}
 
       <header className="section__header">
-        <h2 className="section__title">{pageTitle} ({filtered.length})</h2>
-        {(userRole === 'creator' || userRole === 'admin') && (
+        <h2 className="section__title">Projects ({projects.length})</h2>
+        {userRole !== 'client' && (
           <Button variant="primary" onClick={() => { setShowForm(!showForm); setEditingId(null); setFormData(emptyForm); }}>
             {showForm ? 'Close' : userRole === 'admin' ? '+ Add Item' : '+ New Service'}
           </Button>
@@ -155,8 +155,8 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
           <span className="search-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </span>
-          <label htmlFor="projectsSearch" className="sr-only">Search</label>
-          <input id="projectsSearch" type="text" className="search-input" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <label htmlFor="projectsSearch" className="sr-only">Search projects</label>
+          <input id="projectsSearch" type="text" className="search-input" placeholder="Search projects..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="filter-group">
           {filterOptions.map((s) => (
@@ -165,7 +165,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
             </button>
           ))}
         </div>
-        <label htmlFor="projectsSort" className="sr-only">Sort</label>
+        <label htmlFor="projectsSort" className="sr-only">Sort projects</label>
         <select id="projectsSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="title">Sort: Name</option>
           <option value="budget">Sort: Budget</option>

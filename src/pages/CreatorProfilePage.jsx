@@ -1,10 +1,10 @@
-
-import '../styles/CreatorProfilePage.css';
+import React from 'react';
+import './CreatorProfilePage.css';
 
 const CreatorProfilePage = () => {
     return (
         <section className="section page-fade">
-            <header className="section__header" style={{ alignItems: 'flex-start', borderBottom: `1px solid var(--border-color)`, paddingBottom: '2rem' }}>
+            <header className="section__header" style={{ alignItems: 'flex-start', borderBottom: '1px solid #27272a', paddingBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
                     <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
                         👩‍🎨
