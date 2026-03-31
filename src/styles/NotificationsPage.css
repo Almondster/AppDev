@@ -1,8 +1,0 @@
-/* ===== Notifications Page ===== */
-.notifications-page__grid {
-    grid-template-columns: 1fr;
-}
-
-.notification-card--unread {
-    border-color: #3b82f6;
-}

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNotification } from '../hooks/useNotification';
-import '../styles/NotificationsPage.css';
 
 const getNotificationsForRole = (role) => {
     const base = [

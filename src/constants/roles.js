@@ -8,8 +8,3 @@ export const ROLES = {
     ADMIN: 'admin',
 };
 
-export const ROLE_LABELS = {
-    [ROLES.CREATOR]: 'Creator',
-    [ROLES.CLIENT]: 'Client',
-    [ROLES.ADMIN]: 'Administrator',
-};

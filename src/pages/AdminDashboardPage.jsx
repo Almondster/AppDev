@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { Users, BarChart3, AlertTriangle, ShieldCheck, ArrowRight, Briefcase, Settings as SettingsIcon } from 'lucide-react';
-import '../styles/AdminDashboardPage.css';
 
 const AdminDashboardPage = () => {
     const navigate = useNavigate();

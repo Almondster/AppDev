@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useProjects } from '../hooks/useProjects';
-import '../styles/OrdersPage.css';
 
 const OrdersPage = ({ userRole = 'creator' }) => {
     const { orders } = useProjects();
