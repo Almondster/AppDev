@@ -1,5 +1,8 @@
-import React from 'react';
-import { AlertOctagon, Scale, MessageSquare, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AlertOctagon, Scale, MessageSquare, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNotification } from '../hooks/useNotification';
+import '../styles/DisputesPage.css';
 
 const initialDisputes = [
     { id: 'DSP-8842', client: 'TechFlow Solutions', creator: 'Alex Rivera', amount: 45000, status: 'Requires Arbitration', date: 'Oct 24, 2026', issue: 'Client claims milestones were missed despite creator providing deliverable proof.', showEvidence: false },
@@ -32,15 +35,16 @@ const DisputesPage = () => {
 
     return (
         <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
-            {/* Header (Red Tinted for Alerts) */}
+            {notification && (
+                <div className={`notification notification--${notification.type}`} style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
+                    {notification.message}
+                </div>
+            )}
+
+            {/* Header */}
             <header className="glass-card" style={{
-                padding: '2.5rem',
-                marginBottom: '2.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 24, 27, 0.6))',
-                border: '1px solid rgba(239, 68, 68, 0.2)'
+                padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: 'linear-gradient(135deg, rgba(239,68,68,0.15), var(--dispute-gradient-end))', border: '1px solid rgba(239,68,68,0.2)'
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

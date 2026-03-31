@@ -25,8 +25,8 @@ const CreatorDashboardPage = () => {
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
             <header className="hero-gradient" style={{ padding: '3rem 2rem' }}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>Creator Hub</h1>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Manage your services and track your freelance business.</p>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Creator Hub</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Manage your services and track your freelance business.</p>
             </header>
 
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
@@ -67,7 +67,7 @@ const CreatorDashboardPage = () => {
 
                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                         <div style={{ position: 'relative' }}>
-                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717a' }} />
+                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
                             <label htmlFor="dashboardSearch" className="sr-only">Search active orders</label>
                             <input
                                 id="dashboardSearch"

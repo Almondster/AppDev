@@ -59,7 +59,7 @@ const WalletPage = ({ userRole }) => {
                         </div>
                         <form onSubmit={handleWithdraw} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label htmlFor="withdrawAmount" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Withdrawal Amount (₱)</label>
+                                <label htmlFor="withdrawAmount" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Withdrawal Amount (₱)</label>
                                 <input
                                     id="withdrawAmount"
                                     type="number"
@@ -91,7 +91,7 @@ const WalletPage = ({ userRole }) => {
                         </div>
                         <form onSubmit={handleDeposit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label htmlFor="depositAmount" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Deposit Amount (₱)</label>
+                                <label htmlFor="depositAmount" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Deposit Amount (₱)</label>
                                 <input
                                     id="depositAmount"
                                     type="number"

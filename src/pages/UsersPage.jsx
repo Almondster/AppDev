@@ -1,13 +1,8 @@
-import React from 'react';
-import { ShieldAlert, BadgeCheck, MoreVertical, Search, Filter } from 'lucide-react';
-
-const mockUsers = [
-    { id: 1, name: 'Alex Rivera', role: 'Creator', status: 'Active', joined: 'Jan 12, 2026', reports: 0 },
-    { id: 2, name: 'TechFlow Solutions', role: 'Client', status: 'Active', joined: 'Feb 03, 2026', reports: 1 },
-    { id: 3, name: 'Sarah Chen', role: 'Creator', status: 'Suspended', joined: 'Nov 15, 2025', reports: 4 },
-    { id: 4, name: 'Mike Johnson', role: 'Client', status: 'Active', joined: 'Mar 22, 2026', reports: 0 },
-    { id: 5, name: 'Digital Studio V', role: 'Creator', status: 'Warning', joined: 'Dec 05, 2025', reports: 2 }
-];
+import { useState } from 'react';
+import { ShieldAlert, BadgeCheck, MoreVertical, Search, X, ChevronDown } from 'lucide-react';
+import mockUsersData from '../components/mockUsers';
+import { useNotification } from '../hooks/useNotification';
+import '../styles/UsersPage.css';
 
 const UsersPage = () => {
     const [users, setUsers] = useState(mockUsersData);
@@ -44,6 +39,12 @@ const UsersPage = () => {
 
     return (
         <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+            {notification && (
+                <div className={`notification notification--${notification.type}`} style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
+                    {notification.message}
+                </div>
+            )}
+
             {/* Header */}
             <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -60,11 +61,23 @@ const UsersPage = () => {
             </header>
 
             {/* Toolbar */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem' }}>
-                    <Search size={18} color="#a1a1aa" />
-                    <label htmlFor="usersSearch" className="sr-only">Search users by name or ID</label>
-                    <input id="usersSearch" type="text" placeholder="Search users by name or ID..." style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none' }} />
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                <div className="glass-card" style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem' }}>
+                    <Search size={18} color="var(--text-secondary)" />
+                    <label htmlFor="usersSearch" className="sr-only">Search users</label>
+                    <input
+                        id="usersSearch"
+                        type="text"
+                        placeholder="Search users by name..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none' }}
+                    />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px' }}>
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
                 <button
                     className="glass-card"

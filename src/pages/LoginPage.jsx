@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { Eye, EyeOff } from 'lucide-react';
-import './LoginPage.css';
-import './LogoutPage.css';
+import '../styles/LoginPage.css';
+import '../styles/LogoutPage.css';
 
 const LoginPage = ({ onLogin }) => {
   const [isSignUp, setIsSignUp] = useState(false);

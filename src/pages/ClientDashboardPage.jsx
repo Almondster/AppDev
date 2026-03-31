@@ -5,12 +5,10 @@ import { Target, CreditCard, Clock, Star, ArrowRight, ShoppingCart, Search } fro
 import '../styles/ClientDashboardPage.css';
 
 const ClientDashboardPage = () => {
-    return (
-        <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-            <header className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2))' }}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem' }}>Welcome, Client!</h1>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Manage your hired creators and active contracts.</p>
-            </header>
+    const { services, orders, hireCreator } = useProjects();
+    const { notification, showNotification } = useNotification();
+    const [activeTab, setActiveTab] = useState('marketplace');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const CLIENT_NAME = 'Test Client';
 
@@ -209,24 +207,7 @@ const ClientDashboardPage = () => {
                         ))}
                     </div>
                 </section>
-
-                <section className="glass-card">
-                    <div className="glass-card-header">
-                        <h2 style={{ fontSize: '1.25rem', color: 'white', margin: 0 }}>Active Hires</h2>
-                    </div>
-                    <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                            <div>
-                                <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>E-Commerce App UI</h3>
-                                <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Creator: Jane Doe • ₱15,000</p>
-                            </div>
-                            <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
-                                In Progress
-                            </span>
-                        </div>
-                    </div>
-                </section>
-            </div>
+            )}
         </main>
     );
 };
