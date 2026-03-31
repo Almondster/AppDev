@@ -114,8 +114,8 @@
 }
 
 .admin-alert-item--info {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--glass-overlay);
+    border: 1px solid var(--glass-overlay-border);
 }
 
 .admin-alert-item__content {
@@ -150,7 +150,7 @@
 }
 
 .admin-alert-item__text {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin: 0;
 }
@@ -166,6 +166,6 @@
 }
 
 .admin-alert-item__time {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.85rem;
 }

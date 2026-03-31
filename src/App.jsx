@@ -1,7 +1,10 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { ProjectsProvider } from './context/ProjectsContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { useAuth } from './hooks/useAuth';
+import { ROUTES } from './constants/routes';
+import { ROLES } from './constants/roles';
 import Sidebar from './components/Sidebar';
 import './index.css';
 
@@ -21,13 +24,13 @@ const DisputesPage = lazy(() => import('./pages/DisputesPage'));
 
 // Loading fallback for lazy-loaded routes
 const PageLoader = () => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#a1a1aa' }}>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--text-secondary)' }}>
     <p>Loading…</p>
   </div>
 );
 
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (!isLoggedIn) return <Navigate to={ROUTES.LOGIN} replace />;
   return (
     <div className="dashboard-layout page-fade">
       <Sidebar userRole={userRole} onLogout={onLogout} />
@@ -44,27 +47,7 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('createch_auth') === 'true';
-  });
-
-  const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem('createch_role') || 'creator';
-  });
-
-  // Memoize handlers to prevent unnecessary re-renders
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('createch_auth');
-    localStorage.removeItem('createch_role');
-    setIsLoggedIn(false);
-  }, []);
-
-  const handleLogin = useCallback((role = 'creator') => {
-    localStorage.setItem('createch_auth', 'true');
-    localStorage.setItem('createch_role', role);
-    setUserRole(role);
-    setIsLoggedIn(true);
-  }, []);
+  const { isLoggedIn, userRole, login, logout } = useAuth();
 
   return (
     <ThemeProvider>
@@ -73,31 +56,31 @@ function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
-              <Route path="/landing" element={<LandingPage />} />
-              <Route path="/login" element={
-                isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
+              <Route path={ROUTES.LANDING} element={<LandingPage />} />
+              <Route path={ROUTES.LOGIN} element={
+                isLoggedIn ? <Navigate to={ROUTES.HOME} replace /> : <LoginPage onLogin={login} />
               } />
 
-            {/* Protected Routes */}
-            <Route element={<ProtectedLayout isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
+              {/* Protected Routes */}
+              <Route element={<ProtectedLayout isLoggedIn={isLoggedIn} userRole={userRole} onLogout={logout} />}>
 
-              <Route path="/" element={<DashboardPage userRole={userRole} />} />
-              <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
+                <Route path={ROUTES.HOME} element={<DashboardPage userRole={userRole} />} />
+                <Route path={ROUTES.PROJECTS} element={<ProjectsPage userRole={userRole} />} />
 
-              {/* Admin Routes */}
-              <Route path="/users" element={<UsersPage />} />
-              <Route path="/disputes" element={<DisputesPage />} />
+                {/* Admin Routes */}
+                <Route path={ROUTES.USERS} element={<UsersPage />} />
+                <Route path={ROUTES.DISPUTES} element={<DisputesPage />} />
 
-              <Route path="/messages" element={<MessagesPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/settings" element={<SettingsPage userRole={userRole} />} />
-              <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
-              <Route path="/creator-profile" element={<CreatorProfilePage />} />
-            </Route>
+                <Route path={ROUTES.MESSAGES} element={<MessagesPage />} />
+                <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage userRole={userRole} />} />
+                <Route path={ROUTES.ORDERS} element={<OrdersPage userRole={userRole} />} />
+                <Route path={ROUTES.SETTINGS} element={<SettingsPage userRole={userRole} />} />
+                <Route path={ROUTES.WALLET} element={<WalletPage userRole={userRole} />} />
+                <Route path={ROUTES.CREATOR_PROFILE} element={<CreatorProfilePage />} />
+              </Route>
 
               {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
             </Routes>
           </Suspense>
         </div>

@@ -148,13 +148,13 @@
 }
 
 .client-hire-item__title {
-    color: white;
+    color: var(--text-primary);
     font-size: 1.1rem;
     margin-bottom: 4px;
 }
 
 .client-hire-item__detail {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin: 0;
 }
@@ -171,33 +171,33 @@
 
 /* Glass Tabs */
 .glass-tab {
-  padding-bottom: 12px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-transform: capitalize;
-  transition: color 0.2s;
-  position: relative;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: #71717a;
+    padding-bottom: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-transform: capitalize;
+    transition: color 0.2s;
+    position: relative;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
 }
 
 .glass-tab:hover {
-  color: #d4d4d8;
+    color: var(--text-secondary);
 }
 
 .glass-tab--active {
-  color: #ffffff;
+    color: var(--text-primary);
 }
 
 .glass-tab--active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: #ffffff;
-  border-radius: 2px 2px 0 0;
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--text-primary);
+    border-radius: 2px 2px 0 0;
 }

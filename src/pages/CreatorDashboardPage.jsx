@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useProjects } from '../context/useProjects';
+import { useProjects } from '../hooks/useProjects';
 import { CheckCircle2, Briefcase, Banknote, Search, Filter, Clock } from 'lucide-react';
 import '../styles/CreatorDashboardPage.css';
 
 const CreatorDashboardPage = () => {
     const navigate = useNavigate();
-    const { projects, completedProjects, activeProjects, totalRevenue } = useProjects();
+    const { orders, completedProjects, activeProjects, totalRevenue } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
 
-    const recentProjects = projects.filter((p) => p.status !== 'Completed');
+    // Creator's active orders (hired gigs, not completed)
+    const creatorOrders = orders.filter((p) => p.creator === 'You' && p.status !== 'Completed');
 
-    const filteredProjects = recentProjects.filter((project) => {
+    const filteredProjects = creatorOrders.filter((project) => {
         const matchesSearch =
             project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            project.client.toLowerCase().includes(searchTerm.toLowerCase());
+            (project.clientName || '').toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter =
             filterStatus === 'all' || project.status.toLowerCase().replace(' ', '-') === filterStatus;
         return matchesSearch && matchesFilter;
@@ -74,7 +75,7 @@ const CreatorDashboardPage = () => {
                                 placeholder="Search..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ background: 'var(--input-bg)', border: `1px solid var(--border-color)`, padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
+                                style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
                             />
                         </div>
                         <label htmlFor="dashboardFilter" className="sr-only">Filter active orders by status</label>
@@ -82,7 +83,7 @@ const CreatorDashboardPage = () => {
                             id="dashboardFilter"
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            style={{ background: 'var(--input-bg)', border: `1px solid var(--border-color)`, padding: '8px 16px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', appearance: 'none' }}
+                            style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', appearance: 'none' }}
                         >
                             <option value="all" style={{ color: 'black' }}>All Status</option>
                             <option value="in-progress" style={{ color: 'black' }}>In Progress</option>
@@ -94,10 +95,12 @@ const CreatorDashboardPage = () => {
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {filteredProjects.length > 0 ? (
                         filteredProjects.map((project) => (
-                            <div key={project.id} style={{ padding: '1.25rem', background: 'var(--card-bg)', borderRadius: '12px', border: `1px solid var(--border-color)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div key={project.id} style={{ padding: '1.25rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div>
                                     <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '4px' }}>{project.title}</h3>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>Client: {project.client} • ₱{(project.budget || 0).toLocaleString()}</p>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                                        Client: {project.clientName || 'Awaiting client'} • ₱{(project.budget || 0).toLocaleString()}
+                                    </p>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Clock size={14} color="var(--text-secondary)" />
@@ -107,8 +110,8 @@ const CreatorDashboardPage = () => {
                                         fontSize: '0.75rem',
                                         fontWeight: '600',
                                         textTransform: 'uppercase',
-                                        background: project.status === 'In Progress' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(250, 204, 21, 0.1)',
-                                        color: project.status === 'In Progress' ? '#38bdf8' : '#facc15'
+                                        background: project.status === 'In Progress' ? 'rgba(56, 189, 248, 0.1)' : project.status === 'Suspended' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(250, 204, 21, 0.1)',
+                                        color: project.status === 'In Progress' ? '#38bdf8' : project.status === 'Suspended' ? '#ef4444' : '#facc15'
                                     }}>
                                         {project.status}
                                     </span>

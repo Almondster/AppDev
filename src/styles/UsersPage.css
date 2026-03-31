@@ -95,11 +95,11 @@
 /* Users Table */
 .users-table__header {
     padding: 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--glass-border);
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr 1fr 0.5fr;
     gap: 1rem;
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -108,7 +108,7 @@
 
 .users-table__row {
     padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--glass-border);
     display: grid;
     grid-template-columns: 2fr 1fr 1fr 1fr 1fr 0.5fr;
     gap: 1rem;
@@ -135,12 +135,12 @@
 }
 
 .users-table__name {
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 500;
 }
 
 .users-table__role {
-    color: #d4d4d8;
+    color: var(--text-secondary);
 }
 
 .users-table__status {
@@ -166,7 +166,7 @@
 }
 
 .users-table__joined {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.85rem;
 }
 
@@ -181,7 +181,7 @@
 }
 
 .users-table__reports--normal {
-    color: #a1a1aa;
+    color: var(--text-secondary);
 }
 
 .users-table__action {
@@ -191,6 +191,6 @@
 .users-table__action-btn {
     background: transparent;
     border: none;
-    color: #a1a1aa;
+    color: var(--text-secondary);
     cursor: pointer;
 }

@@ -9,7 +9,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 24, 27, 0.6));
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), var(--dispute-gradient-end));
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
@@ -57,7 +57,7 @@
 .disputes-header__escrow-value {
     font-size: 2rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--text-primary);
     margin: 0;
 }
 
@@ -88,7 +88,7 @@
 }
 
 .dispute-card__id {
-    color: #fff;
+    color: var(--text-primary);
     font-size: 1.1rem;
     margin: 0;
 }
@@ -103,20 +103,20 @@
 }
 
 .dispute-card__date {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin: 0;
 }
 
 .dispute-card__amount {
-    color: #fff;
+    color: var(--text-primary);
     font-size: 1.25rem;
     margin: 0;
 }
 
 /* Dispute Details */
 .dispute-card__details {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--glass-overlay);
     padding: 1.25rem;
     border-radius: 12px;
     margin-bottom: 1.5rem;
@@ -130,27 +130,27 @@
 
 .dispute-card__party-label {
     display: block;
-    color: #71717a;
+    color: var(--text-tertiary);
     font-size: 0.8rem;
     text-transform: uppercase;
     margin-bottom: 0.25rem;
 }
 
 .dispute-card__party-name {
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 500;
 }
 
 .dispute-card__issue-label {
     display: block;
-    color: #71717a;
+    color: var(--text-tertiary);
     font-size: 0.8rem;
     text-transform: uppercase;
     margin-bottom: 0.25rem;
 }
 
 .dispute-card__issue-text {
-    color: #d4d4d8;
+    color: var(--text-secondary);
     font-size: 0.95rem;
     margin: 0;
     line-height: 1.5;
@@ -183,8 +183,8 @@
 
 .dispute-btn--message {
     background: transparent;
-    color: #d4d4d8;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
 }
 
 .dispute-btn--resolve {

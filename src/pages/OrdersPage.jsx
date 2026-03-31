@@ -1,26 +1,28 @@
 import { useState } from 'react';
+import { useProjects } from '../hooks/useProjects';
 import '../styles/OrdersPage.css';
 
-const OrdersPage = () => {
+const OrdersPage = ({ userRole = 'creator' }) => {
+    const { orders } = useProjects();
     const [filter, setFilter] = useState('All');
 
-    // Sample component-level state orders
-    const orders = [
-        { id: 'ORD-001', service: 'Logo Design', status: 'Completed', amount: '₱2,500' },
-        { id: 'ORD-002', service: 'Website Mockup', status: 'Pending', amount: '₱7,500' },
-        { id: 'ORD-003', service: 'Social Media Assets', status: 'Completed', amount: '₱1,500' }
-    ];
+    // Show relevant orders based on role
+    const roleOrders = userRole === 'creator'
+        ? orders.filter(o => o.creator === 'You')
+        : userRole === 'client'
+            ? orders.filter(o => o.clientName)
+            : orders; // admin sees all
 
     const filteredOrders = filter === 'All'
-        ? orders
-        : orders.filter(o => o.status === filter);
+        ? roleOrders
+        : roleOrders.filter(o => o.status === filter);
 
     return (
         <section className="section page-fade">
             <header className="section__header">
-                <h2 className="section__title">My Orders</h2>
+                <h2 className="section__title">My Orders ({roleOrders.length})</h2>
                 <div className="filter-group">
-                    {['All', 'Pending', 'Completed'].map(f => (
+                    {['All', 'Pending', 'In Progress', 'Completed', 'Suspended'].map(f => (
                         <button
                             key={f}
                             className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`}
@@ -36,12 +38,13 @@ const OrdersPage = () => {
                 {filteredOrders.length > 0 ? filteredOrders.map(order => (
                     <div key={order.id} className="card card--clickable">
                         <div className="card__header">
-                            <h3 className="card__title">{order.service}</h3>
-                            <span className={`badge badge--${order.status.toLowerCase()}`}>{order.status}</span>
+                            <h3 className="card__title">{order.title}</h3>
+                            <span className={`badge badge--${order.status.toLowerCase().replace(' ', '-')}`}>{order.status}</span>
                         </div>
                         <div className="card__body">
-                            <p><strong>Order ID:</strong> {order.id}</p>
-                            <p><strong>Amount:</strong> {order.amount}</p>
+                            <p><strong>{userRole === 'creator' ? 'Client' : 'Creator'}:</strong> {userRole === 'creator' ? (order.clientName || 'Awaiting') : order.creator}</p>
+                            <p><strong>Amount:</strong> ₱{(order.budget || 0).toLocaleString()}</p>
+                            {order.deadline && <p><strong>Deadline:</strong> {order.deadline}</p>}
                         </div>
                     </div>
                 )) : (

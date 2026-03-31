@@ -16,6 +16,14 @@
   --sidebar-bg: rgba(240, 240, 240, 0.6);
   --glass-border: rgba(0, 0, 0, 0.05);
   --footer-text: #b0b0b0;
+  --highlight-bg: rgba(0, 0, 0, 0.06);
+  --highlight-border: rgba(0, 0, 0, 0.08);
+  --toggle-bg: #c7c7cc;
+  --glass-overlay: rgba(0, 0, 0, 0.03);
+  --glass-overlay-border: rgba(0, 0, 0, 0.06);
+  --glass-shadow: rgba(0, 0, 0, 0.08);
+  --glass-shadow-hover: rgba(0, 0, 0, 0.12);
+  --dispute-gradient-end: rgba(245, 245, 245, 0.6);
 }
 
 :root[data-theme='dark'] {
@@ -32,6 +40,14 @@
   --sidebar-bg: rgba(24, 24, 27, 0.4);
   --glass-border: rgba(255, 255, 255, 0.05);
   --footer-text: #3f3f46;
+  --highlight-bg: rgba(255, 255, 255, 0.1);
+  --highlight-border: rgba(255, 255, 255, 0.05);
+  --toggle-bg: #3f3f46;
+  --glass-overlay: rgba(255, 255, 255, 0.05);
+  --glass-overlay-border: rgba(255, 255, 255, 0.05);
+  --glass-shadow: rgba(0, 0, 0, 0.2);
+  --glass-shadow-hover: rgba(0, 0, 0, 0.3);
+  --dispute-gradient-end: rgba(24, 24, 27, 0.6);
 }
 
 *,
@@ -194,8 +210,8 @@ body {
 
 .nav-item--active {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+  background: var(--highlight-bg);
+  box-shadow: 0 0 10px var(--highlight-border);
 }
 
 .sidebar-footer {
@@ -521,14 +537,14 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px 0 var(--glass-shadow);
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s;
   overflow: hidden;
 }
 
 .glass-card--hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 40px 0 var(--glass-shadow-hover);
   border-color: var(--text-secondary);
 }
 
