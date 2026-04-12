@@ -1,117 +1,185 @@
-import React, { useState } from 'react';
-import { Wallet, ArrowDownRight, ArrowUpRight, Plus, CreditCard } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { fetchMyWallets as apiFetchWallet, fetchMyCreatorOrders, getUserData } from '../api';
+import { Wallet, Clock, ArrowUpRight, Plus, Trash2 } from 'lucide-react';
+import './WalletPage.css';
 
-const WalletPage = ({ userRole }) => {
-    const [balance, setBalance] = useState(150.00);
-    const [amount, setAmount] = useState('');
+const WalletPage = () => {
+    const [wallet, setWallet] = useState(null);
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const userData = getUserData();
 
-    const handleWithdraw = (e) => {
-        e.preventDefault();
-        const numAmount = parseFloat(amount);
-        if (!numAmount || numAmount <= 0) return;
-        if (numAmount > balance) {
-            alert('Insufficient funds');
-            return;
-        }
-        setBalance(prev => prev - numAmount);
-        setAmount('');
-        alert(`Successfully withdrew ₱${numAmount.toFixed(2)}`);
-    };
+    useEffect(() => {
+        (async () => {
+            try {
+                const [wRes, oRes] = await Promise.all([apiFetchWallet(), fetchMyCreatorOrders()]);
+                if (wRes.ok) setWallet(wRes.data.results?.[0] || wRes.data?.[0] || wRes.data || null);
+                if (oRes.ok) setOrders((oRes.data.results || oRes.data || []).filter(o => o.status === 'completed'));
+            } catch (err) {
+                console.error('Failed to load wallet:', err);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
 
-    const handleDeposit = (e) => {
-        e.preventDefault();
-        const numAmount = parseFloat(amount);
-        if (!numAmount || numAmount <= 0) return;
-        setBalance(prev => prev + numAmount);
-        setAmount('');
-        alert(`Successfully deposited ₱${numAmount.toFixed(2)}`);
-    }
+    const balance = parseFloat(wallet?.balance || 0);
+    const pendingClearance = parseFloat(wallet?.pending || 0);
+    const withdrawn = parseFloat(wallet?.withdrawn || 0);
+    const maskedAccount = '******' + (userData?.phone?.slice(-4) || '2398');
 
     return (
-        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
-            {/* Header */}
-            <div className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Wallet</h1>
-                        <Wallet size={28} color="#3b82f6" />
-                    </div>
-                    <p style={{ color: '#a1a1aa', fontSize: '1rem', margin: 0 }}>Manage your platform balance and transactions.</p>
-                </div>
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '1.5rem 2.5rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-                    <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Available Balance</p>
-                    <h2 style={{ fontSize: '2.5rem', fontWeight: '800', color: '#fff', margin: 0 }}>₱{balance.toFixed(2)}</h2>
-                </div>
+        <main className="wallet-page">
+            <div className="wallet-breadcrumb">
+                <span className="wallet-bc-muted">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
+                <span className="wallet-bc-sep">/</span>
+                <span className="wallet-bc-active">Wallet</span>
             </div>
 
-            {/* Action Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <h1 className="wallet-title">Earnings & Withdrawals</h1>
 
-                {/* Condition: Withdraw (Creators/Admins only) */}
-                {userRole !== 'client' && (
-                    <div className="glass-card" style={{ padding: '2rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                            <div style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', padding: '0.5rem', borderRadius: '8px' }}>
-                                <ArrowUpRight size={24} />
+            {loading ? (
+                <>
+                    {/* Skeleton Balance Card */}
+                    <div className="wallet-balance-card" style={{ minHeight: 200 }}>
+                        <div className="wallet-balance-inner">
+                            <div className="skeleton skeleton--light" style={{ width: 160, height: 16, marginBottom: 14 }}></div>
+                            <div className="skeleton skeleton--light" style={{ height: 42, width: 220, marginBottom: 10, borderRadius: 8 }}></div>
+                            <div className="skeleton skeleton--light" style={{ width: 120, height: 16, marginBottom: 20 }}></div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <div className="skeleton skeleton--light" style={{ width: 130, height: 40, borderRadius: 8 }}></div>
+                                <div className="skeleton skeleton--light" style={{ width: 140, height: 40, borderRadius: 8 }}></div>
                             </div>
-                            <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0 }}>Withdraw Funds</h3>
                         </div>
-                        <form onSubmit={handleWithdraw} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div>
-                                <label htmlFor="withdrawAmount" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Withdrawal Amount (₱)</label>
-                                <input
-                                    id="withdrawAmount"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    max={balance}
-                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }}
-                                    placeholder="Enter amount"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    required
-                                />
-                            </div>
-                            <button type="submit" style={{ background: '#3b82f6', color: '#fff', padding: '0.85rem', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '0.5rem' }}>
-                                Confirm Withdrawal
-                            </button>
-                        </form>
                     </div>
-                )}
-
-                {/* Condition: Deposit (Clients mainly, but visible to all non-creators) */}
-                {userRole !== 'creator' && (
-                    <div className="glass-card" style={{ padding: '2rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                            <div style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '0.5rem', borderRadius: '8px' }}>
-                                <Plus size={24} />
+                    {/* Skeleton Stat Cards */}
+                    <div className="wallet-stats">
+                        {[0,1].map(i => (
+                            <div key={i} className="wallet-stat-card">
+                                <div className="skeleton" style={{ width: 120, height: 14, marginBottom: 12 }}></div>
+                                <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
+                                    <div className="skeleton" style={{ width: 130, height: 28 }}></div>
+                                    <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8 }}></div>
+                                </div>
                             </div>
-                            <h3 style={{ fontSize: '1.25rem', color: '#fff', margin: 0 }}>Deposit Funds</h3>
+                        ))}
+                    </div>
+                    {/* Skeleton Activity */}
+                    <section>
+                        <div className="skeleton-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+                            <div className="skeleton" style={{ width: 130, height: 20 }}></div>
+                            <div className="skeleton" style={{ width: 70, height: 16 }}></div>
                         </div>
-                        <form onSubmit={handleDeposit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div>
-                                <label htmlFor="depositAmount" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Deposit Amount (₱)</label>
-                                <input
-                                    id="depositAmount"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }}
-                                    placeholder="Enter amount"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    required
-                                />
+                        <div className="wallet-activity-list">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <div key={i} className="wallet-activity-item" style={{ pointerEvents: 'none' }}>
+                                    <div className="skeleton" style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0 }}></div>
+                                    <div className="wallet-activity-info" style={{ flex: 1 }}>
+                                        <div className="skeleton" style={{ width: `${130 + (i%3)*30}px`, height: 16, marginBottom: 6 }}></div>
+                                        <div className="skeleton" style={{ width: `${90 + (i%4)*20}px`, height: 14 }}></div>
+                                    </div>
+                                    <div className="skeleton" style={{ width: 80, height: 20, borderRadius: 6 }}></div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                    {/* Skeleton Payout Methods */}
+                    <section>
+                        <div className="skeleton-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+                            <div className="skeleton" style={{ width: 140, height: 20 }}></div>
+                            <div className="skeleton" style={{ width: 110, height: 34, borderRadius: 8 }}></div>
+                        </div>
+                        <div className="wallet-payout-list">
+                            {[0,1].map(i => (
+                                <div key={i} className="wallet-payout-item" style={{ pointerEvents: 'none' }}>
+                                    <div className="skeleton" style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0 }}></div>
+                                    <div style={{ flex: 1 }}>
+                                        <div className="skeleton" style={{ width: `${70 + i*25}px`, height: 16, marginBottom: 6 }}></div>
+                                        <div className="skeleton" style={{ width: `${100 + i*20}px`, height: 14 }}></div>
+                                    </div>
+                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </>
+            ) : (
+                <>
+                    {/* Balance Card */}
+                    <div className="wallet-balance-card">
+                        <div className="wallet-balance-inner">
+                            <div className="wallet-balance-top">
+                                <div className="wallet-balance-label"><Wallet size={16} /> Available for Withdrawal</div>
+                                <div className="wallet-balance-toggle"></div>
                             </div>
-                            <button type="submit" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', padding: '0.85rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '0.5rem' }}>
-                                Fund Wallet
-                            </button>
-                        </form>
+                            <p className="wallet-balance-amount">₱{balance.toFixed(2)}</p>
+                            <p className="wallet-balance-account">{maskedAccount}</p>
+                            <div className="wallet-balance-actions">
+                                <button className="wallet-btn-outline">Withdraw Funds</button>
+                                <button className="wallet-btn-outline">Add Payout Method</button>
+                            </div>
+                        </div>
                     </div>
-                )}
 
-            </div>
+                    {/* Stat Cards */}
+                    <div className="wallet-stats">
+                        <div className="wallet-stat-card">
+                            <p className="wallet-stat-label">PENDING CLEARANCE</p>
+                            <div className="wallet-stat-row">
+                                <p className="wallet-stat-value">₱{pendingClearance.toFixed(2)}</p>
+                                <Clock size={20} className="wallet-stat-icon wallet-stat-icon--yellow" />
+                            </div>
+                        </div>
+                        <div className="wallet-stat-card">
+                            <p className="wallet-stat-label">WITHDRAWN FUNDS</p>
+                            <div className="wallet-stat-row">
+                                <p className="wallet-stat-value">₱{withdrawn.toFixed(2)}</p>
+                                <ArrowUpRight size={20} className="wallet-stat-icon wallet-stat-icon--green" />
+                            </div>
+                        </div>
+                    </div>
 
+                    {/* Recent Activity */}
+                    <section>
+                        <h2 className="wallet-section-title">Recent Activity</h2>
+                        <div className="wallet-activity-list">
+                            {orders.length > 0 ? orders.slice(0, 5).map(o => (
+                                <div key={o.id} className="wallet-activity-item">
+                                    <div className="wallet-activity-icon"><ArrowUpRight size={16} /></div>
+                                    <div className="wallet-activity-info">
+                                        <h4>Payment from {o.client_display_name || o.client_name || o.client_id}</h4>
+                                        <p>Order #{o.id} • {o.updated_at ? new Date(o.updated_at).toLocaleDateString() : ''}</p>
+                                    </div>
+                                    <div className="wallet-activity-amount">
+                                        <span className="wallet-amount-green">+₱{parseFloat(o.price || 0).toFixed(2)}</span>
+                                        <span className="wallet-activity-type">Invoice</span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="wallet-empty">No recent activity.</p>
+                            )}
+                        </div>
+                    </section>
+
+                    {/* Payout Methods */}
+                    <section>
+                        <div className="wallet-section-header">
+                            <h2 className="wallet-section-title">Payout Methods</h2>
+                            <button className="wallet-add-btn"><Plus size={14} /> Add Method</button>
+                        </div>
+                        <div className="wallet-payout-list">
+                            <div className="wallet-payout-item">
+                                <div className="wallet-payout-icon">G</div>
+                                <div className="wallet-payout-info">
+                                    <h4>GCash</h4>
+                                    <p>{userData?.phone || '09*****2398'}</p>
+                                </div>
+                                <button className="wallet-payout-delete"><Trash2 size={14} /></button>
+                            </div>
+                        </div>
+                    </section>
+                </>
+            )}
         </main>
     );
 };

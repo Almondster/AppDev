@@ -1,336 +1,354 @@
-import React, { useState } from 'react';
-import { User, Bell, Lock, FileText, Sparkles, Users, CreditCard, Settings as SettingsIcon, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getUserData, fetchCreators, updateCreator, updateUser } from '../api';
+import { User, Palette, Users, CreditCard, Bell, Shield, HelpCircle, Database, LogOut } from 'lucide-react';
+import './SettingsPage.css';
 
-const ToggleSwitch = ({ checked, onChange }) => (
-    <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        style={{
-            position: 'relative',
-            display: 'inline-flex',
-            height: '24px',
-            width: '44px',
-            alignItems: 'center',
-            borderRadius: '9999px',
-            backgroundColor: checked ? '#3b82f6' : '#3f3f46',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s',
-        }}
-    >
-        <span
-            style={{
-                display: 'inline-block',
-                height: '16px',
-                width: '16px',
-                transform: checked ? 'translateX(24px)' : 'translateX(4px)',
-                borderRadius: '50%',
-                backgroundColor: 'white',
-                transition: 'transform 0.2s',
-            }}
-        />
-    </button>
-);
+const CREATOR_TABS = [
+    { id: 'personal', label: 'Personal Info', icon: <User size={16} /> },
+    { id: 'creator', label: 'Creator Profile', icon: <Palette size={16} /> },
+    { id: 'followers', label: 'Followers', icon: <Users size={16} /> },
+    { id: 'payout', label: 'Payout Methods', icon: <CreditCard size={16} /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
+    { id: 'security', label: 'Security', icon: <Shield size={16} /> },
+    { id: 'help', label: 'Help Center', icon: <HelpCircle size={16} /> },
+    { id: 'data', label: 'Support & Data', icon: <Database size={16} /> },
+];
 
-const SettingsPage = ({ userRole }) => {
-    const [activeSection, setActiveSection] = useState('profile');
+const CLIENT_TABS = [
+    { id: 'personal', label: 'Personal Info', icon: <User size={16} /> },
+    { id: 'following', label: 'Following', icon: <Users size={16} /> },
+    { id: 'payment', label: 'Payment Methods', icon: <CreditCard size={16} /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
+    { id: 'security', label: 'Security', icon: <Shield size={16} /> },
+    { id: 'help', label: 'Help Center', icon: <HelpCircle size={16} /> },
+    { id: 'data', label: 'Support & Data', icon: <Database size={16} /> },
+];
 
-    // Shared Mocks
-    const [phone, setPhone] = useState('09123456789');
-    const [pushNotif, setPushNotif] = useState(true);
-    const [emailNotif, setEmailNotif] = useState(false);
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
+const SettingsPage = ({ onLogout, userRole = 'creator' }) => {
+    const isCreator = userRole === 'creator';
+    const TABS = isCreator ? CREATOR_TABS : CLIENT_TABS;
+    const [activeTab, setActiveTab] = useState('personal');
+    const [creator, setCreator] = useState(null);
+    const [personalForm, setPersonalForm] = useState({ firstName: '', lastName: '', email: '', phone: '', birthdate: '', gender: '', nationality: '', address: '' });
+    const [creatorForm, setCreatorForm] = useState({ jobTitle: '', bio: '', portfolioUrl: '', hourlyRate: '', experience: '', skills: '' });
+    const [saving, setSaving] = useState(false);
+    const [msg, setMsg] = useState('');
+    const [msgType, setMsgType] = useState('success');
+    const navigate = useNavigate();
 
-    // Admin Mocks
-    const [maintenanceMode, setMaintenanceMode] = useState(false);
-    const [autoSuspend, setAutoSuspend] = useState(true);
-    const [commissionRate, setCommissionRate] = useState('15');
+    const userData = getUserData();
 
-    // Render logic switch based on activeSection
-    const renderContent = () => {
-        if (activeSection === 'profile') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1rem' }}>
-                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '2rem', fontWeight: 'bold' }}>
-                            U
-                        </div>
-                        <div>
-                            <button style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: '8px', cursor: 'pointer', marginBottom: '0.5rem' }}>Change Photo</button>
-                            <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: 0 }}>JPG, GIF or PNG. 1MB max.</p>
-                        </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div>
-                            <label htmlFor="firstName" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>First Name</label>
-                            <input id="firstName" type="text" defaultValue="Test" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                        </div>
-                        <div>
-                            <label htmlFor="lastName" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Last Name</label>
-                            <input id="lastName" type="text" defaultValue="User" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                        </div>
-                    </div>
-                    <div>
-                        <label htmlFor="email" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Email Address</label>
-                        <input id="email" type="email" defaultValue="user@example.com" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                    </div>
-                    <div>
-                        <label htmlFor="phone" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Phone Number</label>
-                        <input id="phone" type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                    </div>
-                    <button style={{ alignSelf: 'flex-start', background: '#3b82f6', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Save Changes</button>
-                </div>
-            );
-        }
+    useEffect(() => {
+        // Populate personal info
+        const names = (userData?.full_name || '').split(' ');
+        setPersonalForm(p => ({
+            ...p,
+            firstName: names[0] || '',
+            lastName: names.slice(1).join(' ') || '',
+            email: userData?.email || '',
+            phone: userData?.phone || '',
+        }));
 
-        if (activeSection === 'notifications') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div>
-                            <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Push Notifications</h4>
-                            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Receive real-time alerts on your device for active order updates.</p>
-                        </div>
-                        <ToggleSwitch checked={pushNotif} onChange={setPushNotif} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div>
-                            <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Email Updates</h4>
-                            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Receive daily digests and promotional materials to your inbox.</p>
-                        </div>
-                        <ToggleSwitch checked={emailNotif} onChange={setEmailNotif} />
-                    </div>
-                </div>
-            );
-        }
+        // Fetch creator profile
+        (async () => {
+            try {
+                const { ok, data } = await fetchCreators();
+                if (ok) {
+                    const allCreators = data.results || data || [];
+                    const myCreator = allCreators.find(c => c.user_id === userData?.firebase_uid);
+                    if (myCreator) {
+                        setCreator(myCreator);
+                        setCreatorForm({
+                            jobTitle: myCreator.job_title || '',
+                            bio: myCreator.bio || '',
+                            portfolioUrl: myCreator.portfolio_url || '',
+                            hourlyRate: myCreator.starting_price || '',
+                            experience: myCreator.years_experience || '',
+                            skills: (myCreator.skills || []).join(', '),
+                        });
+                    }
+                }
+            } catch { /* ignore */ }
+        })();
+    }, []);
 
-        if (activeSection === 'security') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div>
-                        <label htmlFor="currentPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Current Password</label>
-                        <input id="currentPassword" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div>
-                            <label htmlFor="newPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>New Password</label>
-                            <input id="newPassword" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                        </div>
-                        <div>
-                            <label htmlFor="confirmNewPassword" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Confirm New Password</label>
-                            <input id="confirmNewPassword" type="password" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                        </div>
-                    </div>
-                    <button style={{ alignSelf: 'flex-start', background: '#3b82f6', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Update Password</button>
-                </div>
-            );
-        }
+    const showMsg = (text, type = 'success') => { setMsg(text); setMsgType(type); setTimeout(() => setMsg(''), 3000); };
 
-        if (activeSection === 'support') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ padding: '1.5rem', border: '1px solid #ef4444', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '12px' }}>
-                        <h4 style={{ color: '#f87171', fontSize: '1.1rem', margin: '0 0 0.5rem 0' }}>Danger Zone</h4>
-                        <p style={{ color: '#fca5a5', fontSize: '0.9rem', margin: '0 0 1rem 0' }}>Permanently delete your account and all associated data. This action cannot be undone.</p>
-                        <button style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Delete Account</button>
-                    </div>
-                </div>
-            )
-        }
-
-        // --- CREATOR SPECIFIC ---
-        if (activeSection === 'creator-profile') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div>
-                        <label htmlFor="bio" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Professional Bio</label>
-                        <textarea id="bio" rows="4" defaultValue="Senior UX Designer with 5 years of experience." style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff', resize: 'vertical' }} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                        <div>
-                            <label htmlFor="portfolio" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Portfolio URL</label>
-                            <input id="portfolio" type="text" defaultValue="https://myportfolio.com" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                        </div>
-                        <div>
-                            <label htmlFor="hourlyRate" style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Hourly Rate (₱)</label>
-                            <input id="hourlyRate" type="number" defaultValue="750" style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                        </div>
-                    </div>
-                    <button style={{ alignSelf: 'flex-start', background: '#a855f7', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Update Creator Profile</button>
-                </div>
-            );
-        }
-
-        // --- ADMIN SPECIFIC ---
-        if (activeSection === 'platform-config') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div>
-                            <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Under Maintenance Mode</h4>
-                            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Restricts login access to Admin accounts only while deploying updates.</p>
-                        </div>
-                        <ToggleSwitch checked={maintenanceMode} onChange={setMaintenanceMode} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div>
-                            <h4 style={{ color: '#fff', fontSize: '1.1rem', margin: '0 0 0.25rem 0' }}>Automated Suspensions</h4>
-                            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Automatically suspend creators whose report threshold exceeds 5.</p>
-                        </div>
-                        <ToggleSwitch checked={autoSuspend} onChange={setAutoSuspend} />
-                    </div>
-                    <div>
-                        <label style={{ display: 'block', color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Global Platform Commission Rate (%)</label>
-                        <input type="number" value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} style={{ width: '30%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1rem', borderRadius: '8px', color: '#fff' }} />
-                    </div>
-                    <button style={{ alignSelf: 'flex-start', background: '#10b981', color: '#fff', border: 'none', padding: '0.75rem 1.5rem', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', marginTop: '1rem' }}>Save Configurations</button>
-                </div>
-            );
-        }
-
-        if (activeSection === 'system-logs') {
-            const logs = [
-                { id: 'ERR091', time: '10:45 AM', event: 'Failed API Handshake', source: 'Stripe Gateway' },
-                { id: 'SEC042', time: '09:12 AM', event: 'Anomalous Login Attempt', source: 'IP 192.168.x.x' },
-                { id: 'SEC043', time: '09:10 AM', event: 'Anomalous Login Attempt', source: 'IP 192.168.x.x' }
-            ];
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ color: '#a1a1aa', fontSize: '0.95rem', margin: '0 0 1rem 0' }}>Review flagged system anomalies and server events from the last 24 hours.</p>
-                    {logs.map(log => (
-                        <div key={log.id} style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr', padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderLeft: '3px solid #ef4444', borderRadius: '0 8px 8px 0', alignItems: 'center' }}>
-                            <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>{log.time}</span>
-                            <span style={{ color: '#fff', fontWeight: '500' }}>{log.event}</span>
-                            <span style={{ color: '#fca5a5', fontSize: '0.85rem', textAlign: 'right' }}>{log.source}</span>
-                        </div>
-                    ))}
-                    <button style={{ alignSelf: 'center', background: 'transparent', color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.1)', padding: '0.75rem 1.5rem', borderRadius: '8px', cursor: 'pointer', marginTop: '1rem' }}>Export Logs CSV</button>
-                </div>
-            );
-        }
-
-        // --- SHARED / GENERIC LISTS ---
-        if (activeSection === 'payment-methods' || activeSection === 'payout-methods') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ padding: '1.5rem', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <CreditCard size={24} color="#a1a1aa" />
-                            <div>
-                                <h4 style={{ color: '#fff', margin: '0 0 0.25rem 0' }}>•••• •••• •••• 4242</h4>
-                                <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Expires 12/28</span>
-                            </div>
-                        </div>
-                        <span style={{ padding: '4px 8px', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>Primary</span>
-                    </div>
-                    <button style={{ alignSelf: 'flex-start', background: 'transparent', color: '#fff', border: '1px dashed rgba(255,255,255,0.2)', padding: '1rem 1.5rem', borderRadius: '8px', fontWeight: '500', cursor: 'pointer', width: '100%' }}>+ Link New Account</button>
-                </div>
-            );
-        }
-
-        if (activeSection === 'network') {
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>J</div>
-                        <div style={{ flex: 1 }}>
-                            <h4 style={{ color: '#fff', margin: '0 0 0.25rem 0' }}>Jane Doe</h4>
-                            <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Full Stack Developer</span>
-                        </div>
-                        <button style={{ background: 'transparent', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>Remove</button>
-                    </div>
-                </div>
-            );
+    const handleSavePersonal = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            const { ok } = await updateUser(userData?.firebase_uid, {
+                first_name: personalForm.firstName,
+                last_name: personalForm.lastName,
+                phone: personalForm.phone,
+            });
+            if (ok) {
+                showMsg('Personal information saved!');
+            } else {
+                showMsg('Failed to save changes.', 'error');
+            }
+        } catch {
+            showMsg('Connection error. Try again.', 'error');
+        } finally {
+            setSaving(false);
         }
     };
 
-    // Calculate dynamic sections available
-    const baseSections = [
-        { id: 'profile', label: 'Personal Info', icon: User },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
-        { id: 'security', label: 'Security', icon: Lock },
-    ];
-
-    const creatorSections = [
-        { id: 'creator-profile', label: 'Creator Profile', icon: Sparkles },
-        { id: 'network', label: 'Followers', icon: Users },
-        { id: 'payout-methods', label: 'Payout Methods', icon: CreditCard },
-    ];
-
-    const clientSections = [
-        { id: 'network', label: 'Following', icon: Users },
-        { id: 'payment-methods', label: 'Payment Methods', icon: CreditCard },
-    ];
-
-    const adminSections = [
-        { id: 'platform-config', label: 'Platform Config', icon: SettingsIcon },
-        { id: 'system-logs', label: 'System Logs', icon: ShieldAlert },
-    ];
-
-    // Build the final array
-    let activeSections = [...baseSections];
-
-    if (userRole === 'admin') {
-        // Admins do not need order update notifications
-        activeSections = activeSections.filter(s => s.id !== 'notifications');
-        activeSections = [...activeSections, ...adminSections];
-    } else if (userRole === 'creator') {
-        activeSections = [...activeSections, ...creatorSections];
-    } else if (userRole === 'client') {
-        activeSections = [...activeSections, ...clientSections];
-    }
-
-    // Everyone gets support at the bottom
-    activeSections.push({ id: 'support', label: 'Support & Data', icon: FileText });
+    const handleSaveCreator = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+            if (!creator) { showMsg('No creator profile found.', 'error'); setSaving(false); return; }
+            const { ok } = await updateCreator(creator.id, {
+                job_title: creatorForm.jobTitle,
+                bio: creatorForm.bio,
+                portfolio_url: creatorForm.portfolioUrl,
+                starting_price: parseFloat(creatorForm.hourlyRate) || 0,
+                years_experience: parseInt(creatorForm.experience) || 0,
+                skills: creatorForm.skills.split(',').map(s => s.trim()).filter(Boolean),
+            });
+            if (ok) {
+                showMsg('Creator profile saved!');
+            } else {
+                showMsg('Failed to save profile.', 'error');
+            }
+        } catch {
+            showMsg('Connection error. Try again.', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
-        <main className="dashboard-content page-fade" style={{ padding: '2rem 0', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ marginBottom: '2rem' }}>
-                <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: '0 0 0.5rem 0' }}>Settings</h2>
-                <p style={{ color: '#a1a1aa', fontSize: '1rem', margin: 0 }}>Manage your account settings and preferences.</p>
+        <main className="settings-page">
+            <div className="settings-breadcrumb">
+                <span className="settings-bc-muted">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
+                <span className="settings-bc-sep">/</span>
+                <span className="settings-bc-active">Settings</span>
             </div>
 
-            <div style={{ display: 'flex', gap: '2rem', flex: 1, alignItems: 'flex-start' }}>
-
-                {/* Left Navigation */}
-                <div className="glass-card" style={{ width: '280px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    {activeSections.map((section) => (
-                        <button
-                            key={section.id}
-                            onClick={() => setActiveSection(section.id)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.75rem',
-                                padding: '0.85rem 1rem',
-                                background: activeSection === section.id ? 'rgba(255,255,255,0.1)' : 'transparent',
-                                border: 'none',
-                                borderRadius: '8px',
-                                color: activeSection === section.id ? '#fff' : '#a1a1aa',
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                                fontWeight: '500',
-                                transition: 'all 0.2s',
-                                width: '100%'
-                            }}
-                        >
-                            <section.icon size={18} />
-                            {section.label}
+            <div className="settings-layout">
+                {/* Left Nav */}
+                <div className="settings-nav">
+                    <h2>Settings</h2>
+                    {TABS.map(tab => (
+                        <button key={tab.id} className={`settings-nav-item ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+                            {tab.icon} {tab.label}
                         </button>
                     ))}
+                    <button className="settings-nav-item settings-nav-logout" onClick={onLogout}>
+                        <LogOut size={16} /> Log Out
+                    </button>
                 </div>
 
-                {/* Right Content Form */}
-                <div className="glass-card" style={{ flex: 1, padding: '2.5rem', minHeight: '500px' }}>
-                    <div style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <h3 style={{ fontSize: '1.5rem', color: '#fff', margin: '0 0 0.5rem 0' }}>
-                            {activeSections.find(s => s.id === activeSection)?.label || activeSection}
-                        </h3>
-                    </div>
-                    {renderContent()}
-                </div>
+                {/* Right Content */}
+                <div className="settings-content">
+                    {msg && <div className={`global-toast global-toast--${msgType}`}>{msg}</div>}
 
+                    {activeTab === 'personal' && (
+                        <div>
+                            <h3 className="settings-content-title">Personal Information</h3>
+                            <p className="settings-content-sub">Manage your identity and contact details.</p>
+
+                            <div className="settings-photo-row">
+                                <div className="settings-photo-avatar">
+                                    {(userData?.full_name || 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="settings-photo-label">Profile Photo</p>
+                                    <p className="settings-photo-hint">Recommended 400×400px. JPG, PNG or GIF.</p>
+                                    <button className="settings-upload-btn">Upload</button>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSavePersonal} className="settings-form">
+                                <div className="settings-form-row">
+                                    <div className="settings-form-group">
+                                        <label>First Name</label>
+                                        <input type="text" value={personalForm.firstName} onChange={e => setPersonalForm(p => ({ ...p, firstName: e.target.value }))} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Last Name</label>
+                                        <input type="text" value={personalForm.lastName} onChange={e => setPersonalForm(p => ({ ...p, lastName: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-row">
+                                    <div className="settings-form-group">
+                                        <label>Email</label>
+                                        <input type="email" value={personalForm.email} disabled style={{ opacity: 0.5 }} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Phone Number</label>
+                                        <input type="tel" placeholder="+63" value={personalForm.phone} onChange={e => setPersonalForm(p => ({ ...p, phone: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-row settings-form-row--3">
+                                    <div className="settings-form-group">
+                                        <label>Birthdate</label>
+                                        <input type="date" value={personalForm.birthdate} onChange={e => setPersonalForm(p => ({ ...p, birthdate: e.target.value }))} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Gender</label>
+                                        <select value={personalForm.gender} onChange={e => setPersonalForm(p => ({ ...p, gender: e.target.value }))}>
+                                            <option value="">Select...</option>
+                                            <option>Male</option>
+                                            <option>Female</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Nationality</label>
+                                        <input type="text" placeholder="e.g. Filipino" value={personalForm.nationality} onChange={e => setPersonalForm(p => ({ ...p, nationality: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-group">
+                                    <label>Address</label>
+                                    <textarea rows={2} value={personalForm.address} onChange={e => setPersonalForm(p => ({ ...p, address: e.target.value }))} />
+                                </div>
+                                <div className="settings-form-actions">
+                                    <button type="submit" className="settings-save-btn" disabled={saving}>Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {activeTab === 'creator' && (
+                        <div>
+                            <h3 className="settings-content-title">Creator Profile</h3>
+                            <p className="settings-content-sub">Manage your professional appearance and rates.</p>
+                            <form onSubmit={handleSaveCreator} className="settings-form">
+                                <div className="settings-form-group">
+                                    <label>Job Title</label>
+                                    <input type="text" value={creatorForm.jobTitle} onChange={e => setCreatorForm(p => ({ ...p, jobTitle: e.target.value }))} />
+                                </div>
+                                <div className="settings-form-group">
+                                    <label>Bio</label>
+                                    <textarea rows={3} value={creatorForm.bio} onChange={e => setCreatorForm(p => ({ ...p, bio: e.target.value }))} placeholder="Markdown supported" />
+                                </div>
+                                <div className="settings-form-group">
+                                    <label>Portfolio URL</label>
+                                    <input type="url" placeholder="https://" value={creatorForm.portfolioUrl} onChange={e => setCreatorForm(p => ({ ...p, portfolioUrl: e.target.value }))} />
+                                </div>
+                                <div className="settings-form-row">
+                                    <div className="settings-form-group">
+                                        <label>Hourly Rate (₱)</label>
+                                        <input type="number" value={creatorForm.hourlyRate} onChange={e => setCreatorForm(p => ({ ...p, hourlyRate: e.target.value }))} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Years of Experience</label>
+                                        <input type="number" value={creatorForm.experience} onChange={e => setCreatorForm(p => ({ ...p, experience: e.target.value }))} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-group">
+                                    <label>Skills (Comma separated)</label>
+                                    <input type="text" value={creatorForm.skills} onChange={e => setCreatorForm(p => ({ ...p, skills: e.target.value }))} />
+                                </div>
+                                <div className="settings-form-actions">
+                                    <button type="submit" className="settings-save-btn" disabled={saving}>Save Profile</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {activeTab === 'followers' && (
+                        <div>
+                            <h3 className="settings-content-title">Followers</h3>
+                            <p className="settings-content-sub">People following your work.</p>
+                            <div className="settings-empty-card">
+                                <Users size={32} color="#3f3f46" />
+                                <p>No followers yet.</p>
+                                <span>Keep creating amazing work!</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'payout' && (
+                        <div>
+                            <h3 className="settings-content-title">Payout Methods</h3>
+                            <p className="settings-content-sub">Manage how you receive your earnings.</p>
+                            <div className="settings-empty-card">
+                                <CreditCard size={32} color="#3f3f46" />
+                                <p>No payout methods configured.</p>
+                                <button className="settings-save-btn" style={{ marginTop: '0.5rem' }}>Add Payout Method</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'following' && (
+                        <div>
+                            <h3 className="settings-content-title">Following</h3>
+                            <p className="settings-content-sub">Creators you are following.</p>
+                            <div className="settings-empty-card">
+                                <Users size={32} color="#3f3f46" />
+                                <p>You're not following anyone yet.</p>
+                                <span>Discover creators and follow them!</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'payment' && (
+                        <div>
+                            <h3 className="settings-content-title">Payment Methods</h3>
+                            <p className="settings-content-sub">Manage your payment options.</p>
+                            <div className="settings-empty-card">
+                                <CreditCard size={32} color="#3f3f46" />
+                                <p>No payment methods added.</p>
+                                <button className="settings-save-btn" style={{ marginTop: '0.5rem' }}>Add Payment Method</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'notifications' && (
+                        <div>
+                            <h3 className="settings-content-title">Notification Preferences</h3>
+                            <p className="settings-content-sub">Choose what notifications you receive.</p>
+                            <div className="settings-toggle-list">
+                                {['Email notifications', 'Push notifications', 'Order updates', 'Marketing emails'].map(item => (
+                                    <div key={item} className="settings-toggle-row">
+                                        <span>{item}</span>
+                                        <div className="settings-toggle"><div className="settings-toggle-knob"></div></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'security' && (
+                        <div>
+                            <h3 className="settings-content-title">Security</h3>
+                            <p className="settings-content-sub">Manage your account security settings.</p>
+                            <div className="settings-form">
+                                <div className="settings-form-group"><label>Current Password</label><input type="password" placeholder="••••••••" /></div>
+                                <div className="settings-form-group"><label>New Password</label><input type="password" placeholder="••••••••" /></div>
+                                <div className="settings-form-actions"><button className="settings-save-btn">Update Password</button></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'help' && (
+                        <div>
+                            <h3 className="settings-content-title">Help Center</h3>
+                            <p className="settings-content-sub">Get help with your account.</p>
+                            <div className="settings-empty-card">
+                                <HelpCircle size={32} color="#3f3f46" />
+                                <p>Need help? Contact us at support@createch.com</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'data' && (
+                        <div>
+                            <h3 className="settings-content-title">Support & Data</h3>
+                            <p className="settings-content-sub">Manage your data and privacy.</p>
+                            <div className="settings-empty-card">
+                                <Database size={32} color="#3f3f46" />
+                                <p>Your data is securely stored and encrypted.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </main>
     );

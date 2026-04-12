@@ -1,48 +1,346 @@
-/* Profile Preview */
-.profile-preview {
+/* ═══════════════════════════════════════════════════════════════════════════
+   Creator Profile Page
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.creator-profile-page {
     display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-top: 20px;
-    padding: 16px;
-    background: #0e0e11;
-    border-radius: 10px;
-    border: 1px solid #27272a;
+    flex-direction: column;
+    gap: 0;
+    padding-bottom: 2rem;
 }
 
-.profile-preview__avatar {
-    width: 48px;
-    height: 48px;
+.cp-loading {
+    text-align: center;
+    color: #71717a;
+    padding: 4rem 0;
+}
+
+/* Breadcrumb */
+.cp-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.75rem 0;
+}
+.cp-breadcrumb-muted { color: #71717a; }
+.cp-breadcrumb-sep { color: #3f3f46; }
+.cp-breadcrumb-active { color: #fff; font-weight: 600; }
+
+/* Back Button */
+.cp-back-btn {
+    background: none;
+    border: none;
+    color: #a1a1aa;
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+.cp-back-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+
+/* Cover Photo */
+.cp-cover {
+    height: 200px;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 0;
+}
+.cp-cover-gradient {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1e1b4b 0%, #581c87 50%, #1e1b4b 100%);
+}
+
+/* Layout — two columns */
+.cp-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 2rem;
+    position: relative;
+    z-index: 1;
+    padding: 0 0.5rem;
+}
+
+/* ── Left Column ── */
+.cp-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: -60px;
+}
+
+.cp-profile-card {
+    background: #141416;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 0 1.5rem 1.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.cp-avatar {
+    width: 110px;
+    height: 110px;
     border-radius: 50%;
+    overflow: hidden;
+    margin-top: -55px;
+    margin-bottom: 1rem;
+    border: 4px solid #141416;
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.3);
+    flex-shrink: 0;
+}
+.cp-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.cp-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 1rem;
     color: #fff;
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.cp-name {
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.2rem;
+}
+.cp-role {
+    color: #a1a1aa;
+    font-size: 0.85rem;
+    margin: 0 0 0.35rem;
+}
+.cp-location {
+    color: #71717a;
+    font-size: 0.8rem;
+    margin: 0 0 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.cp-stats-row {
+    display: flex;
+    gap: 3rem;
+    margin-bottom: 1.25rem;
+    padding: 1rem 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    width: 100%;
+    justify-content: center;
+}
+.cp-stat { text-align: center; }
+.cp-stat-value {
+    color: #fff;
+    font-size: 1.3rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+}
+.cp-stat-label {
+    color: #71717a;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    display: block;
+    margin-top: 0.2rem;
+}
+
+.cp-cover-btn {
+    width: 100%;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #d4d4d8;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.cp-cover-btn:hover { border-color: rgba(255,255,255,0.25); color: #fff; }
+
+/* Info Cards */
+.cp-info-card {
+    background: #141416;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+}
+.cp-info-card h3 {
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem;
+}
+.cp-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.55rem 0;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.85rem;
+    color: #a1a1aa;
+}
+.cp-info-val { color: #fff; font-weight: 500; }
+
+/* Skills */
+.cp-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.cp-skill-tag {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #d4d4d8;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+/* ── Right Column ── */
+.cp-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-top: 1.5rem;
+}
+
+.cp-about h3 {
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+}
+.cp-about p {
+    color: #a1a1aa;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Profile Tabs */
+.cp-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.cp-tab {
+    background: none;
+    border: none;
+    color: #71717a;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.cp-tab:hover { color: #a1a1aa; }
+.cp-tab.active {
+    color: #fff;
+    border-bottom-color: #fff;
+}
+
+.cp-tab-content { min-height: 200px; padding-top: 0.5rem; }
+.cp-empty {
+    color: #52525b;
+    text-align: center;
+    padding: 3rem 0;
+    font-size: 0.9rem;
+}
+
+/* Services List */
+.cp-services-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.cp-service-item {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+.cp-service-item h4 {
+    color: #fff;
+    font-size: 0.95rem;
+    margin: 0 0 0.2rem;
+}
+.cp-service-item p {
+    color: #71717a;
+    font-size: 0.8rem;
+    margin: 0;
+}
+.cp-service-price {
+    color: #a855f7;
+    font-size: 1.1rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Reviews List */
+.cp-reviews-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.cp-review-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 1.25rem;
+    display: flex;
+    gap: 1rem;
+}
+.cp-review-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fb923c, #f97316);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
     flex-shrink: 0;
 }
-
-.profile-preview__info h4 {
-    color: #fafafa;
-    font-size: 0.95rem;
-    font-weight: 600;
+.cp-review-body { flex: 1; }
+.cp-review-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
 }
+.cp-review-top h4 { color: #fff; font-size: 0.9rem; margin: 0 0 0.2rem; }
+.cp-review-stars { display: flex; gap: 2px; }
+.cp-review-date { color: #52525b; font-size: 0.75rem; }
+.cp-review-body > p { color: #d4d4d8; font-size: 0.85rem; margin: 0; line-height: 1.5; }
 
-.profile-preview__info p {
-    color: #a1a1aa;
-    font-size: 0.78rem;
-}
-
-.profile-preview__email {
-    color: #71717a !important;
-    font-size: 0.72rem !important;
-}
-
-/* Contact Layout */
-.contact-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    align-items: start;
+/* Responsive */
+@media (max-width: 900px) {
+    .cp-layout { grid-template-columns: 1fr; }
+    .cp-main { padding-top: 1rem; }
+    .cp-cover { height: 140px; }
+    .cp-sidebar { margin-top: -50px; }
 }

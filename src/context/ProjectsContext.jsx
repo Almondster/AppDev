@@ -1,54 +1,77 @@
-import { createContext, useState, useEffect } from 'react';
-
-const defaultProjects = [
-  { id: 1, title: 'Logo Design for EcoBrand', creator: 'You', client: 'GreenCo', status: 'In Progress', budget: 500, deadline: '2026-03-15', description: 'Modern eco-friendly brand identity' },
-  { id: 2, title: 'Website Redesign', creator: 'You', client: 'TechStart', status: 'In Progress', budget: 1200, deadline: '2026-04-01', description: 'Full responsive redesign', adminNote: 'High profile flag: Monitoring for scope creep disputes.' },
-  { id: 3, title: '3D Video Animation', creator: 'You', client: 'AniHub', status: 'Pending', budget: 800, deadline: '2026-03-20', description: 'Product showcase animation' },
-  { id: 4, title: 'Audio Edits', creator: 'You', client: 'Shiko', status: 'Suspended', budget: 900, deadline: '2026-03-10', description: 'Podcast post-production editing', adminNote: 'Disabled due to pending copyright violation strike.' },
-  { id: 5, title: 'UI/UX Design', creator: 'Jane Smith', client: 'Shaki', status: 'Pending', budget: 900, deadline: '2026-04-15', description: 'Mobile app interface design' },
-  { id: 6, title: 'Brand Identity Package', creator: 'Jane Smith', client: 'GreenCo', status: 'Completed', budget: 1200, deadline: '2026-01-15', description: 'Complete brand identity' },
-  { id: 7, title: 'Social Media Graphics', creator: 'You', client: 'TechStart', status: 'Completed', budget: 600, deadline: '2026-01-22', description: 'Social media content pack' },
-  { id: 8, title: 'Product Photography', creator: 'Max Media', client: 'ShopEase', status: 'Completed', budget: 800, deadline: '2026-01-28', description: 'E-commerce product shots' },
-  { id: 9, title: 'Promotional Video', creator: 'Pixel Wizards', client: 'AniHub', status: 'Completed', budget: 2500, deadline: '2026-02-01', description: 'Marketing promo video' },
-  { id: 10, title: 'Mobile App UI Design', creator: 'You', client: 'AppVenture', status: 'Completed', budget: 3000, deadline: '2026-02-03', description: 'Full mobile app UI' },
-  { id: 11, title: 'Business Card Design', client: 'PrintHub', status: 'Completed', budget: 300, deadline: '2026-02-05', description: 'Professional business cards' },
-  { id: 12, title: 'Infographic Design', client: 'DataViz', status: 'Completed', budget: 700, deadline: '2026-02-07', description: 'Data visualization graphics' },
-  { id: 13, title: 'Email Template Design', client: 'MailPro', status: 'Completed', budget: 450, deadline: '2026-02-08', description: 'Responsive email templates' },
-  { id: 14, title: 'Podcast Cover Art', client: 'SoundWave', status: 'Completed', budget: 350, deadline: '2026-02-09', description: 'Podcast branding artwork' },
-  { id: 15, title: 'Banner Ad Set', client: 'AdClick', status: 'Completed', budget: 500, deadline: '2026-02-10', description: 'Digital ad banners' },
-  { id: 16, title: 'Presentation Deck', client: 'PitchPerfect', status: 'Completed', budget: 900, deadline: '2026-02-11', description: 'Investor pitch deck' },
-  { id: 17, title: 'Icon Set Design', client: 'IconLab', status: 'Completed', budget: 400, deadline: '2026-02-12', description: 'Custom icon library' },
-  { id: 18, title: 'Packaging Design', client: 'BoxCraft', status: 'Completed', budget: 1100, deadline: '2026-02-13', description: 'Product packaging' },
-  { id: 19, title: 'T-Shirt Graphic', client: 'WearArt', status: 'Completed', budget: 250, deadline: '2026-02-14', description: 'Apparel graphic design' },
-  { id: 20, title: 'Menu Design', client: 'FoodieSpot', status: 'Completed', budget: 350, deadline: '2026-02-14', description: 'Restaurant menu layout' },
-  { id: 21, title: 'Flyer Design', client: 'EventPro', status: 'Completed', budget: 200, deadline: '2026-02-15', description: 'Event promotional flyer' },
-  { id: 22, title: 'Sticker Pack Design', client: 'StickerCo', status: 'Completed', budget: 150, deadline: '2026-02-16', description: 'Custom sticker set' },
-];
-
-const STORAGE_KEY = 'createch_projects';
-
-const loadProjects = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
-  } catch (e) {
-    console.error('Failed to load projects from localStorage', e);
-  }
-  return defaultProjects;
-};
+import { createContext, useState, useEffect, useCallback } from 'react';
+import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, fetchMyServices as apiFetchMyServices, getUserData } from '../api';
 
 const ProjectsContext = createContext();
 
 export { ProjectsContext };
 
 export const ProjectsProvider = ({ children }) => {
-  const [projects, setProjects] = useState(loadProjects);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sync to localStorage whenever projects change
+  // Fetch orders and map them to the project shape
+  const loadProjects = useCallback(async () => {
+    setLoading(true);
+    try {
+      const userData = getUserData();
+      const role = userData?.role || 'client';
+      const ordersFetcher = role === 'creator' ? fetchMyCreatorOrders : apiFetchOrders;
+      const [ordersRes, servicesRes] = await Promise.all([
+        ordersFetcher(),
+        role === 'creator' ? apiFetchMyServices() : Promise.resolve({ ok: true, data: [] }),
+      ]);
+
+      const items = [];
+
+      // Map orders to project-like objects
+      if (ordersRes.ok) {
+        const orders = ordersRes.data.results || ordersRes.data || [];
+        orders.forEach((o) => {
+          items.push({
+            id: o.id,
+            title: o.service_title || `Order #${o.id}`,
+            creator: o.creator_display_name || o.creator_name || o.creator_id || 'Unknown',
+            client: o.client_display_name || o.client_name || o.client_id || 'Unknown',
+            status: mapStatus(o.status),
+            budget: parseFloat(o.price) || 0,
+            deadline: o.due_date ? o.due_date.split('T')[0] : '',
+            description: o.service_title || '',
+            _type: 'order',
+          });
+        });
+      }
+
+      // Only show services for creators (their own services)
+      if (role === 'creator' && servicesRes.ok) {
+        const services = servicesRes.data.results || servicesRes.data || [];
+        services.forEach((s) => {
+          items.push({
+            id: `svc-${s.id}`,
+            title: s.title || s.label,
+            creator: s.creator_id || 'Unknown',
+            client: '—',
+            status: s.is_public ? 'Active' : 'Pending',
+            budget: parseFloat(s.price) || 0,
+            deadline: '',
+            description: s.description || s.label || '',
+            _type: 'service',
+          });
+        });
+      }
+
+      setProjects(items);
+    } catch (err) {
+      console.error('Failed to load projects from API:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  }, [projects]);
+    loadProjects();
+  }, [loadProjects]);
 
+  // CRUD wrappers (local state for now; can wire to API later)
   const addProject = (project) => {
     const newProject = { ...project, id: Date.now(), budget: Number(project.budget) };
     setProjects((prev) => [...prev, newProject]);
@@ -81,8 +104,25 @@ export const ProjectsProvider = ({ children }) => {
       activeProjects,
       pendingProjects,
       totalRevenue,
+      loading,
+      refresh: loadProjects,
     }}>
       {children}
     </ProjectsContext.Provider>
   );
 };
+
+// Map API statuses to the UI status labels
+function mapStatus(apiStatus) {
+  const map = {
+    pending: 'Pending',
+    accepted: 'In Progress',
+    in_progress: 'In Progress',
+    delivered: 'In Progress',
+    completed: 'Completed',
+    cancelled: 'Suspended',
+    rejected: 'Suspended',
+    refunded: 'Suspended',
+  };
+  return map[apiStatus] || apiStatus || 'Pending';
+}
