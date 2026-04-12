@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchMyMessages as apiFetchMessages, createMessage, getUserData } from '../api';
+import { useSearchParams } from 'react-router-dom';
+import { fetchMyMessages as apiFetchMessages, createMessage, getUserData, fetchUsers } from '../api';
 import { Search, Paperclip, Send, MoreVertical } from 'lucide-react';
 import './MessagesPage.css';
 
@@ -10,6 +11,8 @@ const MessagesPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [newMsg, setNewMsg] = useState('');
     const chatEndRef = useRef(null);
+    const [searchParams] = useSearchParams();
+    const toParam = searchParams.get('to');
 
     const userData = getUserData();
     const myUid = userData?.firebase_uid;
@@ -18,14 +21,38 @@ const MessagesPage = () => {
         (async () => {
             try {
                 const { ok, data } = await apiFetchMessages();
-                if (ok) setMessages(data.results || data || []);
+                if (ok) {
+                    const msgs = data.results || data || [];
+                    setMessages(msgs);
+                    // If ?to= param, auto-select that conversation
+                    if (toParam) {
+                        const hasConv = msgs.some(m => m.sender_id === toParam || m.receiver_id === toParam);
+                        if (hasConv) {
+                            setSelectedChat(toParam);
+                        } else {
+                            // Create a placeholder conversation entry
+                            try {
+                                const uRes = await fetchUsers();
+                                if (uRes.ok) {
+                                    const users = uRes.data.results || uRes.data || [];
+                                    const targetUser = users.find(u => u.firebase_uid === toParam);
+                                    if (targetUser) {
+                                        // Set a placeholder so the conversation appears
+                                        setSelectedChat(toParam);
+                                    }
+                                }
+                            } catch { /* ignore */ }
+                            setSelectedChat(toParam);
+                        }
+                    }
+                }
             } catch (err) {
                 console.error('Failed to load messages:', err);
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [toParam]);
 
     // Group messages into conversations by the other user
     const conversations = messages.reduce((acc, msg) => {
@@ -50,7 +77,8 @@ const MessagesPage = () => {
         c.userName?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const activeConv = selectedChat ? conversations[selectedChat] : null;
+    // If toParam set but no conversation exists, create a virtual entry
+    const activeConv = selectedChat ? (conversations[selectedChat] || { userId: selectedChat, userName: selectedChat, messages: [] }) : null;
     const activeMessages = activeConv?.messages?.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) || [];
 
     useEffect(() => {

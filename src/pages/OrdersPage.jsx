@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, createOrder, deleteOrder, updateOrder, getUserData } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, createOrder, deleteOrder, updateOrder, getUserData, updateOrderStatus } from '../api';
 
 const OrdersPage = () => {
     const [filter, setFilter] = useState('All');
@@ -57,6 +57,24 @@ const OrdersPage = () => {
         setTimeout(() => { setSuccess(''); setError(''); }, 3000);
     };
 
+    // Order status update handler
+    const [statusUpdating, setStatusUpdating] = useState(null);
+    const [statusError, setStatusError] = useState('');
+
+    const handleStatusUpdate = async (id, newStatus) => {
+        setStatusUpdating(id);
+        setStatusError('');
+        const { ok, data } = await updateOrderStatus(id, newStatus);
+        if (ok) {
+            setSuccess('Order status updated.');
+            loadOrders();
+        } else {
+            setStatusError(data?.detail || 'Failed to update status.');
+        }
+        setStatusUpdating(null);
+        setTimeout(() => { setSuccess(''); setStatusError(''); }, 3000);
+    };
+
     return (
         <section className="section page-fade">
             <header className="section__header">
@@ -76,6 +94,7 @@ const OrdersPage = () => {
 
             {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
             {success && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{success}</div>}
+            {statusError && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.5rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{statusError}</div>}
 
             {loading ? (
                 <div className="empty-state"><p>Loading orders...</p></div>
@@ -95,6 +114,18 @@ const OrdersPage = () => {
                             </div>
                             <div className="card__actions" style={{ marginTop: '0.75rem' }}>
                                 <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(order.id)}>Remove</button>
+                                {/* Order status update dropdown */}
+                                <select
+                                    value={order.status}
+                                    onChange={e => handleStatusUpdate(order.id, e.target.value)}
+                                    disabled={statusUpdating === order.id}
+                                    style={{ marginLeft: 8 }}
+                                >
+                                    {['Pending', 'In_progress', 'Completed', 'Cancelled'].map(opt => (
+                                        <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>
+                                    ))}
+                                </select>
+                                {statusUpdating === order.id && <span style={{ marginLeft: 8 }}>Updating...</span>}
                             </div>
                         </div>
                     )) : (

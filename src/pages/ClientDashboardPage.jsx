@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown } from 'lucide-react';
 import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews } from '../api';
+import ConfirmModal from '../components/ConfirmModal';
 import './ClientDashboardPage.css';
 
-const CATEGORIES = ['All', 'Design & Creative', 'Development & IT', 'Digital Marketing', 'Music & Audio', 'Video & Animation', 'Writing & Translation'];
+
 
 const ServiceSkeleton = () => (
     <div className="cm-service-card" style={{ pointerEvents: 'none' }}>
@@ -76,6 +77,10 @@ const ClientDashboardPage = () => {
     const userData = getUserData();
     const navigate = useNavigate();
 
+    // Confirm modal state
+    const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
+    const [orderLoading, setOrderLoading] = useState(false);
+
     useEffect(() => {
         (async () => {
             try {
@@ -93,11 +98,55 @@ const ClientDashboardPage = () => {
         })();
     }, []);
 
+    // Safely parse skills — handles arrays, JSON, Python list strings, comma-separated, postgres text format
+    const parseSkills = (raw) => {
+        if (!raw) return [];
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+            try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch {}
+            if (raw.startsWith('[')) {
+                try { const p = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(p)) return p; } catch {}
+            }
+            const trimmed = raw.replace(/^\[|\]$|^\{|\}$/g, '').trim();
+            if (!trimmed) return [];
+            return trimmed.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+        }
+        return [];
+    };
+
     const publicServices = services.filter(s => s.is_public !== false);
+
+    // Canonical service categories
+    const CATEGORIES = ['All', 'Design & Creative', 'Development & IT', 'Digital Marketing', 'Music & Audio', 'Video & Animation', 'Writing & Translation'];
+
+    // Map old/missing categories to canonical ones based on label or category value
+    const inferCategory = (svc) => {
+        const cat = (svc.category || '').toLowerCase().trim();
+        const label = (svc.label || '').toLowerCase().trim();
+        const title = (svc.title || '').toLowerCase().trim();
+        const combined = `${cat} ${label} ${title}`;
+
+        // Check if category already matches a canonical one
+        const canonical = CATEGORIES.find(c => c !== 'All' && c.toLowerCase() === cat);
+        if (canonical) return canonical;
+
+        // Map by keywords
+        if (/logo|brand|illustration|design|graphic|ui\/ux|mockup|figma|print|banner|poster|flyer|social media/i.test(combined)) return 'Design & Creative';
+        if (/web|app|mobile|software|develop|code|programming|support & it/i.test(combined)) return 'Development & IT';
+        if (/market|seo|ads|advertising|social media market|campaign/i.test(combined)) return 'Digital Marketing';
+        if (/music|audio|sing|vocal|sound|beat|podcast|mix|master/i.test(combined)) return 'Music & Audio';
+        if (/video|animation|motion|edit|film|youtube|short/i.test(combined)) return 'Video & Animation';
+        if (/writ|translat|copy|content|blog|article|script/i.test(combined)) return 'Writing & Translation';
+
+        return 'Design & Creative'; // default fallback
+    };
+
     const filteredServices = publicServices.filter(s => {
-        const matchSearch = (s.title || s.label || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (s.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-        const matchCat = activeCategory === 'All' || (s.category || '').toLowerCase().includes(activeCategory.toLowerCase());
+        const safe = v => (typeof v === 'string' ? v : (v ? String(v) : ''));
+        const matchSearch = safe(s.title).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safe(s.label).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safe(s.description).toLowerCase().includes(searchTerm.toLowerCase());
+        const matchCat = activeCategory === 'All' || inferCategory(s) === activeCategory;
         return matchSearch && matchCat;
     });
 
@@ -109,11 +158,15 @@ const ClientDashboardPage = () => {
         return 0; // recommended = default
     });
 
-    const filteredCreators = creators.filter(c =>
-        (c.display_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.bio || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.skills || []).some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredCreators = creators.filter(c => {
+        const safe = v => (typeof v === 'string' ? v : (v ? String(v) : ''));
+        const skillsArr = parseSkills(c.skills);
+        return (
+            safe(c.display_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safe(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            skillsArr.some(s => safe(s).toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    });
 
     const getCreatorReviews = (uid) => reviews.filter(r => r.reviewee_id === uid);
     const getAvgRating = (uid) => {
@@ -121,7 +174,14 @@ const ClientDashboardPage = () => {
         return cr.length > 0 ? (cr.reduce((s, r) => s + (r.rating || 0), 0) / cr.length).toFixed(1) : null;
     };
 
-    const handlePlaceOrder = async (service) => {
+    const openOrderConfirm = (service) => {
+        setConfirmModal({ open: true, service });
+    };
+
+    const handlePlaceOrder = async () => {
+        const service = confirmModal.service;
+        if (!service) return;
+        setOrderLoading(true);
         try {
             const { ok, data } = await createOrder({
                 client_id: userData?.firebase_uid,
@@ -145,6 +205,8 @@ const ClientDashboardPage = () => {
             setOrderMsgType('error');
             setTimeout(() => setOrderMsg(''), 4000);
         }
+        setOrderLoading(false);
+        setConfirmModal({ open: false, service: null });
     };
 
     const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
@@ -155,10 +217,9 @@ const ClientDashboardPage = () => {
         return colors[Math.abs(hash) % colors.length];
     };
 
-    const getCreatorName = (creatorId) => {
-        const c = creators.find(cr => cr.user_id === creatorId);
-        return c?.display_name || creatorId;
-    };
+
+    // Get full creator object for a service
+    const getCreator = (creatorId) => creators.find(cr => cr.user_id === creatorId) || {};
 
     return (
         <main className="client-marketplace">
@@ -222,27 +283,55 @@ const ClientDashboardPage = () => {
                         {loading ? (
                             Array.from({ length: 8 }).map((_, i) => <ServiceSkeleton key={i} />)
                         ) : sortedServices.length > 0 ? (
-                            sortedServices.map(svc => (
-                                <div key={svc.id} className="cm-service-card" onClick={() => handlePlaceOrder(svc)}>
-                                    <div className="cm-service-thumb">
-                                        {svc.image && <img src={svc.image} alt={svc.title} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />}
-                                        <span className="cm-service-cat">{svc.category || 'Service'}</span>
-                                    </div>
-                                    <div className="cm-service-info">
-                                        <div className="cm-service-creator">
-                                            <div className="cm-service-creator-avatar" style={{ background: getAvatarColor(getCreatorName(svc.creator_id)) }}>
-                                                {getInitial(getCreatorName(svc.creator_id))}
+                            sortedServices.map(svc => {
+                                const creator = getCreator(svc.creator_id);
+                                const user = creator.user || {};
+                                const rating = getAvgRating(svc.creator_id);
+                                return (
+                                    <div key={svc.id} className="cm-service-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/services/${svc.id}`)}>
+                                        <div className="cm-service-thumb" style={{ position: 'relative', minHeight: 120 }}>
+                                            {svc.image_url ? (
+                                                <img src={svc.image_url} alt={svc.title} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: '10px 10px 0 0' }} />
+                                            ) : (
+                                                <div style={{ width: '100%', height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 32, fontWeight: 700, letterSpacing: 2 }}>
+                                                    No Image
+                                                </div>
+                                            )}
+                                            <span className="cm-service-cat" style={{ position: 'absolute', top: 10, left: 10, zIndex: 2 }}>{inferCategory(svc)}</span>
+                                        </div>
+                                        <div className="cm-service-info" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <div className="cm-service-creator" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                {user.avatar_url ? (
+                                                    <img className="cm-service-creator-avatar" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #23272f' }} />
+                                                ) : (
+                                                    <div className="cm-service-creator-avatar" style={{ width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(user.display_name), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, border: '2px solid var(--bg-secondary)' }}>
+                                                        {getInitial(user.display_name)}
+                                                    </div>
+                                                )}
+                                                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{user.display_name || svc.creator_id}</span>
                                             </div>
-                                            <span>{getCreatorName(svc.creator_id)}</span>
-                                        </div>
-                                        <h4>{svc.title || svc.label}</h4>
-                                        <div className="cm-service-footer">
-                                            <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || '3 days'}</span>
-                                            <span className="cm-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
+                                            <h4 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{svc.title || svc.label}</h4>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 }}>
+                                                {rating ? (
+                                                    <>
+                                                        <Star size={14} fill="#f59e0b" color="#f59e0b" style={{ marginRight: 2 }} />
+                                                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{rating}</span>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>No rating</span>
+                                                )}
+                                            </div>
+                                            <div className="cm-service-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                                                <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || '3 days'}</span>
+                                                <span className="cm-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
+                                            </div>
+                                            <button className="cm-order-btn" style={{ marginTop: 10, padding: '8px 0', borderRadius: 6, background: '#6366f1', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }} onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}>
+                                                Order
+                                            </button>
                                         </div>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         ) : (
                             <p className="cm-empty-full">{searchTerm ? 'No services match your search.' : 'No services available yet.'}</p>
                         )}
@@ -250,7 +339,81 @@ const ClientDashboardPage = () => {
                 </>
             )}
 
+            {/* Confirm Order Modal */}
+            <ConfirmModal
+                open={confirmModal.open}
+                title="Place Order?"
+                message={confirmModal.service ? <>You are about to order <strong>"{confirmModal.service.title || confirmModal.service.label}"</strong> for <strong>₱{parseFloat(confirmModal.service.price || 0).toLocaleString()}</strong>.</> : ''}
+                variant="info"
+                confirmLabel="Place Order"
+                loading={orderLoading}
+                onConfirm={handlePlaceOrder}
+                onCancel={() => setConfirmModal({ open: false, service: null })}
+            />
+
             {viewMode === 'creators' && (
+                <>
+                {/* Top Creators Section */}
+                {(() => {
+                    const topCreators = filteredCreators
+                        .map(c => ({ ...c, _rating: parseFloat(getAvgRating(c.user_id)) || 0 }))
+                        .sort((a, b) => b._rating - a._rating)
+                        .slice(0, 3)
+                        .filter(c => c._rating > 0);
+
+                    if (topCreators.length === 0) return null;
+
+                    return (
+                        <div style={{ marginBottom: 32 }}>
+                            <h3 className="cm-section-heading">Top Creators</h3>
+                            <div className="cm-creators-grid">
+                                {topCreators.map(c => {
+                                    const revCount = getCreatorReviews(c.user_id).length;
+                                    const skills = parseSkills(c.skills);
+                                    const user = c.user || {};
+                                    return (
+                                        <div key={`top-${c.user_id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                            <div className="cm-creator-header">
+                                                {user.avatar_url ? (
+                                                    <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
+                                                        {getInitial(user.display_name)}
+                                                    </div>
+                                                )}
+                                                <div className="cm-creator-meta">
+                                                    <h4>{user.display_name || 'Creator'}</h4>
+                                                    <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
+                                                </div>
+                                                <div className="cm-creator-rating">
+                                                    <Star size={14} fill="#f59e0b" color="#f59e0b" />
+                                                    <span>{c._rating.toFixed(1)}</span>
+                                                    <span className="cm-creator-rev-count">({revCount} reviews)</span>
+                                                </div>
+                                            </div>
+                                            <p className="cm-creator-bio-full">{c.bio || ''}</p>
+                                            {skills.length > 0 && (
+                                                <div className="cm-creator-skills">
+                                                    {skills.slice(0, 4).map((s, i) => <span key={i} className="cm-skill-chip">{s}</span>)}
+                                                </div>
+                                            )}
+                                            <div className="cm-creator-footer">
+                                                <div>
+                                                    <span className="cm-creator-rate-label">HOURLY RATE</span>
+                                                    <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                                </div>
+                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {/* All Creators Section */}
+                <h3 className="cm-section-heading">All Creators</h3>
                 <div className="cm-creators-grid">
                     {loading ? (
                         Array.from({ length: 6 }).map((_, i) => <CreatorSkeleton key={i} />)
@@ -258,25 +421,27 @@ const ClientDashboardPage = () => {
                         filteredCreators.map(c => {
                             const rating = getAvgRating(c.user_id);
                             const revCount = getCreatorReviews(c.user_id).length;
-                            const skills = c.skills || [];
+                            const skills = parseSkills(c.skills);
+                            const user = c.user || {};
                             return (
-                                <div key={c.user_id} className="cm-creator-card">
+                                <div key={c.user_id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
                                     <div className="cm-creator-header">
-                                        <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(c.display_name) }}>
-                                            {getInitial(c.display_name)}
-                                        </div>
-                                        <div className="cm-creator-meta">
-                                            <h4>{c.display_name}</h4>
-                                            <p className="cm-creator-bio-short">{c.bio || c.job_title || 'Creator'}</p>
-                                            <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
-                                        </div>
-                                        {rating && (
-                                            <div className="cm-creator-rating">
-                                                <Star size={14} fill="#f59e0b" color="#f59e0b" />
-                                                <span>{rating}</span>
-                                                <span className="cm-creator-rev-count">({revCount} reviews)</span>
+                                        {user.avatar_url ? (
+                                            <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                        ) : (
+                                            <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
+                                                {getInitial(user.display_name)}
                                             </div>
                                         )}
+                                        <div className="cm-creator-meta">
+                                            <h4>{user.display_name || 'Creator'}</h4>
+                                            <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
+                                        </div>
+                                        <div className="cm-creator-rating">
+                                            <Star size={14} fill="#f59e0b" color="#f59e0b" />
+                                            <span>{rating || '0.0'}</span>
+                                            <span className="cm-creator-rev-count">({revCount} reviews)</span>
+                                        </div>
                                     </div>
                                     <p className="cm-creator-bio-full">{c.bio || ''}</p>
                                     {skills.length > 0 && (
@@ -289,7 +454,7 @@ const ClientDashboardPage = () => {
                                             <span className="cm-creator-rate-label">HOURLY RATE</span>
                                             <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
                                         </div>
-                                        <button className="cm-view-profile-btn" onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>View Profile</button>
+                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
                                     </div>
                                 </div>
                             );
@@ -298,6 +463,7 @@ const ClientDashboardPage = () => {
                         <p className="cm-empty-full">No creators found.</p>
                     )}
                 </div>
+                </>
             )}
         </main>
     );

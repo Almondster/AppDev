@@ -92,6 +92,11 @@ export async function fetchMe() {
 }
 
 export function logout() {
+  // Clear user-scoped notification read state
+  const user = getUserData();
+  if (user?.firebase_uid) {
+    localStorage.removeItem(`createch_read_notifs_${user.firebase_uid}`);
+  }
   clearToken();
   clearUserData();
 }
@@ -102,11 +107,13 @@ export function logout() {
 export const fetchUsers       = () => api.get('/users/');
 export const fetchUser        = (id) => api.get(`/users/${id}/`);
 export const updateUser       = (id, body) => api.put(`/users/${id}/`, body);
+export const patchUser        = (id, body) => api.patch(`/users/${id}/`, body);
 export const deleteUser       = (id) => api.delete(`/users/${id}/`);
 
 export const fetchCreators    = () => api.get('/creators/');
 export const fetchCreator     = (id) => api.get(`/creators/${id}/`);
 export const updateCreator    = (id, body) => api.patch(`/creators/${id}/`, body);
+export const fetchCreatorByUid = (uid) => api.get(`/creators/by-uid/${uid}/`);
 
 export const fetchCategories  = () => api.get('/categories/');
 
@@ -122,25 +129,42 @@ export const createOrder      = (body) => api.post('/orders/', body);
 export const updateOrder      = (id, body) => api.patch(`/orders/${id}/`, body);
 export const deleteOrder      = (id) => api.delete(`/orders/${id}/`);
 
+// Update order status (custom action)
+export const updateOrderStatus = (id, status) =>
+  api.post(`/orders/${id}/update_status/`, { status });
+
 export const fetchReviews     = () => api.get('/reviews/');
+export const createReview     = (body) => api.post('/reviews/', body);
+
 export const fetchMessages    = () => api.get('/messages/');
 export const createMessage    = (body) => api.post('/messages/', body);
 
 export const fetchFollows     = () => api.get('/follows/');
+export const createFollow     = (body) => api.post('/follows/', body);
+export const deleteFollow     = (id) => api.delete(`/follows/${id}/`);
+
 export const fetchBlocks      = () => api.get('/blocks/');
 export const fetchReports     = () => api.get('/reports/');
+export const createReport     = (body) => api.post('/reports/', body);
 
 export const fetchMatches     = () => api.get('/matches/');
 
 export const fetchPaymentMethods = () => api.get('/payment-methods/');
+export const createPaymentMethod = (body) => api.post('/payment-methods/', body);
+export const deletePaymentMethod = (id) => api.delete(`/payment-methods/${id}/`);
+
 export const fetchSupportTickets = () => api.get('/support-tickets/');
 export const createSupportTicket = (body) => api.post('/support-tickets/', body);
+export const updateSupportTicket = (id, body) => api.patch(`/support-tickets/${id}/`, body);
 
 export const fetchWallets     = () => api.get('/wallets/');
+export const createWallet     = (body) => api.post('/wallets/', body);
+export const deleteWallet     = (id) => api.delete(`/wallets/${id}/`);
+
 export const fetchWithdrawals = () => api.get('/withdrawals/');
 export const createWithdrawal = (body) => api.post('/withdrawals/', body);
 
-export const fetchTimeline    = () => api.get('/order-timeline/');
+export const fetchTimeline    = (orderId) => api.get(`/order-timeline/?order_id=${orderId}`);
 export const fetchAnalytics   = () => api.get('/daily-analytics/');
 export const fetchDeadlines   = () => api.get('/deadline-notifications/');
 
@@ -150,7 +174,6 @@ export const fetchDeadlines   = () => api.get('/deadline-notifications/');
 export const fetchMyOrders = () => {
   const user = getUserData();
   if (!user?.firebase_uid) return fetchOrders();
-  // Fetch orders where user is client OR creator
   return api.get(`/orders/?client_id=${user.firebase_uid}`);
 };
 
@@ -178,5 +201,28 @@ export const fetchMyWallets = () => {
   return api.get(`/wallets/?user_id=${user.firebase_uid}`);
 };
 
-export default api;
+export const fetchMyWithdrawals = () => {
+  const user = getUserData();
+  if (!user?.firebase_uid) return fetchWithdrawals();
+  return api.get(`/withdrawals/?user_id=${user.firebase_uid}`);
+};
 
+export const fetchMyPaymentMethods = () => {
+  const user = getUserData();
+  if (!user?.firebase_uid) return fetchPaymentMethods();
+  return api.get(`/payment-methods/?user_id=${user.firebase_uid}`);
+};
+
+export const fetchMyFollowers = () => {
+  const user = getUserData();
+  if (!user?.firebase_uid) return Promise.resolve({ ok: true, data: [] });
+  return api.get(`/follows/?following_id=${user.firebase_uid}`);
+};
+
+export const fetchMyFollowing = () => {
+  const user = getUserData();
+  if (!user?.firebase_uid) return Promise.resolve({ ok: true, data: [] });
+  return api.get(`/follows/?follower_id=${user.firebase_uid}`);
+};
+
+export default api;

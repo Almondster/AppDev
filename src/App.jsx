@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { ProjectsProvider } from './context/ProjectsContext';
+import React from 'react';
 import Sidebar from './components/Sidebar';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -8,12 +9,13 @@ import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/MessagesPage';
 import NotificationsPage from './pages/NotificationsPage';
-import OrdersPage from './pages/OrdersPage';
 import SettingsPage from './pages/SettingsPage';
 import WalletPage from './pages/WalletPage';
 import CreatorProfilePage from './pages/CreatorProfilePage';
 import UsersPage from './pages/UsersPage';
 import DisputesPage from './pages/DisputesPage';
+import OrderDetailPage from './pages/OrderDetailPage';
+import ServiceDetailPage from './pages/ServiceDetailPage';
 import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
@@ -53,6 +55,14 @@ function App() {
     }
   }, [isLoggedIn]);
 
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const theme = localStorage.getItem('createch_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    const accent = localStorage.getItem('createch_accent');
+    if (accent) document.documentElement.style.setProperty('--accent', accent);
+  }, []);
+
   const handleLogout = () => {
     apiLogout();
     setIsLoggedIn(false);
@@ -88,7 +98,8 @@ function App() {
 
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/services/:id" element={<ServiceDetailPage />} />
             <Route path="/settings" element={<SettingsPage userRole={userRole} onLogout={handleLogout} />} />
             <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />

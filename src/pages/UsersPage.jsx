@@ -1,42 +1,74 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, BadgeCheck, MoreVertical, Search, Filter } from 'lucide-react';
+import { BadgeCheck, Search } from 'lucide-react';
 import { fetchUsers as apiFetchUsers } from '../api';
+import api from '../api';
+import ConfirmModal from '../components/ConfirmModal';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [toast, setToast] = useState('');
+
+    // Confirm modal
+    const [confirmModal, setConfirmModal] = useState({ open: false, id: null, action: '', userName: '' });
+    const [actionLoading, setActionLoading] = useState(false);
 
     useEffect(() => {
-        (async () => {
-            try {
-                const { ok, data } = await apiFetchUsers();
-                if (ok) {
-                    const list = data.results || data || [];
-                    setUsers(list.map(u => ({
-                        id: u.id,
-                        name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
-                        role: capitalize(u.role || 'client'),
-                        status: u.is_active !== false ? 'Active' : 'Suspended',
-                        joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
-                        reports: 0,
-                    })));
-                }
-            } catch (err) {
-                console.error('Failed to load users:', err);
-            } finally {
-                setLoading(false);
-            }
-        })();
+        loadUsers();
     }, []);
+
+    const loadUsers = async () => {
+        setLoading(true);
+        try {
+            const { ok, data } = await apiFetchUsers();
+            if (ok) {
+                const list = data.results || data || [];
+                setUsers(list.map(u => ({
+                    id: u.id,
+                    firebase_uid: u.firebase_uid,
+                    name: u.display_name || u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+                    role: capitalize(u.role || 'client'),
+                    status: u.is_active !== false ? 'Active' : 'Suspended',
+                    joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+                })));
+            }
+        } catch (err) {
+            console.error('Failed to load users:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filtered = users.filter(u =>
         u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.role.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+    const handleConfirmAction = async () => {
+        const { id, action, userName } = confirmModal;
+        setActionLoading(true);
+        try {
+            const endpoint = action === 'suspend' ? `/users/${id}/suspend/` : `/users/${id}/activate/`;
+            await api.post(endpoint);
+            // Update local state
+            setUsers(prev => prev.map(u =>
+                u.id === id ? { ...u, status: action === 'suspend' ? 'Suspended' : 'Active' } : u
+            ));
+            showToast(`${userName} has been ${action === 'suspend' ? 'suspended' : 'activated'}.`);
+        } catch {
+            showToast(`Failed to ${action} user.`);
+        }
+        setActionLoading(false);
+        setConfirmModal({ open: false, id: null, action: '', userName: '' });
+    };
+
     return (
         <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+
             <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -84,6 +116,17 @@ const UsersPage = () => {
                                     backgroundColor: user.status === 'Active' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                                     color: user.status === 'Active' ? '#4ade80' : '#f87171'
                                 }}>{user.status}</span>
+                                {user.status === 'Active' ? (
+                                    <button style={{ marginLeft: 12, padding: '2px 10px', fontSize: '0.8rem', background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', cursor: 'pointer' }}
+                                        onClick={() => setConfirmModal({ open: true, id: user.id, action: 'suspend', userName: user.name })}>
+                                        Suspend
+                                    </button>
+                                ) : (
+                                    <button style={{ marginLeft: 12, padding: '2px 10px', fontSize: '0.8rem', background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', cursor: 'pointer' }}
+                                        onClick={() => setConfirmModal({ open: true, id: user.id, action: 'activate', userName: user.name })}>
+                                        Activate
+                                    </button>
+                                )}
                             </div>
                             <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>{user.joined}</span>
                         </div>
@@ -93,6 +136,17 @@ const UsersPage = () => {
                     )}
                 </div>
             )}
+
+            <ConfirmModal
+                open={confirmModal.open}
+                title={confirmModal.action === 'suspend' ? 'Suspend User?' : 'Activate User?'}
+                message={<>Are you sure you want to {confirmModal.action} <strong>{confirmModal.userName}</strong>?</>}
+                variant={confirmModal.action === 'suspend' ? 'danger' : 'success'}
+                confirmLabel={confirmModal.action === 'suspend' ? 'Suspend' : 'Activate'}
+                loading={actionLoading}
+                onConfirm={handleConfirmAction}
+                onCancel={() => setConfirmModal({ open: false, id: null, action: '', userName: '' })}
+            />
         </main>
     );
 };

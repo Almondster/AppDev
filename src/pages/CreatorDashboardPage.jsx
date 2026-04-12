@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyCreatorOrders as apiFetchOrders, fetchMyServices as apiFetchServices, fetchReviews, createService, deleteService, getUserData, fetchAnalytics } from '../api';
 import { Eye, MousePointerClick, Briefcase, DollarSign, Clock, Star, Plus, X, Upload, Trash2 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 import './CreatorDashboardPage.css';
 
 const CreatorDashboardPage = () => {
@@ -11,8 +12,10 @@ const CreatorDashboardPage = () => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '' });
+    const [serviceForm, setServiceForm] = useState({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
     const [formMsg, setFormMsg] = useState('');
+    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, title: '' });
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     const userData = getUserData();
     const navigate = useNavigate();
@@ -64,12 +67,13 @@ const CreatorDashboardPage = () => {
                 description: serviceForm.description,
                 price: parseFloat(serviceForm.price) || 0,
                 category: serviceForm.category,
+                image_url: serviceForm.image_url || null,
                 is_public: true,
                 is_deleted: false,
             });
             if (ok) {
                 setServices(prev => [...prev, data]);
-                setServiceForm({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '' });
+                setServiceForm({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
                 setShowModal(false);
                 setFormMsg('Service created successfully!');
                 setTimeout(() => setFormMsg(''), 3000);
@@ -80,11 +84,15 @@ const CreatorDashboardPage = () => {
         }
     };
 
-    const handleDeleteService = async (id) => {
+    const handleDeleteService = async () => {
+        if (!deleteConfirm.id) return;
+        setDeleteLoading(true);
         try {
-            await deleteService(id);
-            setServices(prev => prev.filter(s => s.id !== id));
+            await deleteService(deleteConfirm.id);
+            setServices(prev => prev.filter(s => s.id !== deleteConfirm.id));
         } catch { /* ignore */ }
+        setDeleteLoading(false);
+        setDeleteConfirm({ open: false, id: null, title: '' });
     };
 
     const renderStars = (rating) => {
@@ -385,12 +393,8 @@ const CreatorDashboardPage = () => {
                             <button className="modal-close" onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleCreateService} className="modal-form">
-                            <label className="modal-label">Cover Image</label>
-                            <div className="cover-upload">
-                                <Upload size={28} color="#52525b" />
-                                <p>Click to upload cover image</p>
-                                <span>Max 5MB (JPG, PNG)</span>
-                            </div>
+                            <label className="modal-label">Cover Image URL</label>
+                            <input type="url" placeholder="https://example.com/my-service-cover.jpg" value={serviceForm.image_url} onChange={e => setServiceForm(p => ({ ...p, image_url: e.target.value }))} style={{ marginBottom: '1rem' }} />
 
                             <div className="form-row">
                                 <div className="form-col">
@@ -408,13 +412,11 @@ const CreatorDashboardPage = () => {
                                     <label className="modal-label">Category</label>
                                     <select value={serviceForm.category} onChange={e => setServiceForm(p => ({ ...p, category: e.target.value }))}>
                                         <option>Design & Creative</option>
-                                        <option>Web Development</option>
-                                        <option>Mobile Development</option>
-                                        <option>Writing & Translation</option>
-                                        <option>Video & Animation</option>
+                                        <option>Development & IT</option>
+                                        <option>Digital Marketing</option>
                                         <option>Music & Audio</option>
-                                        <option>Marketing</option>
-                                        <option>Other</option>
+                                        <option>Video & Animation</option>
+                                        <option>Writing & Translation</option>
                                     </select>
                                 </div>
                                 <div className="form-col">
@@ -441,6 +443,18 @@ const CreatorDashboardPage = () => {
                     </div>
                 </div>
             )}
+
+            {/* Delete Service Confirm */}
+            <ConfirmModal
+                open={deleteConfirm.open}
+                title="Delete Service?"
+                message={<>Are you sure you want to delete <strong>"{deleteConfirm.title}"</strong>? This action cannot be undone.</>}
+                variant="danger"
+                confirmLabel="Delete"
+                loading={deleteLoading}
+                onConfirm={handleDeleteService}
+                onCancel={() => setDeleteConfirm({ open: false, id: null, title: '' })}
+            />
         </main>
     );
 };

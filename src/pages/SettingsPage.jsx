@@ -1,355 +1,590 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getUserData, fetchCreators, updateCreator, updateUser } from '../api';
-import { User, Palette, Users, CreditCard, Bell, Shield, HelpCircle, Database, LogOut } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+    User, Shield, Bell, CreditCard, HelpCircle, LogOut, Camera, Users, Heart,
+    ChevronRight, Mail, Phone, Globe, Palette, Save, X, Send, UserPlus, UserMinus, Trash2,
+} from 'lucide-react';
+import {
+    getUserData, patchUser, fetchMyFollowers, fetchMyFollowing, deleteFollow,
+    fetchMyWallets, createWallet, deleteWallet, fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod,
+    createSupportTicket, fetchSupportTickets,
+} from '../api';
+import ConfirmModal from '../components/ConfirmModal';
 import './SettingsPage.css';
 
-const CREATOR_TABS = [
-    { id: 'personal', label: 'Personal Info', icon: <User size={16} /> },
-    { id: 'creator', label: 'Creator Profile', icon: <Palette size={16} /> },
-    { id: 'followers', label: 'Followers', icon: <Users size={16} /> },
-    { id: 'payout', label: 'Payout Methods', icon: <CreditCard size={16} /> },
-    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
-    { id: 'security', label: 'Security', icon: <Shield size={16} /> },
-    { id: 'help', label: 'Help Center', icon: <HelpCircle size={16} /> },
-    { id: 'data', label: 'Support & Data', icon: <Database size={16} /> },
+const TABS = [
+    { key: 'profile', label: 'Profile', icon: <User size={18} /> },
+    { key: 'personalization', label: 'Personalization', icon: <Palette size={18} /> },
+    { key: 'security', label: 'Security', icon: <Shield size={18} /> },
+    { key: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
+    { key: 'followers', label: 'Followers', icon: <Users size={18} /> },
+    { key: 'payout', label: 'Payout Methods', icon: <CreditCard size={18} /> },
+    { key: 'help', label: 'Help & Support', icon: <HelpCircle size={18} /> },
 ];
 
-const CLIENT_TABS = [
-    { id: 'personal', label: 'Personal Info', icon: <User size={16} /> },
-    { id: 'following', label: 'Following', icon: <Users size={16} /> },
-    { id: 'payment', label: 'Payment Methods', icon: <CreditCard size={16} /> },
-    { id: 'notifications', label: 'Notifications', icon: <Bell size={16} /> },
-    { id: 'security', label: 'Security', icon: <Shield size={16} /> },
-    { id: 'help', label: 'Help Center', icon: <HelpCircle size={16} /> },
-    { id: 'data', label: 'Support & Data', icon: <Database size={16} /> },
-];
-
-const SettingsPage = ({ onLogout, userRole = 'creator' }) => {
-    const isCreator = userRole === 'creator';
-    const TABS = isCreator ? CREATOR_TABS : CLIENT_TABS;
-    const [activeTab, setActiveTab] = useState('personal');
-    const [creator, setCreator] = useState(null);
-    const [personalForm, setPersonalForm] = useState({ firstName: '', lastName: '', email: '', phone: '', birthdate: '', gender: '', nationality: '', address: '' });
-    const [creatorForm, setCreatorForm] = useState({ jobTitle: '', bio: '', portfolioUrl: '', hourlyRate: '', experience: '', skills: '' });
-    const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState('');
-    const [msgType, setMsgType] = useState('success');
+const SettingsPage = ({ userRole, onLogout }) => {
     const navigate = useNavigate();
-
+    const [searchParams] = useSearchParams();
+    const initialTab = searchParams.get('tab') || 'profile';
+    const [activeTab, setActiveTab] = useState(initialTab);
     const userData = getUserData();
+    const [toast, setToast] = useState('');
+
+    // Profile state
+    const [profileForm, setProfileForm] = useState({
+        full_name: userData?.full_name || '',
+        email: userData?.email || '',
+        avatar_url: userData?.avatar_url || '',
+        bio: '',
+    });
+    const [saving, setSaving] = useState(false);
+
+    // Notifications state
+    const [notifSettings, setNotifSettings] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('createch_notif_settings')) || { email: true, orders: true, messages: true, marketing: false }; }
+        catch { return { email: true, orders: true, messages: true, marketing: false }; }
+    });
+
+    // Followers/Following state
+    const [followers, setFollowers] = useState([]);
+    const [following, setFollowing] = useState([]);
+    const [socialTab, setSocialTab] = useState('followers');
+    const [socialLoading, setSocialLoading] = useState(false);
+
+    // Payout state
+    const [wallets, setWallets] = useState([]);
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [payoutForm, setPayoutForm] = useState({ wallet_type: 'GCash', account_name: '', account_number: '' });
+    const [pmForm, setPmForm] = useState({ method_type: '', masked_number: '' });
+    const [payoutLoading, setPayoutLoading] = useState(false);
+
+    // Help state
+    const [ticketForm, setTicketForm] = useState({ category: 'general', message: '' });
+    const [tickets, setTickets] = useState([]);
+    const [ticketLoading, setTicketLoading] = useState(false);
+
+    // Delete confirm
+    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, type: '', id: null });
+    const [deleting, setDeleting] = useState(false);
+
+    // Theme / Personalization
+    const [theme, setTheme] = useState(() => localStorage.getItem('createch_theme') || 'dark');
+    const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
 
     useEffect(() => {
-        // Populate personal info
-        const names = (userData?.full_name || '').split(' ');
-        setPersonalForm(p => ({
-            ...p,
-            firstName: names[0] || '',
-            lastName: names.slice(1).join(' ') || '',
-            email: userData?.email || '',
-            phone: userData?.phone || '',
-        }));
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('createch_theme', theme);
+    }, [theme]);
 
-        // Fetch creator profile
-        (async () => {
-            try {
-                const { ok, data } = await fetchCreators();
-                if (ok) {
-                    const allCreators = data.results || data || [];
-                    const myCreator = allCreators.find(c => c.user_id === userData?.firebase_uid);
-                    if (myCreator) {
-                        setCreator(myCreator);
-                        setCreatorForm({
-                            jobTitle: myCreator.job_title || '',
-                            bio: myCreator.bio || '',
-                            portfolioUrl: myCreator.portfolio_url || '',
-                            hourlyRate: myCreator.starting_price || '',
-                            experience: myCreator.years_experience || '',
-                            skills: (myCreator.skills || []).join(', '),
-                        });
-                    }
+    useEffect(() => {
+        document.documentElement.style.setProperty('--accent', accentColor);
+        localStorage.setItem('createch_accent', accentColor);
+    }, [accentColor]);
+
+    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+    // Load tab-specific data
+    useEffect(() => {
+        if (activeTab === 'followers') {
+            setSocialLoading(true);
+            Promise.all([fetchMyFollowers(), fetchMyFollowing()])
+                .then(([fRes, gRes]) => {
+                    if (fRes.ok) setFollowers(fRes.data.results || fRes.data || []);
+                    if (gRes.ok) setFollowing(gRes.data.results || gRes.data || []);
+                })
+                .finally(() => setSocialLoading(false));
+        }
+        if (activeTab === 'payout') {
+            Promise.all([fetchMyWallets(), fetchMyPaymentMethods()])
+                .then(([wRes, pRes]) => {
+                    if (wRes.ok) setWallets(wRes.data.results || wRes.data || []);
+                    if (pRes.ok) setPaymentMethods(pRes.data.results || pRes.data || []);
+                });
+        }
+        if (activeTab === 'help') {
+            fetchSupportTickets().then(res => {
+                if (res.ok) {
+                    const all = res.data.results || res.data || [];
+                    setTickets(all.filter(t => t.user_id === userData?.firebase_uid));
                 }
-            } catch { /* ignore */ }
-        })();
-    }, []);
+            });
+        }
+    }, [activeTab]);
 
-    const showMsg = (text, type = 'success') => { setMsg(text); setMsgType(type); setTimeout(() => setMsg(''), 3000); };
-
-    const handleSavePersonal = async (e) => {
-        e.preventDefault();
+    // ── PROFILE ──
+    const handleProfileSave = async () => {
         setSaving(true);
         try {
-            const { ok } = await updateUser(userData?.firebase_uid, {
-                first_name: personalForm.firstName,
-                last_name: personalForm.lastName,
-                phone: personalForm.phone,
+            const { ok } = await patchUser(userData?.firebase_uid, {
+                display_name: profileForm.full_name,
+                avatar_url: profileForm.avatar_url,
             });
             if (ok) {
-                showMsg('Personal information saved!');
+                // Update local storage
+                const u = getUserData();
+                u.full_name = profileForm.full_name;
+                u.avatar_url = profileForm.avatar_url;
+                localStorage.setItem('createch_user', JSON.stringify(u));
+                showToast('Profile updated!');
             } else {
-                showMsg('Failed to save changes.', 'error');
+                showToast('Failed to update profile.');
             }
-        } catch {
-            showMsg('Connection error. Try again.', 'error');
-        } finally {
-            setSaving(false);
-        }
+        } catch { showToast('Connection error.'); }
+        setSaving(false);
     };
 
-    const handleSaveCreator = async (e) => {
+    // ── NOTIFICATIONS ──
+    const toggleNotif = (key) => {
+        setNotifSettings(prev => {
+            const updated = { ...prev, [key]: !prev[key] };
+            localStorage.setItem('createch_notif_settings', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    // ── PAYOUT ──
+    const handleAddWallet = async (e) => {
         e.preventDefault();
-        setSaving(true);
+        setPayoutLoading(true);
         try {
-            if (!creator) { showMsg('No creator profile found.', 'error'); setSaving(false); return; }
-            const { ok } = await updateCreator(creator.id, {
-                job_title: creatorForm.jobTitle,
-                bio: creatorForm.bio,
-                portfolio_url: creatorForm.portfolioUrl,
-                starting_price: parseFloat(creatorForm.hourlyRate) || 0,
-                years_experience: parseInt(creatorForm.experience) || 0,
-                skills: creatorForm.skills.split(',').map(s => s.trim()).filter(Boolean),
+            const { ok, data } = await createWallet({
+                user_id: userData?.firebase_uid,
+                wallet_type: payoutForm.wallet_type,
+                account_name: payoutForm.account_name,
+                account_number: payoutForm.account_number,
             });
             if (ok) {
-                showMsg('Creator profile saved!');
-            } else {
-                showMsg('Failed to save profile.', 'error');
+                setWallets(prev => [...prev, data]);
+                setPayoutForm({ wallet_type: 'GCash', account_name: '', account_number: '' });
+                showToast('Payout method added!');
             }
-        } catch {
-            showMsg('Connection error. Try again.', 'error');
-        } finally {
-            setSaving(false);
-        }
+        } catch { showToast('Failed.'); }
+        setPayoutLoading(false);
+    };
+
+    const handleAddPayment = async (e) => {
+        e.preventDefault();
+        try {
+            const { ok, data } = await createPaymentMethod({
+                user_id: userData?.firebase_uid,
+                method_type: pmForm.method_type,
+                masked_number: pmForm.masked_number,
+            });
+            if (ok) {
+                setPaymentMethods(prev => [...prev, data]);
+                setPmForm({ method_type: '', masked_number: '' });
+                showToast('Payment method added!');
+            }
+        } catch { showToast('Failed.'); }
+    };
+
+    const handleDelete = async () => {
+        setDeleting(true);
+        try {
+            const { type, id } = deleteConfirm;
+            const fn = type === 'wallet' ? deleteWallet : type === 'payment' ? deletePaymentMethod : deleteFollow;
+            const { ok } = await fn(id);
+            if (ok) {
+                if (type === 'wallet') setWallets(prev => prev.filter(w => w.id !== id));
+                if (type === 'payment') setPaymentMethods(prev => prev.filter(p => p.id !== id));
+                if (type === 'follow') setFollowing(prev => prev.filter(f => f.id !== id));
+                showToast('Removed.');
+            }
+        } catch { showToast('Failed to remove.'); }
+        setDeleting(false);
+        setDeleteConfirm({ open: false, type: '', id: null });
+    };
+
+    // ── HELP ──
+    const handleSubmitTicket = async (e) => {
+        e.preventDefault();
+        setTicketLoading(true);
+        try {
+            const { ok, data } = await createSupportTicket({
+                ticket_number: `TKT-${Date.now()}`,
+                user_id: userData?.firebase_uid,
+                email: userData?.email || '',
+                category: ticketForm.category,
+                message: ticketForm.message,
+                user_role: userRole,
+                status: 'open',
+            });
+            if (ok) {
+                setTickets(prev => [data, ...prev]);
+                setTicketForm({ category: 'general', message: '' });
+                showToast('Support ticket submitted!');
+            }
+        } catch { showToast('Failed to submit ticket.'); }
+        setTicketLoading(false);
+    };
+
+    const inputStyle = {
+        width: '100%', padding: '0.65rem 0.9rem', borderRadius: 10,
+        background: 'var(--bg-input)', border: '1px solid var(--border)',
+        color: 'var(--text-primary)', fontSize: '0.95rem',
+    };
+
+    const cardStyle = {
+        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.5rem',
+        transition: 'background 0.3s, border-color 0.3s',
     };
 
     return (
-        <main className="settings-page">
-            <div className="settings-breadcrumb">
-                <span className="settings-bc-muted">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
-                <span className="settings-bc-sep">/</span>
-                <span className="settings-bc-active">Settings</span>
-            </div>
+        <main className="settings-page page-fade">
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+
+            <h1 className="settings-title">Settings</h1>
+            <p className="settings-subtitle">Manage your account, preferences, and payment methods.</p>
 
             <div className="settings-layout">
-                {/* Left Nav */}
-                <div className="settings-nav">
-                    <h2>Settings</h2>
+                {/* Sidebar */}
+                <nav className="settings-nav">
                     {TABS.map(tab => (
-                        <button key={tab.id} className={`settings-nav-item ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+                        <button
+                            key={tab.key}
+                            className={`settings-nav-item ${activeTab === tab.key ? 'active' : ''}`}
+                            onClick={() => setActiveTab(tab.key)}
+                        >
                             {tab.icon} {tab.label}
                         </button>
                     ))}
-                    <button className="settings-nav-item settings-nav-logout" onClick={onLogout}>
-                        <LogOut size={16} /> Log Out
+                    <button className="settings-nav-item settings-nav-item--danger" onClick={onLogout}>
+                        <LogOut size={18} /> Log Out
                     </button>
-                </div>
+                </nav>
 
-                {/* Right Content */}
+                {/* Content */}
                 <div className="settings-content">
-                    {msg && <div className={`global-toast global-toast--${msgType}`}>{msg}</div>}
-
-                    {activeTab === 'personal' && (
-                        <div>
-                            <h3 className="settings-content-title">Personal Information</h3>
-                            <p className="settings-content-sub">Manage your identity and contact details.</p>
-
-                            <div className="settings-photo-row">
-                                <div className="settings-photo-avatar">
-                                    {(userData?.full_name || 'U').charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <p className="settings-photo-label">Profile Photo</p>
-                                    <p className="settings-photo-hint">Recommended 400×400px. JPG, PNG or GIF.</p>
-                                    <button className="settings-upload-btn">Upload</button>
-                                </div>
-                            </div>
-
-                            <form onSubmit={handleSavePersonal} className="settings-form">
-                                <div className="settings-form-row">
-                                    <div className="settings-form-group">
-                                        <label>First Name</label>
-                                        <input type="text" value={personalForm.firstName} onChange={e => setPersonalForm(p => ({ ...p, firstName: e.target.value }))} />
+                    {/* ─── Profile ─── */}
+                    {activeTab === 'profile' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={cardStyle}>
+                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Profile Information</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+                                    <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.5rem', overflow: 'hidden', flexShrink: 0 }}>
+                                        {profileForm.avatar_url ? <img src={profileForm.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (profileForm.full_name || 'U').charAt(0).toUpperCase()}
                                     </div>
-                                    <div className="settings-form-group">
-                                        <label>Last Name</label>
-                                        <input type="text" value={personalForm.lastName} onChange={e => setPersonalForm(p => ({ ...p, lastName: e.target.value }))} />
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Avatar URL</label>
+                                        <input style={inputStyle} placeholder="https://example.com/photo.jpg" value={profileForm.avatar_url}
+                                            onChange={e => setProfileForm(p => ({ ...p, avatar_url: e.target.value }))} />
                                     </div>
                                 </div>
-                                <div className="settings-form-row">
-                                    <div className="settings-form-group">
-                                        <label>Email</label>
-                                        <input type="email" value={personalForm.email} disabled style={{ opacity: 0.5 }} />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Full Name</label>
+                                        <input style={inputStyle} value={profileForm.full_name}
+                                            onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
                                     </div>
-                                    <div className="settings-form-group">
-                                        <label>Phone Number</label>
-                                        <input type="tel" placeholder="+63" value={personalForm.phone} onChange={e => setPersonalForm(p => ({ ...p, phone: e.target.value }))} />
-                                    </div>
-                                </div>
-                                <div className="settings-form-row settings-form-row--3">
-                                    <div className="settings-form-group">
-                                        <label>Birthdate</label>
-                                        <input type="date" value={personalForm.birthdate} onChange={e => setPersonalForm(p => ({ ...p, birthdate: e.target.value }))} />
-                                    </div>
-                                    <div className="settings-form-group">
-                                        <label>Gender</label>
-                                        <select value={personalForm.gender} onChange={e => setPersonalForm(p => ({ ...p, gender: e.target.value }))}>
-                                            <option value="">Select...</option>
-                                            <option>Male</option>
-                                            <option>Female</option>
-                                            <option>Other</option>
-                                        </select>
-                                    </div>
-                                    <div className="settings-form-group">
-                                        <label>Nationality</label>
-                                        <input type="text" placeholder="e.g. Filipino" value={personalForm.nationality} onChange={e => setPersonalForm(p => ({ ...p, nationality: e.target.value }))} />
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Email</label>
+                                        <input style={{ ...inputStyle, opacity: 0.6 }} value={profileForm.email} disabled />
                                     </div>
                                 </div>
-                                <div className="settings-form-group">
-                                    <label>Address</label>
-                                    <textarea rows={2} value={personalForm.address} onChange={e => setPersonalForm(p => ({ ...p, address: e.target.value }))} />
-                                </div>
-                                <div className="settings-form-actions">
-                                    <button type="submit" className="settings-save-btn" disabled={saving}>Save Changes</button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {activeTab === 'creator' && (
-                        <div>
-                            <h3 className="settings-content-title">Creator Profile</h3>
-                            <p className="settings-content-sub">Manage your professional appearance and rates.</p>
-                            <form onSubmit={handleSaveCreator} className="settings-form">
-                                <div className="settings-form-group">
-                                    <label>Job Title</label>
-                                    <input type="text" value={creatorForm.jobTitle} onChange={e => setCreatorForm(p => ({ ...p, jobTitle: e.target.value }))} />
-                                </div>
-                                <div className="settings-form-group">
-                                    <label>Bio</label>
-                                    <textarea rows={3} value={creatorForm.bio} onChange={e => setCreatorForm(p => ({ ...p, bio: e.target.value }))} placeholder="Markdown supported" />
-                                </div>
-                                <div className="settings-form-group">
-                                    <label>Portfolio URL</label>
-                                    <input type="url" placeholder="https://" value={creatorForm.portfolioUrl} onChange={e => setCreatorForm(p => ({ ...p, portfolioUrl: e.target.value }))} />
-                                </div>
-                                <div className="settings-form-row">
-                                    <div className="settings-form-group">
-                                        <label>Hourly Rate (₱)</label>
-                                        <input type="number" value={creatorForm.hourlyRate} onChange={e => setCreatorForm(p => ({ ...p, hourlyRate: e.target.value }))} />
-                                    </div>
-                                    <div className="settings-form-group">
-                                        <label>Years of Experience</label>
-                                        <input type="number" value={creatorForm.experience} onChange={e => setCreatorForm(p => ({ ...p, experience: e.target.value }))} />
-                                    </div>
-                                </div>
-                                <div className="settings-form-group">
-                                    <label>Skills (Comma separated)</label>
-                                    <input type="text" value={creatorForm.skills} onChange={e => setCreatorForm(p => ({ ...p, skills: e.target.value }))} />
-                                </div>
-                                <div className="settings-form-actions">
-                                    <button type="submit" className="settings-save-btn" disabled={saving}>Save Profile</button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {activeTab === 'followers' && (
-                        <div>
-                            <h3 className="settings-content-title">Followers</h3>
-                            <p className="settings-content-sub">People following your work.</p>
-                            <div className="settings-empty-card">
-                                <Users size={32} color="#3f3f46" />
-                                <p>No followers yet.</p>
-                                <span>Keep creating amazing work!</span>
+                                <button onClick={handleProfileSave} disabled={saving}
+                                    style={{ marginTop: '1.25rem', padding: '0.65rem 1.5rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'payout' && (
-                        <div>
-                            <h3 className="settings-content-title">Payout Methods</h3>
-                            <p className="settings-content-sub">Manage how you receive your earnings.</p>
-                            <div className="settings-empty-card">
-                                <CreditCard size={32} color="#3f3f46" />
-                                <p>No payout methods configured.</p>
-                                <button className="settings-save-btn" style={{ marginTop: '0.5rem' }}>Add Payout Method</button>
+                    {/* ─── Personalization ─── */}
+                    {activeTab === 'personalization' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={cardStyle}>
+                                <h3 style={{ color: 'var(--text-primary, #fff)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Appearance</h3>
+                                
+                                {/* Theme Toggle */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div>
+                                        <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>Theme</p>
+                                        <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '2px 0 0' }}>Switch between light and dark mode</p>
+                                    </div>
+                                    <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                        <button onClick={() => setTheme('light')} style={{
+                                            padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
+                                            background: theme === 'light' ? '#6366f1' : 'transparent', color: theme === 'light' ? '#fff' : '#a1a1aa',
+                                            transition: 'all 0.2s',
+                                        }}>Light</button>
+                                        <button onClick={() => setTheme('dark')} style={{
+                                            padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
+                                            background: theme === 'dark' ? '#6366f1' : 'transparent', color: theme === 'dark' ? '#fff' : '#a1a1aa',
+                                            transition: 'all 0.2s',
+                                        }}>Dark</button>
+                                    </div>
+                                </div>
+
+                                {/* Accent Color */}
+                                <div style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: '0 0 8px', fontSize: '0.95rem' }}>Accent Color</p>
+                                    <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '0 0 12px' }}>Choose your preferred accent color</p>
+                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                        {[
+                                            { color: '#6366f1', label: 'Indigo' },
+                                            { color: '#8b5cf6', label: 'Purple' },
+                                            { color: '#3b82f6', label: 'Blue' },
+                                            { color: '#10b981', label: 'Green' },
+                                            { color: '#f59e0b', label: 'Amber' },
+                                            { color: '#ef4444', label: 'Red' },
+                                            { color: '#ec4899', label: 'Pink' },
+                                            { color: '#06b6d4', label: 'Cyan' },
+                                        ].map(c => (
+                                            <button key={c.color} title={c.label} onClick={() => setAccentColor(c.color)} style={{
+                                                width: 36, height: 36, borderRadius: '50%', background: c.color, border: accentColor === c.color ? '3px solid #fff' : '3px solid transparent',
+                                                cursor: 'pointer', transition: 'all 0.2s', boxShadow: accentColor === c.color ? `0 0 12px ${c.color}60` : 'none',
+                                            }} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={cardStyle}>
+                                <h3 style={{ color: 'var(--text-primary, #fff)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Display</h3>
+                                {[
+                                    { key: 'compact', label: 'Compact Mode', desc: 'Reduce spacing for more content on screen' },
+                                    { key: 'animations', label: 'Animations', desc: 'Enable smooth transitions and micro-animations' },
+                                ].map(item => {
+                                    const storageKey = `createch_display_${item.key}`;
+                                    const val = localStorage.getItem(storageKey) !== 'false';
+                                    return (
+                                        <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div>
+                                                <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
+                                                <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
+                                            </div>
+                                            <button onClick={() => { const newVal = !val; localStorage.setItem(storageKey, newVal); showToast(`${item.label} ${newVal ? 'enabled' : 'disabled'}`); }} style={{
+                                                width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                                                background: val ? '#6366f1' : 'rgba(255,255,255,0.1)',
+                                                position: 'relative', transition: 'background 0.2s',
+                                            }}>
+                                                <div style={{
+                                                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                                                    position: 'absolute', top: 3,
+                                                    left: val ? 25 : 3,
+                                                    transition: 'left 0.2s',
+                                                }} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'following' && (
-                        <div>
-                            <h3 className="settings-content-title">Following</h3>
-                            <p className="settings-content-sub">Creators you are following.</p>
-                            <div className="settings-empty-card">
-                                <Users size={32} color="#3f3f46" />
-                                <p>You're not following anyone yet.</p>
-                                <span>Discover creators and follow them!</span>
+                    {/* ─── Security ─── */}
+                    {activeTab === 'security' && (
+                        <div style={cardStyle}>
+                            <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Security</h3>
+                            <p style={{ color: '#a1a1aa', lineHeight: 1.6 }}>
+                                Your account uses Firebase Authentication. Password changes are managed through your email provider.
+                            </p>
+                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
+                                <p style={{ color: '#818cf8', fontSize: '0.9rem', margin: 0 }}>
+                                    <Shield size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                                    To change your password, use the "Forgot Password" option on the login screen.
+                                </p>
+                            </div>
+                            <div style={{ marginTop: '1.5rem' }}>
+                                <p style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Account info:</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <span style={{ color: '#71717a' }}>Role</span><span style={{ color: '#fff', fontWeight: 600, textTransform: 'capitalize' }}>{userRole}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <span style={{ color: '#71717a' }}>UID</span><span style={{ color: '#d4d4d8', fontSize: '0.8rem' }}>{userData?.firebase_uid?.substring(0, 16)}...</span>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'payment' && (
-                        <div>
-                            <h3 className="settings-content-title">Payment Methods</h3>
-                            <p className="settings-content-sub">Manage your payment options.</p>
-                            <div className="settings-empty-card">
-                                <CreditCard size={32} color="#3f3f46" />
-                                <p>No payment methods added.</p>
-                                <button className="settings-save-btn" style={{ marginTop: '0.5rem' }}>Add Payment Method</button>
-                            </div>
-                        </div>
-                    )}
-
+                    {/* ─── Notifications ─── */}
                     {activeTab === 'notifications' && (
-                        <div>
-                            <h3 className="settings-content-title">Notification Preferences</h3>
-                            <p className="settings-content-sub">Choose what notifications you receive.</p>
-                            <div className="settings-toggle-list">
-                                {['Email notifications', 'Push notifications', 'Order updates', 'Marketing emails'].map(item => (
-                                    <div key={item} className="settings-toggle-row">
-                                        <span>{item}</span>
-                                        <div className="settings-toggle"><div className="settings-toggle-knob"></div></div>
+                        <div style={cardStyle}>
+                            <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Notification Preferences</h3>
+                            {[
+                                { key: 'email', label: 'Email Notifications', desc: 'Receive updates via email' },
+                                { key: 'orders', label: 'Order Updates', desc: 'Get notified about order status changes' },
+                                { key: 'messages', label: 'New Messages', desc: 'Alert when you receive a new message' },
+                                { key: 'marketing', label: 'Marketing & Promotions', desc: 'Tips, offers, and platform news' },
+                            ].map(item => (
+                                <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div>
+                                        <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
+                                        <p style={{ color: '#71717a', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
+                                    </div>
+                                    <button onClick={() => toggleNotif(item.key)} style={{
+                                        width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
+                                        background: notifSettings[item.key] ? '#6366f1' : 'rgba(255,255,255,0.1)',
+                                        position: 'relative', transition: 'background 0.2s',
+                                    }}>
+                                        <div style={{
+                                            width: 20, height: 20, borderRadius: '50%', background: '#fff',
+                                            position: 'absolute', top: 3,
+                                            left: notifSettings[item.key] ? 25 : 3,
+                                            transition: 'left 0.2s',
+                                        }} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* ─── Followers ─── */}
+                    {activeTab === 'followers' && (
+                        <div style={cardStyle}>
+                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
+                                <button onClick={() => setSocialTab('followers')} style={{
+                                    padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                    background: socialTab === 'followers' ? '#6366f1' : 'rgba(255,255,255,0.06)', color: socialTab === 'followers' ? '#fff' : '#a1a1aa', fontWeight: 600,
+                                }}>Followers ({followers.length})</button>
+                                <button onClick={() => setSocialTab('following')} style={{
+                                    padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                    background: socialTab === 'following' ? '#6366f1' : 'rgba(255,255,255,0.06)', color: socialTab === 'following' ? '#fff' : '#a1a1aa', fontWeight: 600,
+                                }}>Following ({following.length})</button>
+                            </div>
+                            {socialLoading ? (
+                                <p style={{ color: '#71717a', textAlign: 'center', padding: '2rem' }}>Loading...</p>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {(socialTab === 'followers' ? followers : following).map(f => (
+                                        <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}>
+                                                    {(socialTab === 'followers' ? (f.follower_id || '?') : (f.following_id || '?')).charAt(0).toUpperCase()}
+                                                </div>
+                                                <span style={{ color: '#d4d4d8', fontSize: '0.9rem' }}>{socialTab === 'followers' ? f.follower_id : f.following_id}</span>
+                                            </div>
+                                            {socialTab === 'following' && (
+                                                <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })}
+                                                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>
+                                                    Unfollow
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {(socialTab === 'followers' ? followers : following).length === 0 && (
+                                        <p style={{ color: '#52525b', textAlign: 'center', padding: '2rem' }}>
+                                            {socialTab === 'followers' ? 'No followers yet.' : 'Not following anyone.'}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ─── Payout Methods ─── */}
+                    {activeTab === 'payout' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={cardStyle}>
+                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payout Methods (Wallets)</h3>
+                                {wallets.map(w => (
+                                    <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                        <div>
+                                            <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{w.wallet_type}</p>
+                                            <p style={{ color: '#71717a', fontSize: '0.85rem', margin: 0 }}>{w.account_name} • {w.account_number}</p>
+                                        </div>
+                                        <button onClick={() => setDeleteConfirm({ open: true, type: 'wallet', id: w.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
                                     </div>
                                 ))}
+                                {wallets.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payout methods.</p>}
+                                <form onSubmit={handleAddWallet} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                    <select value={payoutForm.wallet_type} onChange={e => setPayoutForm(p => ({ ...p, wallet_type: e.target.value }))} style={{ ...inputStyle, flex: '0 0 120px' }}>
+                                        <option value="GCash">GCash</option>
+                                        <option value="Maya">Maya</option>
+                                        <option value="BankTransfer">Bank Transfer</option>
+                                        <option value="PayPal">PayPal</option>
+                                    </select>
+                                    <input value={payoutForm.account_name} onChange={e => setPayoutForm(p => ({ ...p, account_name: e.target.value }))} placeholder="Account Name" required style={{ ...inputStyle, flex: 1 }} />
+                                    <input value={payoutForm.account_number} onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} placeholder="Account #" required style={{ ...inputStyle, flex: 1 }} />
+                                    <button type="submit" disabled={payoutLoading} style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                        {payoutLoading ? 'Adding...' : 'Add'}
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div style={cardStyle}>
+                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payment Methods</h3>
+                                {paymentMethods.map(pm => (
+                                    <div key={pm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                        <span style={{ color: '#d4d4d8' }}>{pm.method_type} •••• {pm.masked_number}</span>
+                                        <button onClick={() => setDeleteConfirm({ open: true, type: 'payment', id: pm.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                                    </div>
+                                ))}
+                                {paymentMethods.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payment methods.</p>}
+                                <form onSubmit={handleAddPayment} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                    <input value={pmForm.method_type} onChange={e => setPmForm(p => ({ ...p, method_type: e.target.value }))} placeholder="Type (e.g. GCash)" required style={{ ...inputStyle, flex: 1 }} />
+                                    <input value={pmForm.masked_number} onChange={e => setPmForm(p => ({ ...p, masked_number: e.target.value }))} placeholder="Number (e.g. 0917)" required style={{ ...inputStyle, flex: 1 }} />
+                                    <button type="submit" style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>Add</button>
+                                </form>
                             </div>
                         </div>
                     )}
 
-                    {activeTab === 'security' && (
-                        <div>
-                            <h3 className="settings-content-title">Security</h3>
-                            <p className="settings-content-sub">Manage your account security settings.</p>
-                            <div className="settings-form">
-                                <div className="settings-form-group"><label>Current Password</label><input type="password" placeholder="••••••••" /></div>
-                                <div className="settings-form-group"><label>New Password</label><input type="password" placeholder="••••••••" /></div>
-                                <div className="settings-form-actions"><button className="settings-save-btn">Update Password</button></div>
-                            </div>
-                        </div>
-                    )}
-
+                    {/* ─── Help & Support ─── */}
                     {activeTab === 'help' && (
-                        <div>
-                            <h3 className="settings-content-title">Help Center</h3>
-                            <p className="settings-content-sub">Get help with your account.</p>
-                            <div className="settings-empty-card">
-                                <HelpCircle size={32} color="#3f3f46" />
-                                <p>Need help? Contact us at support@createch.com</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={cardStyle}>
+                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Submit a Support Ticket</h3>
+                                <form onSubmit={handleSubmitTicket} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Category</label>
+                                        <select value={ticketForm.category} onChange={e => setTicketForm(p => ({ ...p, category: e.target.value }))} style={inputStyle}>
+                                            <option value="general">General</option>
+                                            <option value="billing">Billing</option>
+                                            <option value="technical">Technical</option>
+                                            <option value="account">Account</option>
+                                            <option value="dispute">Dispute</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Message</label>
+                                        <textarea value={ticketForm.message} onChange={e => setTicketForm(p => ({ ...p, message: e.target.value }))} placeholder="Describe your issue..." required
+                                            style={{ ...inputStyle, minHeight: 100, resize: 'vertical', fontFamily: 'inherit' }} />
+                                    </div>
+                                    <button type="submit" disabled={ticketLoading} style={{ padding: '0.65rem 1.5rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: 'fit-content' }}>
+                                        <Send size={16} /> {ticketLoading ? 'Submitting...' : 'Submit Ticket'}
+                                    </button>
+                                </form>
                             </div>
-                        </div>
-                    )}
 
-                    {activeTab === 'data' && (
-                        <div>
-                            <h3 className="settings-content-title">Support & Data</h3>
-                            <p className="settings-content-sub">Manage your data and privacy.</p>
-                            <div className="settings-empty-card">
-                                <Database size={32} color="#3f3f46" />
-                                <p>Your data is securely stored and encrypted.</p>
-                            </div>
+                            {tickets.length > 0 && (
+                                <div style={cardStyle}>
+                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Your Tickets</h3>
+                                    {tickets.map(t => (
+                                        <div key={t.id} style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem' }}>{t.ticket_number}</span>
+                                                <span style={{
+                                                    padding: '2px 8px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600,
+                                                    background: t.status === 'resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(250,204,21,0.1)',
+                                                    color: t.status === 'resolved' ? '#10b981' : '#facc15',
+                                                }}>{t.status}</span>
+                                            </div>
+                                            <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: 0 }}>{t.message?.substring(0, 100)}{t.message?.length > 100 ? '...' : ''}</p>
+                                            {t.admin_response && (
+                                                <div style={{ marginTop: 8, padding: '0.5rem 0.75rem', background: 'rgba(99,102,241,0.1)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)' }}>
+                                                    <p style={{ color: '#818cf8', fontSize: '0.85rem', margin: 0 }}><strong>Admin:</strong> {t.admin_response}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                open={deleteConfirm.open}
+                title="Remove Item?"
+                message="This action cannot be undone."
+                variant="danger"
+                confirmLabel="Remove"
+                loading={deleting}
+                onConfirm={handleDelete}
+                onCancel={() => setDeleteConfirm({ open: false, type: '', id: null })}
+            />
         </main>
     );
 };

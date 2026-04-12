@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchMyCreatorOrders, fetchMyOrders, getUserData, updateOrder } from '../api';
-import { List, LayoutGrid, MoreVertical, Eye } from 'lucide-react';
+import { List, LayoutGrid, MoreVertical, Eye, CheckCircle, XCircle } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 import './ProjectsPage.css';
 
 const STATUS_FILTERS = ['all', 'pending', 'active', 'completed', 'refunded', 'cancelled'];
@@ -13,6 +15,11 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
 
     const userData = getUserData();
     const isCreator = userRole === 'creator';
+    const navigate = useNavigate();
+
+    // Confirm modal state
+    const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', variant: 'info', action: null });
+    const [actionLoading, setActionLoading] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -45,18 +52,26 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
 
     const [toast, setToast] = useState('');
 
-    const handleUpdateStatus = async (orderId, newStatus) => {
-        try {
-            const { ok } = await updateOrder(orderId, { status: newStatus });
-            if (ok) {
-                setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-                setToast(`Order #${orderId} updated to ${newStatus.replace('_', ' ')}`);
-                setTimeout(() => setToast(''), 3000);
-            }
-        } catch {
-            setToast('Failed to update order.');
-            setTimeout(() => setToast(''), 3000);
-        }
+    const confirmStatusChange = (orderId, newStatus, title, message, variant = 'info') => {
+        setConfirmModal({
+            open: true, title, message, variant,
+            action: async () => {
+                setActionLoading(true);
+                try {
+                    const { ok } = await updateOrder(orderId, { status: newStatus });
+                    if (ok) {
+                        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+                        setToast(`Order #${orderId} updated to ${newStatus.replace('_', ' ')}`);
+                        setTimeout(() => setToast(''), 3000);
+                    }
+                } catch {
+                    setToast('Failed to update order.');
+                    setTimeout(() => setToast(''), 3000);
+                }
+                setActionLoading(false);
+                setConfirmModal(prev => ({ ...prev, open: false }));
+            },
+        });
     };
 
     const getStatusBadge = (status) => {
@@ -149,12 +164,18 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                                         <td>
                                             <div className="gigs-action-group">
                                                 {isCreator && order.status === 'pending' && (
-                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Accept order" onClick={() => handleUpdateStatus(order.id, 'in_progress')}>Accept</button>
+                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Accept order" onClick={() => confirmStatusChange(order.id, 'in_progress', 'Accept Order?', 'This order will move to In Progress.', 'info')}>Accept</button>
                                                 )}
                                                 {isCreator && order.status === 'in_progress' && (
-                                                    <button className="gigs-action-btn gigs-action-btn--deliver" title="Mark as delivered" onClick={() => handleUpdateStatus(order.id, 'delivered')}>Deliver</button>
+                                                    <button className="gigs-action-btn gigs-action-btn--deliver" title="Mark as delivered" onClick={() => confirmStatusChange(order.id, 'delivered', 'Mark as Delivered?', 'The client will be notified.', 'success')}>Deliver</button>
                                                 )}
-                                                <button className="gigs-action-btn" title="View details"><Eye size={16} /></button>
+                                                {!isCreator && order.status === 'delivered' && (
+                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Complete order" onClick={() => confirmStatusChange(order.id, 'completed', 'Complete Order?', 'This will release payment to the creator.', 'success')}><CheckCircle size={14} /> Complete</button>
+                                                )}
+                                                {!['completed','cancelled','refunded','rejected'].includes(order.status) && (
+                                                    <button className="gigs-action-btn gigs-action-btn--cancel" title="Cancel order" onClick={() => confirmStatusChange(order.id, 'cancelled', 'Cancel Order?', 'This action cannot be undone.', 'danger')} style={{ color: '#f87171', fontSize: '0.75rem' }}><XCircle size={14} /></button>
+                                                )}
+                                                <button className="gigs-action-btn" title="View details" onClick={() => navigate(`/orders/${order.id}`)}><Eye size={16} /></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -178,7 +199,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                                 </div>
                                 <div className="kanban-cards">
                                     {colOrders.map(order => (
-                                        <div key={order.id} className="kanban-card">
+                                        <div key={order.id} className="kanban-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/orders/${order.id}`)}>
                                             <h4>{order.service_title || `Order #${order.id}`}</h4>
                                             <p>{isCreator ? (order.client_display_name || order.client_name || '') : (order.creator_display_name || order.creator_name || '')}</p>
                                             <div className="kanban-card-footer">
@@ -194,6 +215,16 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                     })}
                 </div>
             )}
+            {/* Confirm Modal */}
+            <ConfirmModal
+                open={confirmModal.open}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                variant={confirmModal.variant}
+                loading={actionLoading}
+                onConfirm={confirmModal.action}
+                onCancel={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+            />
         </main>
     );
 };

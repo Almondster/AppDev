@@ -292,3 +292,11 @@
     .cm-cta-banner { flex-direction: column; gap: 1rem; text-align: center; }
     .cm-filter-row { flex-direction: column; }
 }
+
+/* Section Heading */
+.cm-section-heading {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.2rem;
+    margin: 0 0 1rem;
+}
