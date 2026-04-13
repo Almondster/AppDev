@@ -1,5 +1,6 @@
 // Createch API Helper — connects web UI to Django REST Framework backend
-const API_BASE = 'http://127.0.0.1:8000/api';
+// Note: In production, API_BASE should use 'https://' to ensure encrypted communication.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
 // ---------------------------------------------------------------------------
 // Token helpers
