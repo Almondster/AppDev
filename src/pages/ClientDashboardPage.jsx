@@ -4,16 +4,14 @@ import { useNotification } from '../hooks/useNotification';
 import { Target, CreditCard, Clock, Star, ArrowRight, ShoppingCart, Search } from 'lucide-react';
 import '../styles/ClientDashboardPage.css';
 
-const ClientDashboardPage = () => {
-    const { services, orders, hireCreator } = useProjects();
+const ClientDashboardPage = ({ firebaseUid }) => {
+    const { services, orders, hireCreator, loading } = useProjects();
     const { notification, showNotification } = useNotification();
     const [activeTab, setActiveTab] = useState('marketplace');
     const [searchTerm, setSearchTerm] = useState('');
 
-    const CLIENT_NAME = 'Test Client';
-
-    // Client's own orders
-    const myOrders = orders.filter(o => o.clientName === CLIENT_NAME || o.clientName);
+    // Client's own orders from API
+    const myOrders = orders;
     const activeHires = myOrders.filter(o => o.status === 'In Progress' || o.status === 'Pending');
     const completedHires = myOrders.filter(o => o.status === 'Completed');
     const totalSpent = completedHires.reduce((sum, o) => sum + (o.budget || 0), 0);
@@ -21,12 +19,19 @@ const ClientDashboardPage = () => {
     // Available marketplace services
     const availableServices = services
         .filter(s => s.status === 'Active')
-        .filter(s => s.title.toLowerCase().includes(searchTerm.toLowerCase()) || s.creator.toLowerCase().includes(searchTerm.toLowerCase()));
+        .filter(s =>
+            (s.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (s.creator || '').toLowerCase().includes(searchTerm.toLowerCase())
+        );
 
-    const handleHire = (serviceId) => {
-        const result = hireCreator(serviceId, CLIENT_NAME);
-        if (result) {
-            showNotification(`Successfully hired! Order for "${result.title}" is now pending.`);
+    const handleHire = async (serviceId) => {
+        try {
+            const result = await hireCreator(serviceId, 'Client');
+            if (result) {
+                showNotification(`Successfully hired! Order is now pending.`);
+            }
+        } catch (err) {
+            showNotification(`Failed to create order: ${err.message}`);
         }
     };
 
@@ -82,9 +87,6 @@ const ClientDashboardPage = () => {
                 <button className={`glass-tab ${activeTab === 'hires' ? 'glass-tab--active' : ''}`} onClick={() => setActiveTab('hires')}>
                     Active Hires ({activeHires.length})
                 </button>
-                <button className={`glass-tab ${activeTab === 'favorites' ? 'glass-tab--active' : ''}`} onClick={() => setActiveTab('favorites')}>
-                    Favorite Creators
-                </button>
             </div>
 
             {/* Marketplace Tab */}
@@ -105,20 +107,21 @@ const ClientDashboardPage = () => {
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                        {availableServices.length > 0 ? availableServices.map(service => (
+                        {loading ? (
+                            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)' }}>
+                                <p>Loading services...</p>
+                            </div>
+                        ) : availableServices.length > 0 ? availableServices.map(service => (
                             <div key={service.id} className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', margin: 0, fontWeight: '600' }}>{service.title}</h3>
-                                    <span style={{ color: '#22c55e', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, marginLeft: '1rem' }}>₱{service.budget.toLocaleString()}</span>
+                                    <span style={{ color: '#22c55e', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, marginLeft: '1rem' }}>₱{(service.budget || 0).toLocaleString()}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.6rem' }}>
-                                        {service.creator.charAt(0)}
+                                        {(service.creator || '?').charAt(0).toUpperCase()}
                                     </div>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{service.creator}</span>
-                                    <span style={{ color: '#fbbf24', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '2px', marginLeft: 'auto' }}>
-                                        <Star size={12} fill="currentColor" /> 4.8
-                                    </span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{service.creator || 'Unknown'}</span>
                                 </div>
                                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0, lineHeight: '1.4' }}>{service.description}</p>
                                 <button
@@ -180,31 +183,6 @@ const ClientDashboardPage = () => {
                                 <p>No active hires. Browse the marketplace to get started!</p>
                             </div>
                         )}
-                    </div>
-                </section>
-            )}
-
-            {/* Favorites Tab */}
-            {activeTab === 'favorites' && (
-                <section className="glass-card">
-                    <div className="glass-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Favorite Creators</h2>
-                        <button className="glass-tab glass-tab--active" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            View All <ArrowRight size={14} />
-                        </button>
-                    </div>
-                    <div className="glass-card-body" style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '16px' }}>
-                        {['Jane Smith', 'Pixel Wizards', 'Max Media'].map((name, i) => (
-                            <div key={i} style={{ minWidth: '140px', background: 'var(--card-bg)', padding: '1.5rem 1rem', borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '1.2rem' }}>
-                                    {name.charAt(0)}
-                                </div>
-                                <h4 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', margin: '0 0 4px' }}>{name}</h4>
-                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', color: '#fbbf24', fontSize: '0.8rem' }}>
-                                    <Star size={12} fill="currentColor" /> 4.9
-                                </div>
-                            </div>
-                        ))}
                     </div>
                 </section>
             )}

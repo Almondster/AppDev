@@ -1,191 +1,154 @@
-import { useState } from 'react';
-import { ShieldAlert, BadgeCheck, MoreVertical, Search, X, ChevronDown } from 'lucide-react';
-import mockUsersData from '../components/mockUsers';
-import { useNotification } from '../hooks/useNotification';
-import '../styles/UsersPage.css';
+import { useState, useEffect } from 'react';
+import { fetchUsers, suspendUser, activateUser } from '../services/api';
+import { Search, MoreHorizontal, ShieldCheck, ShieldOff, User, Filter } from 'lucide-react';
 
 const UsersPage = () => {
-    const [users, setUsers] = useState(mockUsersData);
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [roleFilter, setRoleFilter] = useState('All');
-    const [statusFilter, setStatusFilter] = useState('All');
-    const [showFilters, setShowFilters] = useState(false);
-    const [openMenuId, setOpenMenuId] = useState(null);
-    const { notification, showNotification } = useNotification();
+    const [roleFilter, setRoleFilter] = useState('all');
+    const [actionMenuId, setActionMenuId] = useState(null);
+
+    const loadUsers = () => {
+        setLoading(true);
+        fetchUsers()
+            .then(data => {
+                setUsers(data?.results || data || []);
+            })
+            .catch(err => console.error('Failed to fetch users:', err))
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => { loadUsers(); }, []);
+
+    const handleSuspend = async (userId) => {
+        try {
+            await suspendUser(userId);
+            loadUsers();
+        } catch (err) {
+            console.error('Suspend failed:', err);
+        }
+        setActionMenuId(null);
+    };
+
+    const handleActivate = async (userId) => {
+        try {
+            await activateUser(userId);
+            loadUsers();
+        } catch (err) {
+            console.error('Activate failed:', err);
+        }
+        setActionMenuId(null);
+    };
 
     const filteredUsers = users.filter(u => {
-        const matchSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchRole = roleFilter === 'All' || u.role === roleFilter;
-        const matchStatus = statusFilter === 'All' || u.status === statusFilter;
-        return matchSearch && matchRole && matchStatus;
+        const matchesSearch = (u.full_name || u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+        return matchesSearch && matchesRole;
     });
 
-    const handleAction = (userId, action) => {
-        setUsers(prev => prev.map(u => {
-            if (u.id !== userId) return u;
-            switch (action) {
-                case 'suspend': return { ...u, status: 'Suspended' };
-                case 'warn': return { ...u, status: 'Warning', reports: u.reports + 1 };
-                case 'activate': return { ...u, status: 'Active' };
-                case 'delete': return null;
-                default: return u;
-            }
-        }).filter(Boolean));
-
-        const labels = { suspend: 'User suspended', warn: 'Warning issued', activate: 'User activated', delete: 'User removed' };
-        showNotification(labels[action] || 'Action completed', action === 'delete' ? 'info' : 'success');
-        setOpenMenuId(null);
+    const roleBadge = (role) => {
+        const colors = {
+            admin: { bg: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e' },
+            creator: { bg: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' },
+            client: { bg: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' },
+        };
+        const c = colors[role] || colors.client;
+        return (
+            <span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '600', textTransform: 'uppercase', background: c.bg, color: c.color }}>
+                {role}
+            </span>
+        );
     };
 
     return (
-        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
-            {notification && (
-                <div className={`notification notification--${notification.type}`} style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 1000 }}>
-                    {notification.message}
-                </div>
-            )}
-
-            {/* Header */}
-            <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Platform Users</h1>
-                        <BadgeCheck size={28} color="#3b82f6" />
+        <section className="section page-fade">
+            <header className="section__header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+                <h2 className="section__title">User Management ({users.length})</h2>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                        <input
+                            type="text"
+                            placeholder="Search users..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
+                        />
                     </div>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', margin: 0 }}>Manage accounts, verify creators, and handle suspensions.</p>
-                </div>
-                <div style={{ background: 'var(--glass-overlay)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid var(--glass-overlay-border)', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Users</p>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>{users.length}</h2>
+                    <select
+                        value={roleFilter}
+                        onChange={(e) => setRoleFilter(e.target.value)}
+                        style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
+                    >
+                        <option value="all">All Roles</option>
+                        <option value="client">Client</option>
+                        <option value="creator">Creator</option>
+                        <option value="admin">Admin</option>
+                    </select>
                 </div>
             </header>
 
-            {/* Toolbar */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                <div className="glass-card" style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem' }}>
-                    <Search size={18} color="var(--text-secondary)" />
-                    <label htmlFor="usersSearch" className="sr-only">Search users</label>
-                    <input
-                        id="usersSearch"
-                        type="text"
-                        placeholder="Search users by name..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none' }}
-                    />
-                    {searchTerm && (
-                        <button onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px' }}>
-                            <X size={16} />
-                        </button>
+            {loading ? (
+                <div className="empty-state"><p>Loading users...</p></div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User</th>
+                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</th>
+                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Role</th>
+                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined</th>
+                                <th style={{ textAlign: 'right', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredUsers.map(user => (
+                                <tr key={user.id || user.firebase_uid} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <td style={{ padding: '12px 16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.8rem', flexShrink: 0 }}>
+                                                {(user.full_name || user.email || '?').charAt(0).toUpperCase()}
+                                            </div>
+                                            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.full_name || user.display_name || 'Unnamed'}</span>
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.email}</td>
+                                    <td style={{ padding: '12px 16px' }}>{roleBadge(user.role)}</td>
+                                    <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td>
+                                    <td style={{ padding: '12px 16px', textAlign: 'right', position: 'relative' }}>
+                                        <button
+                                            onClick={() => setActionMenuId(actionMenuId === user.firebase_uid ? null : user.firebase_uid)}
+                                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
+                                        >
+                                            <MoreHorizontal size={18} />
+                                        </button>
+                                        {actionMenuId === user.firebase_uid && (
+                                            <div style={{
+                                                position: 'absolute', right: '16px', top: '100%', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '4px', zIndex: 10, minWidth: '140px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                                            }}>
+                                                <button onClick={() => handleActivate(user.firebase_uid)} style={{ width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', color: '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', borderRadius: '4px' }}>
+                                                    <ShieldCheck size={14} /> Activate
+                                                </button>
+                                                <button onClick={() => handleSuspend(user.firebase_uid)} style={{ width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', borderRadius: '4px' }}>
+                                                    <ShieldOff size={14} /> Suspend
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {filteredUsers.length === 0 && (
+                        <div className="empty-state"><p>No users found.</p></div>
                     )}
                 </div>
-                <button
-                    className="glass-card"
-                    onClick={() => setShowFilters(!showFilters)}
-                    style={{ padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', cursor: 'pointer', border: showFilters ? '1px solid #3b82f6' : '1px solid var(--glass-overlay-border)' }}
-                >
-                    <ChevronDown size={18} />
-                    <span>Filter</span>
-                </button>
-            </div>
-
-            {/* Filter Row */}
-            {showFilters && (
-                <div className="glass-card page-fade" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', padding: '1rem 1.25rem', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Role:</span>
-                        {['All', 'Creator', 'Client'].map(r => (
-                            <button key={r} onClick={() => setRoleFilter(r)} style={{
-                                padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '500',
-                                background: roleFilter === r ? '#3b82f6' : 'var(--input-bg)', color: roleFilter === r ? '#fff' : 'var(--text-secondary)'
-                            }}>{r}</button>
-                        ))}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Status:</span>
-                        {['All', 'Active', 'Warning', 'Suspended'].map(s => (
-                            <button key={s} onClick={() => setStatusFilter(s)} style={{
-                                padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '500',
-                                background: statusFilter === s ? '#3b82f6' : 'var(--input-bg)', color: statusFilter === s ? '#fff' : 'var(--text-secondary)'
-                            }}>{s}</button>
-                        ))}
-                    </div>
-                </div>
             )}
-
-            {/* Users List */}
-            <div className="glass-card" style={{ overflow: 'visible' }}>
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    <span>User</span>
-                    <span>Role</span>
-                    <span>Status</span>
-                    <span>Joined</span>
-                    <span>Reports</span>
-                    <span style={{ textAlign: 'right' }}>Action</span>
-                </div>
-
-                {filteredUsers.length > 0 ? filteredUsers.map((user) => (
-                    <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
-                                {user.name.charAt(0)}
-                            </div>
-                            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.name}</span>
-                        </div>
-                        <span style={{ color: 'var(--text-secondary)' }}>{user.role}</span>
-                        <div>
-                            <span style={{
-                                padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600',
-                                backgroundColor: user.status === 'Active' ? 'rgba(34,197,94,0.1)' : user.status === 'Warning' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
-                                color: user.status === 'Active' ? '#4ade80' : user.status === 'Warning' ? '#fbbf24' : '#f87171'
-                            }}>
-                                {user.status}
-                            </span>
-                        </div>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.joined}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {user.reports > 0 && <ShieldAlert size={14} color="#f87171" />}
-                            <span style={{ color: user.reports > 0 ? '#f87171' : 'var(--text-secondary)' }}>{user.reports}</span>
-                        </div>
-                        <div style={{ textAlign: 'right', position: 'relative' }}>
-                            <button
-                                onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
-                            >
-                                <MoreVertical size={18} />
-                            </button>
-                            {openMenuId === user.id && (
-                                <div style={{
-                                    position: 'absolute', right: 0, top: '100%', background: 'var(--card-bg)', border: '1px solid var(--border-color)',
-                                    borderRadius: '8px', padding: '0.5rem 0', minWidth: '150px', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                                }}>
-                                    {user.status !== 'Active' && (
-                                        <button onClick={() => handleAction(user.id, 'activate')} style={menuBtnStyle('#22c55e')}>✓ Activate</button>
-                                    )}
-                                    {user.status !== 'Warning' && (
-                                        <button onClick={() => handleAction(user.id, 'warn')} style={menuBtnStyle('#fbbf24')}>⚠ Warn</button>
-                                    )}
-                                    {user.status !== 'Suspended' && (
-                                        <button onClick={() => handleAction(user.id, 'suspend')} style={menuBtnStyle('#f87171')}>⛔ Suspend</button>
-                                    )}
-                                    <button onClick={() => handleAction(user.id, 'delete')} style={{ ...menuBtnStyle('#ef4444'), borderTop: '1px solid var(--border-color)', marginTop: '0.25rem', paddingTop: '0.75rem' }}>🗑 Delete</button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )) : (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                        <p>No users match your search.</p>
-                    </div>
-                )}
-            </div>
-        </main>
+        </section>
     );
 };
-
-const menuBtnStyle = (color) => ({
-    display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 1rem', background: 'transparent',
-    border: 'none', color, cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500',
-});
 
 export default UsersPage;

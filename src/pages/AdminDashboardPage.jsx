@@ -1,10 +1,25 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
-import { Users, BarChart3, AlertTriangle, ShieldCheck, ArrowRight, Briefcase, Settings as SettingsIcon } from 'lucide-react';
+import { fetchUsers, fetchSupportTickets } from '../services/api';
+import { Users, BarChart3, AlertTriangle, ShieldCheck, ArrowRight, Briefcase, Settings as SettingsIcon, Ticket } from 'lucide-react';
 
-const AdminDashboardPage = () => {
+const AdminDashboardPage = ({ firebaseUid }) => {
     const navigate = useNavigate();
-    const { orders, services, projects, totalRevenue } = useProjects();
+    const { orders, services, projects, totalRevenue, loading: contextLoading } = useProjects();
+    const [userCount, setUserCount] = useState(0);
+    const [openTickets, setOpenTickets] = useState(0);
+
+    useEffect(() => {
+        fetchUsers().then(data => {
+            const list = data?.results || data || [];
+            setUserCount(list.length);
+        }).catch(() => {});
+        fetchSupportTickets().then(data => {
+            const list = data?.results || data || [];
+            setOpenTickets(list.filter(t => t.status === 'open').length);
+        }).catch(() => {});
+    }, []);
 
     const activeOrders = orders.filter(o => o.status === 'In Progress' || o.status === 'Pending');
     const suspendedOrders = orders.filter(o => o.status === 'Suspended');
@@ -27,8 +42,8 @@ const AdminDashboardPage = () => {
                         <Users size={28} />
                     </div>
                     <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Projects</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{projects.length}</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Users</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{userCount}</p>
                     </div>
                 </div>
 
@@ -44,11 +59,11 @@ const AdminDashboardPage = () => {
 
                 <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer', border: '1px solid rgba(239, 68, 68, 0.3)' }} onClick={() => navigate('/disputes')}>
                     <div style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '1rem', borderRadius: '16px' }}>
-                        <AlertTriangle size={28} />
+                        <Ticket size={28} />
                     </div>
                     <div>
-                        <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Suspended Orders</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#f87171', margin: 0 }}>{suspendedOrders.length}</p>
+                        <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Open Tickets</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#f87171', margin: 0 }}>{openTickets}</p>
                     </div>
                 </div>
 
@@ -88,7 +103,9 @@ const AdminDashboardPage = () => {
                     </button>
                 </div>
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {recentOrders.length > 0 ? recentOrders.map(order => (
+                    {contextLoading ? (
+                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>Loading...</p>
+                    ) : recentOrders.length > 0 ? recentOrders.map(order => (
                         <div key={order.id} style={{ padding: '1rem 1.25rem', background: 'var(--card-bg)', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                             <div>
                                 <h4 style={{ color: 'var(--text-primary)', fontSize: '0.95rem', margin: '0 0 2px' }}>{order.title}</h4>
@@ -116,15 +133,17 @@ const AdminDashboardPage = () => {
                     <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Active Marketplace Services</h2>
                 </div>
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {services.filter(s => s.status === 'Active').map(service => (
+                    {services.filter(s => s.status === 'Active').length > 0 ? services.filter(s => s.status === 'Active').map(service => (
                         <div key={service.id} style={{ padding: '1rem 1.25rem', background: 'var(--card-bg)', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                                 <h4 style={{ color: 'var(--text-primary)', fontSize: '0.95rem', margin: '0 0 2px' }}>{service.title}</h4>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>by {service.creator} • ₱{service.budget.toLocaleString()}</p>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>by {service.creator} • ₱{(service.budget || 0).toLocaleString()}</p>
                             </div>
                             <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '600', background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>ACTIVE</span>
                         </div>
-                    ))}
+                    )) : (
+                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>No active services.</p>
+                    )}
                 </div>
             </section>
         </main>

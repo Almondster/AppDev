@@ -47,35 +47,35 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
 }
 
 function App() {
-  const { isLoggedIn, userRole, login, logout } = useAuth();
+  const { isLoggedIn, user, userRole, firebaseUid, login, register, logout } = useAuth();
 
   return (
     <ThemeProvider>
-      <ProjectsProvider>
+      <ProjectsProvider userRole={userRole} firebaseUid={firebaseUid}>
         <div className="app">
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Public Routes */}
               <Route path={ROUTES.LANDING} element={<LandingPage />} />
               <Route path={ROUTES.LOGIN} element={
-                isLoggedIn ? <Navigate to={ROUTES.HOME} replace /> : <LoginPage onLogin={login} />
+                isLoggedIn ? <Navigate to={ROUTES.HOME} replace /> : <LoginPage onLogin={login} onRegister={register} />
               } />
 
               {/* Protected Routes */}
               <Route element={<ProtectedLayout isLoggedIn={isLoggedIn} userRole={userRole} onLogout={logout} />}>
 
-                <Route path={ROUTES.HOME} element={<DashboardPage userRole={userRole} />} />
-                <Route path={ROUTES.PROJECTS} element={<ProjectsPage userRole={userRole} />} />
+                <Route path={ROUTES.HOME} element={<DashboardPage userRole={userRole} firebaseUid={firebaseUid} />} />
+                <Route path={ROUTES.PROJECTS} element={<ProjectsPage userRole={userRole} firebaseUid={firebaseUid} />} />
 
                 {/* Admin Routes */}
                 <Route path={ROUTES.USERS} element={<UsersPage />} />
                 <Route path={ROUTES.DISPUTES} element={<DisputesPage />} />
 
-                <Route path={ROUTES.MESSAGES} element={<MessagesPage />} />
-                <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage userRole={userRole} />} />
-                <Route path={ROUTES.ORDERS} element={<OrdersPage userRole={userRole} />} />
-                <Route path={ROUTES.SETTINGS} element={<SettingsPage userRole={userRole} />} />
-                <Route path={ROUTES.WALLET} element={<WalletPage userRole={userRole} />} />
+                <Route path={ROUTES.MESSAGES} element={<MessagesPage firebaseUid={firebaseUid} />} />
+                <Route path={ROUTES.NOTIFICATIONS} element={<NotificationsPage userRole={userRole} firebaseUid={firebaseUid} />} />
+                <Route path={ROUTES.ORDERS} element={<OrdersPage userRole={userRole} firebaseUid={firebaseUid} />} />
+                <Route path={ROUTES.SETTINGS} element={<SettingsPage userRole={userRole} firebaseUid={firebaseUid} user={user} />} />
+                <Route path={ROUTES.WALLET} element={<WalletPage userRole={userRole} firebaseUid={firebaseUid} />} />
                 <Route path={ROUTES.CREATOR_PROFILE} element={<CreatorProfilePage />} />
               </Route>
 

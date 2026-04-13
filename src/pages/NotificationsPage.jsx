@@ -1,44 +1,59 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNotification } from '../hooks/useNotification';
+import { fetchDeadlineNotifications, fetchOrderTimeline } from '../services/api';
 
-const getNotificationsForRole = (role) => {
-    const base = [
-        { id: 1, title: 'Welcome to CREATECH!', message: 'Thank you for joining our platform.', read: false, time: 'Just now' },
-    ];
-
-    if (role === 'admin') {
-        return [
-            ...base,
-            { id: 10, title: '🔴 System Alert', message: 'Failed API handshake detected with Stripe Gateway. Check system logs.', read: false, time: '10 min ago' },
-            { id: 11, title: '⚠️ Anomalous Login', message: 'Multiple login attempts from IP 192.168.x.x detected.', read: false, time: '30 min ago' },
-            { id: 12, title: '📊 Daily Report', message: 'Platform processed 42 transactions totaling ₱186,500 yesterday.', read: true, time: '1 day ago' },
-            { id: 13, title: '🛡️ User Suspended', message: 'Sarah Chen auto-suspended after reaching 5 reports threshold.', read: true, time: '2 days ago' },
-            { id: 14, title: '🔧 Maintenance Complete', message: 'Server maintenance completed successfully. All systems operational.', read: true, time: '3 days ago' },
-        ];
-    }
-
-    if (role === 'creator') {
-        return [
-            ...base,
-            { id: 20, title: '🎉 New Order!', message: 'GreenCo hired you for "Logo Design for EcoBrand". Check your orders.', read: false, time: '5 min ago' },
-            { id: 21, title: '💰 Payment Received', message: 'You received ₱600 for "Social Media Graphics".', read: false, time: '1 hour ago' },
-            { id: 22, title: '📝 Review Request', message: 'TechStart left feedback on your "Website Redesign" project.', read: true, time: '1 day ago' },
-            { id: 23, title: '⭐ Profile Milestone', message: 'You\'ve completed 15 orders! Your profile is now "Verified Creator".', read: true, time: '3 days ago' },
-        ];
-    }
-
-    // client
-    return [
-        ...base,
-        { id: 30, title: '✅ Order Confirmed', message: 'Your order for "Custom Illustration" with Jane Smith is now pending.', read: false, time: '10 min ago' },
-        { id: 31, title: '📦 Delivery Update', message: 'Alex Rivera submitted the first draft for your project.', read: false, time: '2 hours ago' },
-        { id: 32, title: '💳 Payment Processed', message: '₱1,200 charged for "Full Brand Strategy" hire.', read: true, time: '1 day ago' },
-    ];
-};
-
-const NotificationsPage = ({ userRole = 'creator' }) => {
-    const [notifications, setNotifications] = useState(() => getNotificationsForRole(userRole));
+const NotificationsPage = ({ userRole = 'creator', firebaseUid }) => {
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
     const { notification, showNotification } = useNotification();
+
+    useEffect(() => {
+        if (!firebaseUid) return;
+        setLoading(true);
+
+        // Fetch deadline notifications and order timeline events for this user
+        Promise.all([
+            fetchDeadlineNotifications().catch(() => ({ results: [] })),
+            fetchOrderTimeline().catch(() => ({ results: [] })),
+        ]).then(([deadlineData, timelineData]) => {
+            const deadlines = (deadlineData?.results || deadlineData || [])
+                .filter(d => d.sent_to === firebaseUid)
+                .map(d => ({
+                    id: `dl-${d.id}`,
+                    title: `⏰ ${d.notification_type}`,
+                    message: `Deadline notification for Order #${d.order}`,
+                    read: !!d.read_at,
+                    time: d.sent_at ? timeAgo(d.sent_at) : '',
+                    created_at: d.sent_at,
+                }));
+
+            const timeline = (timelineData?.results || timelineData || [])
+                .filter(t => t.actor_id === firebaseUid || userRole === 'admin')
+                .slice(0, 15)
+                .map(t => ({
+                    id: `tl-${t.id}`,
+                    title: formatEventType(t.event_type),
+                    message: t.message || `Event on Order #${t.order}`,
+                    read: true,
+                    time: t.created_at ? timeAgo(t.created_at) : '',
+                    created_at: t.created_at,
+                }));
+
+            // Combine and sort by date
+            const combined = [...deadlines, ...timeline].sort((a, b) =>
+                new Date(b.created_at || 0) - new Date(a.created_at || 0)
+            );
+
+            // If no API notifications, show role-based welcome
+            if (combined.length === 0) {
+                combined.push(
+                    { id: 'welcome', title: 'Welcome to CREATECH!', message: 'Thank you for joining our platform. Notifications about your orders and activity will appear here.', read: false, time: 'Just now' }
+                );
+            }
+
+            setNotifications(combined);
+        }).finally(() => setLoading(false));
+    }, [firebaseUid, userRole]);
 
     const markAllRead = () => {
         setNotifications((prev) => prev.map(n => ({ ...n, read: true })));
@@ -81,7 +96,9 @@ const NotificationsPage = ({ userRole = 'creator' }) => {
             </header>
 
             <div className="card-grid" style={{ gridTemplateColumns: '1fr' }}>
-                {notifications.length > 0 ? notifications.map(notif => (
+                {loading ? (
+                    <div className="empty-state"><p>Loading notifications...</p></div>
+                ) : notifications.length > 0 ? notifications.map(notif => (
                     <div key={notif.id} className={`card ${!notif.read ? 'card--unread' : ''}`} style={{ borderColor: !notif.read ? '#3b82f6' : '', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                         <div style={{ flex: 1 }}>
                             <div className="card__header">
@@ -112,5 +129,31 @@ const NotificationsPage = ({ userRole = 'creator' }) => {
         </section>
     );
 };
+
+function timeAgo(dateStr) {
+    const now = new Date();
+    const date = new Date(dateStr);
+    const seconds = Math.floor((now - date) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
+function formatEventType(type) {
+    if (!type) return '📋 Activity';
+    const map = {
+        'order_created': '🎉 New Order',
+        'order_accepted': '✅ Order Accepted',
+        'status_change': '🔄 Status Update',
+        'delivery': '📦 Delivery',
+        'payment': '💰 Payment',
+        'review': '⭐ Review',
+    };
+    return map[type] || `📋 ${type.replace(/_/g, ' ')}`;
+}
 
 export default NotificationsPage;

@@ -1,89 +1,152 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { fetchMessages, sendMessage as apiSendMessage, fetchUsers } from '../services/api';
 import { Send, Search, Phone, Video, MoreVertical } from 'lucide-react';
 import '../styles/MessagesPage.css';
 
-const mockConversations = [
-    { id: 1, name: 'GreenCo', avatar: 'G', lastMessage: 'Can we finalize the logo by Friday?', time: '2m ago', unread: 2, online: true },
-    { id: 2, name: 'TechStart', avatar: 'T', lastMessage: 'The wireframes look excellent!', time: '15m ago', unread: 0, online: true },
-    { id: 3, name: 'AniHub', avatar: 'A', lastMessage: 'Please review the storyboard draft.', time: '1h ago', unread: 1, online: false },
-    { id: 4, name: 'Shiko', avatar: 'S', lastMessage: 'Payment has been processed.', time: '3h ago', unread: 0, online: false },
-    { id: 5, name: 'AppVenture', avatar: 'AV', lastMessage: 'Let\'s schedule a call for next week.', time: '1d ago', unread: 0, online: true },
-];
-
-const mockMessages = {
-    1: [
-        { id: 1, sender: 'them', text: 'Hi! We need the eco-friendly logo in SVG and PNG formats.', time: '10:30 AM' },
-        { id: 2, sender: 'me', text: 'Absolutely! I\'ll prepare both formats. Any preference for the green shade?', time: '10:32 AM' },
-        { id: 3, sender: 'them', text: 'Something like forest green would be perfect.', time: '10:35 AM' },
-        { id: 4, sender: 'me', text: 'Got it! I\'ll have the first draft ready by tomorrow.', time: '10:38 AM' },
-        { id: 5, sender: 'them', text: 'Can we finalize the logo by Friday?', time: '10:45 AM' },
-    ],
-    2: [
-        { id: 1, sender: 'me', text: 'Here are the updated wireframes for the landing page.', time: '9:00 AM' },
-        { id: 2, sender: 'them', text: 'The wireframes look excellent!', time: '9:15 AM' },
-    ],
-    3: [
-        { id: 1, sender: 'them', text: 'I\'ve uploaded the storyboard to the shared folder.', time: '8:00 AM' },
-        { id: 2, sender: 'them', text: 'Please review the storyboard draft.', time: '8:02 AM' },
-    ],
-    4: [
-        { id: 1, sender: 'them', text: 'Your invoice has been approved.', time: 'Yesterday' },
-        { id: 2, sender: 'them', text: 'Payment has been processed.', time: 'Yesterday' },
-    ],
-    5: [
-        { id: 1, sender: 'them', text: 'We\'d like to discuss the project scope.', time: 'Mon' },
-        { id: 2, sender: 'me', text: 'Sure! What time works for you?', time: 'Mon' },
-        { id: 3, sender: 'them', text: 'Let\'s schedule a call for next week.', time: 'Mon' },
-    ],
-};
-
-const MessagesPage = () => {
-    const [activeConversation, setActiveConversation] = useState(1);
+const MessagesPage = ({ firebaseUid }) => {
+    const [conversations, setConversations] = useState([]);
+    const [activeConversation, setActiveConversation] = useState(null);
+    const [messages, setMessages] = useState([]);
     const [messageInput, setMessageInput] = useState('');
-    const [conversations, setConversations] = useState(mockConversations);
-    const [messages, setMessages] = useState(mockMessages);
     const [searchTerm, setSearchTerm] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [userMap, setUserMap] = useState({});
+    const chatBodyRef = useRef(null);
 
-    const activeChat = conversations.find(c => c.id === activeConversation);
-    const chatMessages = messages[activeConversation] || [];
+    // Load all messages for the current user and build conversation list
+    useEffect(() => {
+        if (!firebaseUid) return;
+        setLoading(true);
 
-    const filteredConversations = conversations.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+        Promise.all([
+            fetchMessages({ user_id: firebaseUid }),
+            fetchUsers(),
+        ]).then(([msgData, userData]) => {
+            const allMessages = msgData?.results || msgData || [];
+            const allUsers = userData?.results || userData || [];
 
-    const handleSend = (e) => {
-        e.preventDefault();
-        if (!messageInput.trim()) return;
+            // Build user map for display names
+            const uMap = {};
+            allUsers.forEach(u => {
+                uMap[u.firebase_uid] = {
+                    name: u.full_name || u.display_name || u.email || 'Unknown',
+                    avatar: (u.full_name || u.email || '?').charAt(0).toUpperCase(),
+                };
+            });
+            setUserMap(uMap);
 
-        const newMessage = {
-            id: Date.now(),
-            sender: 'me',
-            text: messageInput.trim(),
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
+            // Group messages into conversations by the other user
+            const convMap = {};
+            allMessages.forEach(msg => {
+                const otherUid = msg.sender_id === firebaseUid ? msg.receiver_id : msg.sender_id;
+                if (!convMap[otherUid]) {
+                    convMap[otherUid] = {
+                        id: otherUid,
+                        name: msg.sender_id === firebaseUid
+                            ? (msg.receiver_name || uMap[otherUid]?.name || otherUid)
+                            : (msg.sender_name || uMap[otherUid]?.name || otherUid),
+                        avatar: (uMap[otherUid]?.avatar || '?'),
+                        messages: [],
+                        lastMessage: '',
+                        time: '',
+                        unread: 0,
+                    };
+                }
+                convMap[otherUid].messages.push({
+                    id: msg.id,
+                    sender: msg.sender_id === firebaseUid ? 'me' : 'them',
+                    text: msg.content,
+                    time: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+                    created_at: msg.created_at,
+                });
+                if (!msg.is_read && msg.sender_id !== firebaseUid) {
+                    convMap[otherUid].unread += 1;
+                }
+            });
 
-        setMessages(prev => ({
-            ...prev,
-            [activeConversation]: [...(prev[activeConversation] || []), newMessage],
-        }));
+            // Sort messages within each conversation and set last message
+            const convList = Object.values(convMap).map(conv => {
+                conv.messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                const last = conv.messages[conv.messages.length - 1];
+                conv.lastMessage = last?.text || '';
+                conv.time = last?.time || '';
+                return conv;
+            });
 
-        // Update last message in conversation list
-        setConversations(prev => prev.map(c =>
-            c.id === activeConversation
-                ? { ...c, lastMessage: messageInput.trim(), time: 'Just now', unread: 0 }
-                : c
-        ));
+            setConversations(convList);
+            if (convList.length > 0 && !activeConversation) {
+                setActiveConversation(convList[0].id);
+                setMessages(convList[0].messages);
+            }
+        })
+        .catch(err => console.error('Failed to load messages:', err))
+        .finally(() => setLoading(false));
+    }, [firebaseUid]);
 
-        setMessageInput('');
-    };
+    // Update messages when conversation changes
+    useEffect(() => {
+        const conv = conversations.find(c => c.id === activeConversation);
+        if (conv) setMessages(conv.messages);
+    }, [activeConversation, conversations]);
+
+    // Scroll to bottom
+    useEffect(() => {
+        if (chatBodyRef.current) {
+            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+        }
+    }, [messages]);
 
     const handleConversationClick = (id) => {
         setActiveConversation(id);
-        // Mark as read
         setConversations(prev => prev.map(c =>
             c.id === id ? { ...c, unread: 0 } : c
         ));
     };
+
+    const handleSend = async (e) => {
+        e.preventDefault();
+        if (!messageInput.trim() || !activeConversation) return;
+
+        try {
+            await apiSendMessage({
+                sender_id: firebaseUid,
+                receiver_id: activeConversation,
+                content: messageInput.trim(),
+            });
+
+            const newMsg = {
+                id: Date.now(),
+                sender: 'me',
+                text: messageInput.trim(),
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+
+            setMessages(prev => [...prev, newMsg]);
+            setConversations(prev => prev.map(c =>
+                c.id === activeConversation
+                    ? { ...c, messages: [...c.messages, newMsg], lastMessage: messageInput.trim(), time: 'Just now' }
+                    : c
+            ));
+            setMessageInput('');
+        } catch (err) {
+            console.error('Failed to send message:', err);
+        }
+    };
+
+    const activeChat = conversations.find(c => c.id === activeConversation);
+    const filteredConversations = conversations.filter(c =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (loading) {
+        return (
+            <section className="messages-page page-fade">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--text-secondary)' }}>
+                    <p>Loading messages...</p>
+                </div>
+            </section>
+        );
+    }
 
     return (
         <section className="messages-page page-fade">
@@ -105,7 +168,7 @@ const MessagesPage = () => {
                     />
                 </div>
                 <div className="messages-sidebar__list">
-                    {filteredConversations.map(conv => (
+                    {filteredConversations.length > 0 ? filteredConversations.map(conv => (
                         <button
                             key={conv.id}
                             className={`conversation-item ${activeConversation === conv.id ? 'conversation-item--active' : ''}`}
@@ -113,7 +176,6 @@ const MessagesPage = () => {
                         >
                             <div className="conversation-item__avatar-wrapper">
                                 <div className="conversation-item__avatar">{conv.avatar}</div>
-                                {conv.online && <span className="conversation-item__online-dot" />}
                             </div>
                             <div className="conversation-item__content">
                                 <div className="conversation-item__top-row">
@@ -128,7 +190,11 @@ const MessagesPage = () => {
                                 </div>
                             </div>
                         </button>
-                    ))}
+                    )) : (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                            <p>No conversations yet.</p>
+                        </div>
+                    )}
                 </div>
             </aside>
 
@@ -136,36 +202,24 @@ const MessagesPage = () => {
             <main className="messages-chat">
                 {activeChat ? (
                     <>
-                        {/* Chat Header */}
                         <div className="messages-chat__header">
                             <div className="messages-chat__header-info">
                                 <div className="conversation-item__avatar-wrapper" style={{ marginRight: '0.75rem' }}>
                                     <div className="conversation-item__avatar">{activeChat.avatar}</div>
-                                    {activeChat.online && <span className="conversation-item__online-dot" />}
                                 </div>
                                 <div>
                                     <h3 className="messages-chat__contact-name">{activeChat.name}</h3>
-                                    <span className="messages-chat__status">
-                                        {activeChat.online ? 'Online' : 'Offline'}
-                                    </span>
                                 </div>
                             </div>
                             <div className="messages-chat__header-actions">
-                                <button className="messages-chat__action-btn" title="Voice call">
-                                    <Phone size={18} />
-                                </button>
-                                <button className="messages-chat__action-btn" title="Video call">
-                                    <Video size={18} />
-                                </button>
-                                <button className="messages-chat__action-btn" title="More options">
-                                    <MoreVertical size={18} />
-                                </button>
+                                <button className="messages-chat__action-btn" title="Voice call"><Phone size={18} /></button>
+                                <button className="messages-chat__action-btn" title="Video call"><Video size={18} /></button>
+                                <button className="messages-chat__action-btn" title="More options"><MoreVertical size={18} /></button>
                             </div>
                         </div>
 
-                        {/* Chat Messages */}
-                        <div className="messages-chat__body">
-                            {chatMessages.map(msg => (
+                        <div className="messages-chat__body" ref={chatBodyRef}>
+                            {messages.map(msg => (
                                 <div key={msg.id} className={`chat-bubble ${msg.sender === 'me' ? 'chat-bubble--sent' : 'chat-bubble--received'}`}>
                                     <p className="chat-bubble__text">{msg.text}</p>
                                     <span className="chat-bubble__time">{msg.time}</span>
@@ -173,7 +227,6 @@ const MessagesPage = () => {
                             ))}
                         </div>
 
-                        {/* Compose */}
                         <form className="messages-chat__compose" onSubmit={handleSend}>
                             <label htmlFor="messageInput" className="sr-only">Type a message</label>
                             <input

@@ -27,9 +27,15 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
       // Client sees orders where they are the client
       return orders.filter(p => p.clientName);
     }
-    // Admin sees everything
-    return projects;
+    // Admin sees everything (including deleted items if they existed, though default logic usually hides deleted)
+    // To ensure admin sees EVERYTHING even if suspended/deleted, we just return projects and services
+    const allItems = [...projects, ...services];
+    // De-duplicate in case of overlap via IDs
+    const uniqueItems = Array.from(new Map(allItems.map(item => [item.id, item])).values());
+    return uniqueItems;
   };
+
+  const visibleItems = getVisibleItems();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -74,7 +80,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     setShowForm(false);
   };
 
-  const filtered = getVisibleItems()
+  const filtered = visibleItems
     .filter((p) => {
       const matchSearch = p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||

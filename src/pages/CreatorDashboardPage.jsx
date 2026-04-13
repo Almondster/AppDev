@@ -1,24 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
-import { CheckCircle2, Briefcase, Banknote, Search, Filter, Clock } from 'lucide-react';
+import { fetchDailyAnalytics } from '../services/api';
+import { CheckCircle2, Briefcase, Banknote, Search, Filter, Clock, TrendingUp, Eye } from 'lucide-react';
 import '../styles/CreatorDashboardPage.css';
 
-const CreatorDashboardPage = () => {
+const CreatorDashboardPage = ({ firebaseUid }) => {
     const navigate = useNavigate();
-    const { orders, completedProjects, activeProjects, totalRevenue } = useProjects();
+    const { orders, completedProjects, activeProjects, totalRevenue, loading: contextLoading } = useProjects();
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
+    const [analytics, setAnalytics] = useState({ profile_views: 0, service_clicks: 0 });
 
-    // Creator's active orders (hired gigs, not completed)
-    const creatorOrders = orders.filter((p) => p.creator === 'You' && p.status !== 'Completed');
+    // Fetch analytics from backend
+    useEffect(() => {
+        if (!firebaseUid) return;
+        fetchDailyAnalytics({ creator_id: firebaseUid })
+            .then(data => {
+                const rows = data?.results || data || [];
+                const totals = rows.reduce((acc, r) => ({
+                    profile_views: acc.profile_views + (r.profile_views || 0),
+                    service_clicks: acc.service_clicks + (r.service_clicks || 0),
+                }), { profile_views: 0, service_clicks: 0 });
+                setAnalytics(totals);
+            })
+            .catch(() => {});
+    }, [firebaseUid]);
+
+    // Creator's active orders (not completed)
+    const creatorOrders = orders.filter((p) => p.status !== 'Completed');
 
     const filteredProjects = creatorOrders.filter((project) => {
         const matchesSearch =
-            project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (project.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (project.clientName || '').toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter =
-            filterStatus === 'all' || project.status.toLowerCase().replace(' ', '-') === filterStatus;
+            filterStatus === 'all' || (project.status || '').toLowerCase().replace(' ', '-') === filterStatus;
         return matchesSearch && matchesFilter;
     });
 
@@ -29,13 +46,13 @@ const CreatorDashboardPage = () => {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Manage your services and track your freelance business.</p>
             </header>
 
-            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/projects')}>
                     <div style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '1rem', borderRadius: '16px' }}>
                         <CheckCircle2 size={28} />
                     </div>
                     <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services Completed</p>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Completed</p>
                         <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{completedProjects.length}</p>
                     </div>
                 </div>
@@ -57,6 +74,16 @@ const CreatorDashboardPage = () => {
                     <div>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue</p>
                         <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>₱{totalRevenue.toLocaleString()}</p>
+                    </div>
+                </div>
+
+                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    <div style={{ background: 'rgba(250, 204, 21, 0.1)', color: '#facc15', padding: '1rem', borderRadius: '16px' }}>
+                        <Eye size={28} />
+                    </div>
+                    <div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Profile Views</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{analytics.profile_views}</p>
                     </div>
                 </div>
             </section>
@@ -93,7 +120,11 @@ const CreatorDashboardPage = () => {
                 </div>
 
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {filteredProjects.length > 0 ? (
+                    {contextLoading ? (
+                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-tertiary)' }}>
+                            <p>Loading orders from server...</p>
+                        </div>
+                    ) : filteredProjects.length > 0 ? (
                         filteredProjects.map((project) => (
                             <div key={project.id} style={{ padding: '1.25rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                                 <div>

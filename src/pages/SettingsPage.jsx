@@ -1,8 +1,13 @@
-import { useState, memo } from 'react';
+import { useState, useEffect, memo, useCallback } from 'react';
 import { useNotification } from '../hooks/useNotification';
 import {
+    fetchUser, updateUser, fetchCreatorByUid, updateCreator,
+    fetchPaymentMethods, fetchFollows, fetchWallets,
+    createSupportTicket,
+} from '../services/api';
+import {
     User, Bell, Lock, FileText, Sparkles, Users, CreditCard,
-    Settings as SettingsIcon, ShieldAlert, ClipboardList, Activity, Save
+    Settings as SettingsIcon, ShieldAlert, ClipboardList, Save, Loader2
 } from 'lucide-react';
 import '../styles/SettingsPage.css';
 
@@ -26,12 +31,24 @@ const ToggleSwitch = memo(({ checked, onChange }) => (
 ));
 ToggleSwitch.displayName = 'ToggleSwitch';
 
-const SettingsPage = ({ userRole }) => {
+const SettingsPage = ({ userRole, firebaseUid, user: authUser }) => {
     const [activeSection, setActiveSection] = useState('profile');
     const { notification, showNotification } = useNotification();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
 
-    // Shared state
-    const [phone, setPhone] = useState('09123456789');
+    // Profile state — fetched from backend
+    const [profileData, setProfileData] = useState({
+        first_name: '', last_name: '', email: '', phone: '', avatar_url: '',
+    });
+    const [creatorData, setCreatorData] = useState({
+        bio: '', portfolio_url: '', starting_price: '', skills: '',
+    });
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [followers, setFollowers] = useState([]);
+    const [wallets, setWallets] = useState([]);
+
+    // Local-only toggles
     const [pushNotif, setPushNotif] = useState(true);
     const [emailNotif, setEmailNotif] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
@@ -44,6 +61,125 @@ const SettingsPage = ({ userRole }) => {
     const [maxFileSize, setMaxFileSize] = useState('10');
     const [newUserVerification, setNewUserVerification] = useState(true);
     const [disputeAutoEscalation, setDisputeAutoEscalation] = useState(true);
+    const [supportMessage, setSupportMessage] = useState('');
+    const [supportCategory, setSupportCategory] = useState('general');
+
+    // Fetch user profile data on mount
+    useEffect(() => {
+        if (!firebaseUid) return;
+        setLoading(true);
+
+        const promises = [
+            fetchUser(firebaseUid).catch(() => null),
+        ];
+
+        if (userRole === 'creator') {
+            promises.push(fetchCreatorByUid(firebaseUid).catch(() => null));
+        }
+        promises.push(fetchPaymentMethods({ user_id: firebaseUid }).catch(() => []));
+        promises.push(fetchFollows({ following_id: firebaseUid }).catch(() => []));
+        promises.push(fetchWallets({ user_id: firebaseUid }).catch(() => []));
+
+        Promise.all(promises).then(([userData, ...rest]) => {
+            if (userData) {
+                setProfileData({
+                    first_name: userData.first_name || '',
+                    last_name: userData.last_name || '',
+                    email: userData.email || '',
+                    phone: userData.phone || '',
+                    avatar_url: userData.avatar_url || '',
+                });
+                setPushNotif(userData.notifications_enabled ?? true);
+            }
+
+            const idx = userRole === 'creator' ? 0 : -1;
+            if (userRole === 'creator' && rest[0]) {
+                setCreatorData({
+                    bio: rest[0].bio || '',
+                    portfolio_url: rest[0].portfolio_url || '',
+                    starting_price: rest[0].starting_price || '',
+                    skills: rest[0].skills || '',
+                    id: rest[0].id,
+                });
+            }
+
+            const pmData = rest[userRole === 'creator' ? 1 : 0];
+            setPaymentMethods(pmData?.results || pmData || []);
+
+            const followData = rest[userRole === 'creator' ? 2 : 1];
+            setFollowers(followData?.results || followData || []);
+
+            const walletData = rest[userRole === 'creator' ? 3 : 2];
+            setWallets(walletData?.results || walletData || []);
+        }).finally(() => setLoading(false));
+    }, [firebaseUid, userRole]);
+
+    const handleSaveProfile = useCallback(async () => {
+        setSaving(true);
+        try {
+            await updateUser(firebaseUid, {
+                first_name: profileData.first_name,
+                last_name: profileData.last_name,
+                phone: profileData.phone,
+            });
+            showNotification('Profile saved successfully!');
+        } catch (err) {
+            showNotification(`Save failed: ${err.message}`, 'error');
+        } finally {
+            setSaving(false);
+        }
+    }, [firebaseUid, profileData, showNotification]);
+
+    const handleSaveCreator = useCallback(async () => {
+        if (!creatorData.id) return;
+        setSaving(true);
+        try {
+            await updateCreator(creatorData.id, {
+                bio: creatorData.bio,
+                portfolio_url: creatorData.portfolio_url,
+                starting_price: creatorData.starting_price,
+                skills: creatorData.skills,
+            });
+            showNotification('Creator profile updated!');
+        } catch (err) {
+            showNotification(`Save failed: ${err.message}`, 'error');
+        } finally {
+            setSaving(false);
+        }
+    }, [creatorData, showNotification]);
+
+    const handleSaveNotifications = useCallback(async () => {
+        setSaving(true);
+        try {
+            await updateUser(firebaseUid, { notifications_enabled: pushNotif });
+            showNotification('Notification preferences saved!');
+        } catch (err) {
+            showNotification(`Save failed: ${err.message}`, 'error');
+        } finally {
+            setSaving(false);
+        }
+    }, [firebaseUid, pushNotif, showNotification]);
+
+    const handleSubmitTicket = useCallback(async () => {
+        if (!supportMessage.trim()) return;
+        setSaving(true);
+        try {
+            await createSupportTicket({
+                user_id: firebaseUid,
+                email: profileData.email,
+                user_role: userRole,
+                category: supportCategory,
+                message: supportMessage,
+                status: 'open',
+            });
+            showNotification('Support ticket created! We\'ll get back to you within 24 hours.');
+            setSupportMessage('');
+        } catch (err) {
+            showNotification(`Failed: ${err.message}`, 'error');
+        } finally {
+            setSaving(false);
+        }
+    }, [firebaseUid, profileData.email, userRole, supportCategory, supportMessage, showNotification]);
 
     const handleSave = (section) => {
         showNotification(`${section} saved successfully!`);
@@ -59,12 +195,21 @@ const SettingsPage = ({ userRole }) => {
     ];
 
     const renderContent = () => {
+        if (loading) {
+            return (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px', color: 'var(--text-secondary)' }}>
+                    <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', marginRight: '0.5rem' }} />
+                    Loading settings...
+                </div>
+            );
+        }
+
         if (activeSection === 'profile') {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1rem' }}>
-                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '2rem', fontWeight: 'bold' }}>
-                            {userRole === 'admin' ? 'A' : 'U'}
+                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: profileData.avatar_url ? `url(${profileData.avatar_url}) center/cover` : 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '2rem', fontWeight: 'bold' }}>
+                            {!profileData.avatar_url && (profileData.first_name || 'U').charAt(0).toUpperCase()}
                         </div>
                         <div>
                             <button onClick={() => showNotification('Photo upload dialog would open here.', 'info')} style={{ padding: '0.5rem 1rem', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', borderRadius: '8px', cursor: 'pointer', marginBottom: '0.5rem' }}>Change Photo</button>
@@ -73,23 +218,27 @@ const SettingsPage = ({ userRole }) => {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div>
-                            <label htmlFor="firstName" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>First Name</label>
-                            <input id="firstName" type="text" defaultValue={userRole === 'admin' ? 'Admin' : 'Test'} style={inputStyle} />
+                            <label htmlFor="firstName" style={labelStyle}>First Name</label>
+                            <input id="firstName" type="text" value={profileData.first_name} onChange={(e) => setProfileData(p => ({ ...p, first_name: e.target.value }))} style={inputStyle} />
                         </div>
                         <div>
-                            <label htmlFor="lastName" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Last Name</label>
-                            <input id="lastName" type="text" defaultValue="User" style={inputStyle} />
+                            <label htmlFor="lastName" style={labelStyle}>Last Name</label>
+                            <input id="lastName" type="text" value={profileData.last_name} onChange={(e) => setProfileData(p => ({ ...p, last_name: e.target.value }))} style={inputStyle} />
                         </div>
                     </div>
                     <div>
-                        <label htmlFor="email" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Email Address</label>
-                        <input id="email" type="email" defaultValue={userRole === 'admin' ? 'admin@createch.com' : 'user@example.com'} style={inputStyle} />
+                        <label htmlFor="email" style={labelStyle}>Email Address</label>
+                        <input id="email" type="email" value={profileData.email} disabled style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }} />
+                        <p style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', margin: '0.25rem 0 0' }}>Email cannot be changed from here.</p>
                     </div>
                     <div>
-                        <label htmlFor="phone" style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Phone Number</label>
-                        <input id="phone" type="text" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+                        <label htmlFor="phone" style={labelStyle}>Phone Number</label>
+                        <input id="phone" type="text" value={profileData.phone} onChange={(e) => setProfileData(p => ({ ...p, phone: e.target.value }))} style={inputStyle} />
                     </div>
-                    <button onClick={() => handleSave('Profile')} style={saveBtnStyle('#3b82f6')}><Save size={16} /> Save Changes</button>
+                    <button onClick={handleSaveProfile} disabled={saving} style={saveBtnStyle('#3b82f6')}>
+                        {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                        {saving ? 'Saving...' : 'Save Changes'}
+                    </button>
                 </div>
             );
         }
@@ -111,6 +260,10 @@ const SettingsPage = ({ userRole }) => {
                         </div>
                         <ToggleSwitch checked={emailNotif} onChange={setEmailNotif} />
                     </div>
+                    <button onClick={handleSaveNotifications} disabled={saving} style={saveBtnStyle('#3b82f6')}>
+                        {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                        Save Preferences
+                    </button>
                 </div>
             );
         }
@@ -242,19 +395,26 @@ const SettingsPage = ({ userRole }) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div>
                         <label htmlFor="bio" style={labelStyle}>Professional Bio</label>
-                        <textarea id="bio" rows="4" defaultValue="Senior UX Designer with 5 years of experience." style={{ ...inputStyle, resize: 'vertical' }} />
+                        <textarea id="bio" rows="4" value={creatorData.bio} onChange={(e) => setCreatorData(p => ({ ...p, bio: e.target.value }))} style={{ ...inputStyle, resize: 'vertical' }} />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div>
                             <label htmlFor="portfolio" style={labelStyle}>Portfolio URL</label>
-                            <input id="portfolio" type="text" defaultValue="https://myportfolio.com" style={inputStyle} />
+                            <input id="portfolio" type="text" value={creatorData.portfolio_url} onChange={(e) => setCreatorData(p => ({ ...p, portfolio_url: e.target.value }))} style={inputStyle} />
                         </div>
                         <div>
-                            <label htmlFor="hourlyRate" style={labelStyle}>Hourly Rate (₱)</label>
-                            <input id="hourlyRate" type="number" defaultValue="750" style={inputStyle} />
+                            <label htmlFor="hourlyRate" style={labelStyle}>Starting Price (₱)</label>
+                            <input id="hourlyRate" type="number" value={creatorData.starting_price} onChange={(e) => setCreatorData(p => ({ ...p, starting_price: e.target.value }))} style={inputStyle} />
                         </div>
                     </div>
-                    <button onClick={() => handleSave('Creator Profile')} style={saveBtnStyle('#a855f7')}><Save size={16} /> Update Creator Profile</button>
+                    <div>
+                        <label htmlFor="skills" style={labelStyle}>Skills (comma separated)</label>
+                        <input id="skills" type="text" value={creatorData.skills} onChange={(e) => setCreatorData(p => ({ ...p, skills: e.target.value }))} style={inputStyle} placeholder="React, Node.js, UI/UX Design" />
+                    </div>
+                    <button onClick={handleSaveCreator} disabled={saving} style={saveBtnStyle('#a855f7')}>
+                        {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                        Update Creator Profile
+                    </button>
                 </div>
             );
         }
@@ -262,16 +422,33 @@ const SettingsPage = ({ userRole }) => {
         if (activeSection === 'payment-methods' || activeSection === 'payout-methods') {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ padding: '1.5rem', border: '1px solid var(--border-color)', background: 'var(--card-bg)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <CreditCard size={24} color="var(--text-secondary)" />
-                            <div>
-                                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>•••• •••• •••• 4242</h4>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Expires 12/28</span>
+                    {paymentMethods.length > 0 ? paymentMethods.map(pm => (
+                        <div key={pm.id} style={{ padding: '1.5rem', border: '1px solid var(--border-color)', background: 'var(--card-bg)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <CreditCard size={24} color="var(--text-secondary)" />
+                                <div>
+                                    <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>{pm.method_type || 'Card'} •••• {(pm.account_number || '').slice(-4)}</h4>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{pm.account_name || pm.provider || 'Account'}</span>
+                                </div>
                             </div>
+                            <span style={{ padding: '4px 8px', background: pm.is_default ? 'rgba(59,130,246,0.1)' : 'rgba(107,114,128,0.1)', color: pm.is_default ? '#3b82f6' : '#6b7280', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>{pm.is_default ? 'Primary' : 'Secondary'}</span>
                         </div>
-                        <span style={{ padding: '4px 8px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>Primary</span>
-                    </div>
+                    )) : (
+                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>No payment methods linked.</p>
+                    )}
+
+                    {wallets.length > 0 && (
+                        <div>
+                            <h4 style={{ color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Wallets</h4>
+                            {wallets.map(w => (
+                                <div key={w.id} style={{ padding: '1rem', border: '1px solid var(--border-color)', background: 'var(--card-bg)', borderRadius: '8px', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: 'var(--text-primary)' }}>{w.account_name} — {w.wallet_type}</span>
+                                    <span style={{ color: w.is_active ? '#22c55e' : '#6b7280', fontSize: '0.8rem', fontWeight: '600' }}>{w.is_active ? 'Active' : 'Inactive'}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <button onClick={() => showNotification('Link account dialog would open here.', 'info')} style={{ alignSelf: 'flex-start', background: 'transparent', color: 'var(--text-primary)', border: '1px dashed var(--border-color)', padding: '1rem 1.5rem', borderRadius: '8px', fontWeight: '500', cursor: 'pointer', width: '100%' }}>+ Link New Account</button>
                 </div>
             );
@@ -280,16 +457,22 @@ const SettingsPage = ({ userRole }) => {
         if (activeSection === 'network') {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {['Jane Doe', 'Max Media', 'Pixel Wizards'].map((name, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--card-bg)', borderRadius: '8px' }}>
-                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>{name.charAt(0)}</div>
-                            <div style={{ flex: 1 }}>
-                                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>{name}</h4>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Creator</span>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                        {followers.length} {userRole === 'creator' ? 'followers' : 'following'}
+                    </p>
+                    {followers.length > 0 ? followers.map((f, i) => (
+                        <div key={f.id || i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--card-bg)', borderRadius: '8px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
+                                {(f.follower_name || f.follower_id || '?').charAt(0).toUpperCase()}
                             </div>
-                            <button onClick={() => showNotification(`Removed ${name} from list.`, 'info')} style={{ background: 'transparent', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>Remove</button>
+                            <div style={{ flex: 1 }}>
+                                <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.25rem 0' }}>{f.follower_name || f.follower_id}</h4>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{f.created_at ? new Date(f.created_at).toLocaleDateString() : ''}</span>
+                            </div>
                         </div>
-                    ))}
+                    )) : (
+                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>No followers yet.</p>
+                    )}
                 </div>
             );
         }
@@ -298,9 +481,25 @@ const SettingsPage = ({ userRole }) => {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div style={{ padding: '1.5rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                        <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0' }}>Need Help?</h4>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: '0 0 1rem 0' }}>Contact our support team for assistance with your account.</p>
-                        <button onClick={() => showNotification('Support ticket created. We\'ll get back to you within 24 hours.', 'info')} style={saveBtnStyle('#3b82f6')}><FileText size={16} /> Open Support Ticket</button>
+                        <h4 style={{ color: 'var(--text-primary)', margin: '0 0 0.75rem 0' }}>Submit a Support Ticket</h4>
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={labelStyle}>Category</label>
+                            <select value={supportCategory} onChange={(e) => setSupportCategory(e.target.value)} style={inputStyle}>
+                                <option value="general">General</option>
+                                <option value="billing">Billing</option>
+                                <option value="technical">Technical</option>
+                                <option value="account">Account</option>
+                                <option value="dispute">Dispute</option>
+                            </select>
+                        </div>
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={labelStyle}>Message</label>
+                            <textarea value={supportMessage} onChange={(e) => setSupportMessage(e.target.value)} rows={4} placeholder="Describe your issue..." style={{ ...inputStyle, resize: 'vertical' }} />
+                        </div>
+                        <button onClick={handleSubmitTicket} disabled={saving || !supportMessage.trim()} style={saveBtnStyle('#3b82f6')}>
+                            {saving ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={16} />}
+                            Submit Ticket
+                        </button>
                     </div>
                     <div style={{ padding: '1.5rem', border: '1px solid #ef4444', background: 'rgba(239,68,68,0.05)', borderRadius: '12px' }}>
                         <h4 style={{ color: '#f87171', fontSize: '1.1rem', margin: '0 0 0.5rem 0' }}>Danger Zone</h4>
@@ -340,7 +539,6 @@ const SettingsPage = ({ userRole }) => {
 
     let activeSections = [...baseSections];
     if (userRole === 'admin') {
-        // Admin: no notifications tab (they get system alerts elsewhere), no danger zone
         activeSections = activeSections.filter(s => s.id !== 'notifications');
         activeSections = [...activeSections, ...adminSections];
     } else if (userRole === 'creator') {
