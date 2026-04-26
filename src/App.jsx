@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { ProjectsProvider } from './context/ProjectsContext';
+import { ProjectsProvider } from './context/providers/ProjectsProvider';
 import React from 'react';
 import Sidebar from './components/Sidebar';
 import DashboardPage from './pages/DashboardPage';
@@ -20,7 +20,7 @@ import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (!isLoggedIn) return <LandingPage />;
   return (
     <ProjectsProvider>
       <div className="dashboard-layout page-fade">
