@@ -10,13 +10,12 @@ import {
     Users,
     AlertTriangle,
     ShieldCheck,
-    Moon,
-    Sun
+    Package
 } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import { getUserData } from '../api';
 
 const Sidebar = ({ userRole, onLogout }) => {
-    const { theme, toggleTheme } = useTheme();
+    const userData = getUserData();
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
@@ -28,7 +27,8 @@ const Sidebar = ({ userRole, onLogout }) => {
 
     const creatorMenu = [
         { to: '/', label: 'Studio', icon: <LayoutGrid size={18} /> },
-        { to: '/projects', label: 'My Gigs', icon: <Briefcase size={18} /> },
+        { to: '/my-gigs', label: 'My Gigs', icon: <Briefcase size={18} /> },
+        { to: '/orders', label: 'Orders', icon: <Package size={18} /> },
         { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
         { to: '/notifications', label: 'Notifications', icon: <Bell size={18} /> },
         { to: '/wallet', label: 'Earnings', icon: <Wallet size={18} /> },
@@ -57,11 +57,10 @@ const Sidebar = ({ userRole, onLogout }) => {
 
             <div className="sidebar-user">
                 <div className="sidebar-avatar">
-                    {/* Placeholder Avatar based on role */}
-                    {userRole === 'creator' ? 'C' : userRole === 'client' ? 'CL' : 'A'}
+                    {(userData?.full_name || userRole || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div className="sidebar-user-info">
-                    <span className="sidebar-user-name">Test User</span>
+                    <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>
                     <span className="sidebar-user-role">{userRole}</span>
                 </div>
             </div>
@@ -81,10 +80,6 @@ const Sidebar = ({ userRole, onLogout }) => {
             </nav>
 
             <div className="sidebar-footer">
-                <button className="nav-item nav-item--theme" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                    <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
-                </button>
                 {userRole !== 'admin' && (
                     <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
                         <Settings size={18} />

@@ -1,85 +1,470 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown } from 'lucide-react';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews } from '../api';
+import ConfirmModal from '../components/ConfirmModal';
+import './ClientDashboardPage.css';
 
-import { Target, CreditCard, Clock, Star, ArrowRight } from 'lucide-react';
-import '../styles/ClientDashboardPage.css';
+
+
+const ServiceSkeleton = () => (
+    <div className="cm-service-card" style={{ pointerEvents: 'none' }}>
+        <div className="cm-service-thumb skeleton" style={{ position: 'relative' }}>
+            <div className="skeleton-badge" style={{ position: 'absolute', top: 12, right: 12, width: 72 }}></div>
+        </div>
+        <div className="cm-service-info">
+            <div className="skeleton-row" style={{ marginBottom: 8 }}>
+                <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 8 }}></div>
+                <div className="skeleton" style={{ width: 100, height: 16 }}></div>
+            </div>
+            <div className="skeleton" style={{ width: '92%', height: 18, marginBottom: 6 }}></div>
+            <div className="skeleton" style={{ width: '70%', height: 16, marginBottom: 14 }}></div>
+            <div className="skeleton-divider"></div>
+            <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
+                <div className="skeleton" style={{ width: 80, height: 16 }}></div>
+                <div className="skeleton" style={{ width: 65, height: 22, borderRadius: 6 }}></div>
+            </div>
+        </div>
+    </div>
+);
+
+const CreatorSkeleton = () => (
+    <div className="cm-creator-card" style={{ pointerEvents: 'none' }}>
+        <div className="cm-creator-header">
+            <div className="skeleton skeleton-avatar--lg"></div>
+            <div className="skeleton-col" style={{ flex: 1 }}>
+                <div className="skeleton" style={{ width: '55%', height: 18 }}></div>
+                <div className="skeleton" style={{ width: '80%', height: 14 }}></div>
+                <div className="skeleton" style={{ width: '35%', height: 14 }}></div>
+            </div>
+            <div className="skeleton-col" style={{ flex: 0, alignItems: 'flex-end' }}>
+                <div className="skeleton" style={{ width: 55, height: 18 }}></div>
+                <div className="skeleton" style={{ width: 75, height: 14 }}></div>
+            </div>
+        </div>
+        <div className="skeleton" style={{ width: '92%', height: 16, marginTop: 6 }}></div>
+        <div className="skeleton" style={{ width: '70%', height: 16 }}></div>
+        <div className="skeleton-row" style={{ gap: 6, marginTop: 6 }}>
+            <div className="skeleton" style={{ width: 90, height: 26, borderRadius: 6 }}></div>
+            <div className="skeleton" style={{ width: 110, height: 26, borderRadius: 6 }}></div>
+            <div className="skeleton" style={{ width: 80, height: 26, borderRadius: 6 }}></div>
+        </div>
+        <div className="skeleton-divider" style={{ margin: '14px 0' }}></div>
+        <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
+            <div className="skeleton-col" style={{ gap: 5 }}>
+                <div className="skeleton" style={{ width: 70, height: 14 }}></div>
+                <div className="skeleton" style={{ width: 85, height: 20, borderRadius: 4 }}></div>
+            </div>
+            <div className="skeleton" style={{ width: 100, height: 36, borderRadius: 8 }}></div>
+        </div>
+    </div>
+);
 
 const ClientDashboardPage = () => {
+    const [orders, setOrders] = useState([]);
+    const [services, setServices] = useState([]);
+    const [creators, setCreators] = useState([]);
+    const [reviews, setReviews] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [orderMsg, setOrderMsg] = useState('');
+    const [orderMsgType, setOrderMsgType] = useState('success');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [activeCategory, setActiveCategory] = useState('All');
+    const [viewMode, setViewMode] = useState('services');
+    const [sortBy, setSortBy] = useState('recommended');
+
+    const userData = getUserData();
+    const navigate = useNavigate();
+
+    // Confirm modal state
+    const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
+    const [orderLoading, setOrderLoading] = useState(false);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const [oRes, sRes, cRes, rRes] = await Promise.all([apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews()]);
+                if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
+                if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
+                if (cRes.ok) setCreators(cRes.data.results || cRes.data || []);
+                if (rRes.ok) setReviews(rRes.data.results || rRes.data || []);
+            } catch (err) {
+                console.error('Client dashboard error:', err);
+                setError('Failed to load marketplace data. Please try again.');
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
+
+    // Safely parse skills — handles arrays, JSON, Python list strings, comma-separated, postgres text format
+    const parseSkills = (raw) => {
+        if (!raw) return [];
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+            try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch {}
+            if (raw.startsWith('[')) {
+                try { const p = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(p)) return p; } catch {}
+            }
+            const trimmed = raw.replace(/^\[|\]$|^\{|\}$/g, '').trim();
+            if (!trimmed) return [];
+            return trimmed.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+        }
+        return [];
+    };
+
+    const publicServices = services.filter(s => s.is_public !== false);
+
+    // Canonical service categories
+    const CATEGORIES = ['All', 'Design & Creative', 'Development & IT', 'Digital Marketing', 'Music & Audio', 'Video & Animation', 'Writing & Translation'];
+
+    // Map old/missing categories to canonical ones based on label or category value
+    const inferCategory = (svc) => {
+        const cat = (svc.category || '').toLowerCase().trim();
+        const label = (svc.label || '').toLowerCase().trim();
+        const title = (svc.title || '').toLowerCase().trim();
+        const combined = `${cat} ${label} ${title}`;
+
+        // Check if category already matches a canonical one
+        const canonical = CATEGORIES.find(c => c !== 'All' && c.toLowerCase() === cat);
+        if (canonical) return canonical;
+
+        // Map by keywords
+        if (/logo|brand|illustration|design|graphic|ui\/ux|mockup|figma|print|banner|poster|flyer|social media/i.test(combined)) return 'Design & Creative';
+        if (/web|app|mobile|software|develop|code|programming|support & it/i.test(combined)) return 'Development & IT';
+        if (/market|seo|ads|advertising|social media market|campaign/i.test(combined)) return 'Digital Marketing';
+        if (/music|audio|sing|vocal|sound|beat|podcast|mix|master/i.test(combined)) return 'Music & Audio';
+        if (/video|animation|motion|edit|film|youtube|short/i.test(combined)) return 'Video & Animation';
+        if (/writ|translat|copy|content|blog|article|script/i.test(combined)) return 'Writing & Translation';
+
+        return 'Design & Creative'; // default fallback
+    };
+
+    const filteredServices = publicServices.filter(s => {
+        const safe = v => (typeof v === 'string' ? v : (v ? String(v) : ''));
+        const matchSearch = safe(s.title).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safe(s.label).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safe(s.description).toLowerCase().includes(searchTerm.toLowerCase());
+        const matchCat = activeCategory === 'All' || inferCategory(s) === activeCategory;
+        return matchSearch && matchCat;
+    });
+
+    // Sort services
+    const sortedServices = [...filteredServices].sort((a, b) => {
+        if (sortBy === 'price-low') return (a.price || 0) - (b.price || 0);
+        if (sortBy === 'price-high') return (b.price || 0) - (a.price || 0);
+        if (sortBy === 'newest') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        return 0; // recommended = default
+    });
+
+    const filteredCreators = creators.filter(c => {
+        const safe = v => (typeof v === 'string' ? v : (v ? String(v) : ''));
+        const skillsArr = parseSkills(c.skills);
+        return (
+            safe(c.display_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safe(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            skillsArr.some(s => safe(s).toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    });
+
+    const getCreatorReviews = (uid) => reviews.filter(r => r.reviewee_id === uid);
+    const getAvgRating = (uid) => {
+        const cr = getCreatorReviews(uid);
+        return cr.length > 0 ? (cr.reduce((s, r) => s + (r.rating || 0), 0) / cr.length).toFixed(1) : null;
+    };
+
+    const openOrderConfirm = (service) => {
+        setConfirmModal({ open: true, service });
+    };
+
+    const handlePlaceOrder = async () => {
+        const service = confirmModal.service;
+        if (!service) return;
+        setOrderLoading(true);
+        try {
+            const { ok, data } = await createOrder({
+                client_id: userData?.firebase_uid,
+                creator_id: service.creator_id,
+                service_title: service.title || service.label,
+                price: service.price,
+                status: 'pending',
+                client_name: userData?.full_name || userData?.email,
+            });
+            if (ok) {
+                setOrderMsg(`Order placed for "${service.title || service.label}"!`);
+                setOrderMsgType('success');
+                setOrders(prev => [...prev, data]);
+            } else {
+                setOrderMsg(data?.detail || 'Failed to place order.');
+                setOrderMsgType('error');
+            }
+            setTimeout(() => setOrderMsg(''), 4000);
+        } catch {
+            setOrderMsg('Connection error. Please try again.');
+            setOrderMsgType('error');
+            setTimeout(() => setOrderMsg(''), 4000);
+        }
+        setOrderLoading(false);
+        setConfirmModal({ open: false, service: null });
+    };
+
+    const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
+    const getAvatarColor = (name) => {
+        const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6', '#f59e0b', '#ec4899'];
+        let hash = 0;
+        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        return colors[Math.abs(hash) % colors.length];
+    };
+
+
+    // Get full creator object for a service
+    const getCreator = (creatorId) => creators.find(cr => cr.user_id === creatorId) || {};
+
     return (
-        <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-            <header className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2))' }}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Welcome, Client!</h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Manage your hired creators and active contracts.</p>
-            </header>
-
-            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '1rem', borderRadius: '16px' }}>
-                        <Target size={28} />
-                    </div>
-                    <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projects Hired</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>12</p>
-                    </div>
-                </div>
-
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1rem', borderRadius: '16px' }}>
-                        <CreditCard size={28} />
-                    </div>
-                    <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Spent</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>₱45,200</p>
-                    </div>
-                </div>
-
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                    <div style={{ background: 'rgba(250, 204, 21, 0.1)', color: '#facc15', padding: '1rem', borderRadius: '16px' }}>
-                        <Clock size={28} />
-                    </div>
-                    <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Approvals</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>2</p>
-                    </div>
-                </div>
-            </section>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-                <section className="glass-card">
-                    <div className="glass-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Favorite Creators</h2>
-                        <button className="glass-tab glass-tab--active" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            View All <ArrowRight size={14} />
-                        </button>
-                    </div>
-                    <div className="glass-card-body" style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '16px' }}>
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} style={{ minWidth: '140px', background: 'var(--card-bg)', padding: '1.5rem 1rem', borderRadius: '12px', border: `1px solid var(--border-color)`, textAlign: 'center' }}>
-                                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--bg-tertiary)', margin: '0 auto 12px' }} />
-                                <h4 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', margin: '0 0 4px' }}>Creator Name</h4>
-                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', color: '#fbbf24', fontSize: '0.8rem' }}>
-                                    <Star size={12} fill="currentColor" /> 4.9
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                <section className="glass-card">
-                    <div className="glass-card-header">
-                        <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Active Hires</h2>
-                    </div>
-                    <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ padding: '1.25rem', background: 'var(--card-bg)', borderRadius: '12px', border: `1px solid var(--border-color)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                            <div>
-                                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', marginBottom: '4px' }}>E-Commerce App UI</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>Creator: Jane Doe • ₱15,000</p>
-                            </div>
-                            <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
-                                In Progress
-                            </span>
-                        </div>
-                    </div>
-                </section>
+        <main className="client-marketplace">
+            <div className="cm-breadcrumb">
+                <span className="cm-bc-muted">Client Workspace</span>
+                <span className="cm-bc-sep">/</span>
+                <span className="cm-bc-active">Home</span>
             </div>
+
+            {/* Hero */}
+            <div className="cm-hero">
+                <h1>Information at the <span>speed</span> of <em>thought.</em></h1>
+                <p>Discover competent creators to hire for your next project.<br />Secure, fast, and uncompromisingly professional.</p>
+
+                <div className="cm-hero-buttons">
+                    <button className={`cm-hero-btn ${viewMode === 'services' ? 'active' : ''}`} onClick={() => { setViewMode('services'); setSearchTerm(''); }}>Find Services</button>
+                    <button className={`cm-hero-btn ${viewMode === 'creators' ? 'active' : ''}`} onClick={() => { setViewMode('creators'); setSearchTerm(''); }}>Find Creators</button>
+                    <button className="cm-hero-btn cm-hero-btn--purple"><Sparkles size={14} /> Use Smart Match</button>
+                </div>
+
+                <div className="cm-search-bar">
+                    <Search size={16} className="cm-search-icon" />
+                    <input type="text" placeholder={viewMode === 'services' ? 'Search for services (e.g. Logo Design)...' : 'Search for creators (e.g. 3D Artist)...'} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+            </div>
+
+            {orderMsg && <div className={`global-toast global-toast--${orderMsgType}`}>{orderMsg}</div>}
+            {error && <div className="global-toast global-toast--error">{error}</div>}
+
+            {/* CTA Banner */}
+            <div className="cm-cta-banner">
+                <div className="cm-cta-left">
+                    <Building2 size={24} />
+                    <div>
+                        <h3>Are you a creative pro?</h3>
+                        <p>Join the marketplace and start selling your services today.</p>
+                    </div>
+                </div>
+                <button className="cm-cta-btn" onClick={() => navigate('/settings')}>Become a Creator</button>
+            </div>
+
+            {viewMode === 'services' && (
+                <>
+                    <div className="cm-filter-row">
+                        <div className="cm-filters">
+                            {CATEGORIES.map(cat => (
+                                <button key={cat} className={`cm-filter-chip ${activeCategory === cat ? 'active' : ''}`} onClick={() => setActiveCategory(cat)}>
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                        <select className="cm-sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                            <option value="recommended">Recommended</option>
+                            <option value="price-low">Price: Low to High</option>
+                            <option value="price-high">Price: High to Low</option>
+                            <option value="newest">Newest</option>
+                        </select>
+                    </div>
+
+                    <div className="cm-services-grid">
+                        {loading ? (
+                            Array.from({ length: 8 }).map((_, i) => <ServiceSkeleton key={i} />)
+                        ) : sortedServices.length > 0 ? (
+                            sortedServices.map(svc => {
+                                const creator = getCreator(svc.creator_id);
+                                const user = creator.user || {};
+                                const rating = getAvgRating(svc.creator_id);
+                                return (
+                                    <div key={svc.id} className="cm-service-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/services/${svc.id}`)}>
+                                        <div className="cm-service-thumb" style={{ position: 'relative', minHeight: 120 }}>
+                                            {svc.image_url ? (
+                                                <img src={svc.image_url} alt={svc.title} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, borderRadius: '10px 10px 0 0' }} />
+                                            ) : (
+                                                <div style={{ width: '100%', height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 32, fontWeight: 700, letterSpacing: 2 }}>
+                                                    No Image
+                                                </div>
+                                            )}
+                                            <span className="cm-service-cat" style={{ position: 'absolute', top: 10, left: 10, zIndex: 2 }}>{inferCategory(svc)}</span>
+                                        </div>
+                                        <div className="cm-service-info" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            <div className="cm-service-creator" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                {user.avatar_url ? (
+                                                    <img className="cm-service-creator-avatar" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #23272f' }} />
+                                                ) : (
+                                                    <div className="cm-service-creator-avatar" style={{ width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(user.display_name), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, border: '2px solid var(--bg-secondary)' }}>
+                                                        {getInitial(user.display_name)}
+                                                    </div>
+                                                )}
+                                                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{user.display_name || svc.creator_id}</span>
+                                            </div>
+                                            <h4 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{svc.title || svc.label}</h4>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 }}>
+                                                {rating ? (
+                                                    <>
+                                                        <Star size={14} fill="#f59e0b" color="#f59e0b" style={{ marginRight: 2 }} />
+                                                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{rating}</span>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>No rating</span>
+                                                )}
+                                            </div>
+                                            <div className="cm-service-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                                                <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || '3 days'}</span>
+                                                <span className="cm-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
+                                            </div>
+                                            <button className="cm-order-btn" style={{ marginTop: 10, padding: '8px 0', borderRadius: 6, background: '#6366f1', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }} onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}>
+                                                Order
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <p className="cm-empty-full">{searchTerm ? 'No services match your search.' : 'No services available yet.'}</p>
+                        )}
+                    </div>
+                </>
+            )}
+
+            {/* Confirm Order Modal */}
+            <ConfirmModal
+                open={confirmModal.open}
+                title="Place Order?"
+                message={confirmModal.service ? <>You are about to order <strong>"{confirmModal.service.title || confirmModal.service.label}"</strong> for <strong>₱{parseFloat(confirmModal.service.price || 0).toLocaleString()}</strong>.</> : ''}
+                variant="info"
+                confirmLabel="Place Order"
+                loading={orderLoading}
+                onConfirm={handlePlaceOrder}
+                onCancel={() => setConfirmModal({ open: false, service: null })}
+            />
+
+            {viewMode === 'creators' && (
+                <>
+                {/* Top Creators Section */}
+                {(() => {
+                    const topCreators = filteredCreators
+                        .map(c => ({ ...c, _rating: parseFloat(getAvgRating(c.user_id)) || 0 }))
+                        .sort((a, b) => b._rating - a._rating)
+                        .slice(0, 3)
+                        .filter(c => c._rating > 0);
+
+                    if (topCreators.length === 0) return null;
+
+                    return (
+                        <div style={{ marginBottom: 32 }}>
+                            <h3 className="cm-section-heading">Top Creators</h3>
+                            <div className="cm-creators-grid">
+                                {topCreators.map(c => {
+                                    const revCount = getCreatorReviews(c.user_id).length;
+                                    const skills = parseSkills(c.skills);
+                                    const user = c.user || {};
+                                    return (
+                                        <div key={`top-${c.user_id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                            <div className="cm-creator-header">
+                                                {user.avatar_url ? (
+                                                    <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
+                                                        {getInitial(user.display_name)}
+                                                    </div>
+                                                )}
+                                                <div className="cm-creator-meta">
+                                                    <h4>{user.display_name || 'Creator'}</h4>
+                                                    <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
+                                                </div>
+                                                <div className="cm-creator-rating">
+                                                    <Star size={14} fill="#f59e0b" color="#f59e0b" />
+                                                    <span>{c._rating.toFixed(1)}</span>
+                                                    <span className="cm-creator-rev-count">({revCount} reviews)</span>
+                                                </div>
+                                            </div>
+                                            <p className="cm-creator-bio-full">{c.bio || ''}</p>
+                                            {skills.length > 0 && (
+                                                <div className="cm-creator-skills">
+                                                    {skills.slice(0, 4).map((s, i) => <span key={i} className="cm-skill-chip">{s}</span>)}
+                                                </div>
+                                            )}
+                                            <div className="cm-creator-footer">
+                                                <div>
+                                                    <span className="cm-creator-rate-label">HOURLY RATE</span>
+                                                    <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                                </div>
+                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {/* All Creators Section */}
+                <h3 className="cm-section-heading">All Creators</h3>
+                <div className="cm-creators-grid">
+                    {loading ? (
+                        Array.from({ length: 6 }).map((_, i) => <CreatorSkeleton key={i} />)
+                    ) : filteredCreators.length > 0 ? (
+                        filteredCreators.map(c => {
+                            const rating = getAvgRating(c.user_id);
+                            const revCount = getCreatorReviews(c.user_id).length;
+                            const skills = parseSkills(c.skills);
+                            const user = c.user || {};
+                            return (
+                                <div key={c.user_id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                    <div className="cm-creator-header">
+                                        {user.avatar_url ? (
+                                            <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                        ) : (
+                                            <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
+                                                {getInitial(user.display_name)}
+                                            </div>
+                                        )}
+                                        <div className="cm-creator-meta">
+                                            <h4>{user.display_name || 'Creator'}</h4>
+                                            <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
+                                        </div>
+                                        <div className="cm-creator-rating">
+                                            <Star size={14} fill="#f59e0b" color="#f59e0b" />
+                                            <span>{rating || '0.0'}</span>
+                                            <span className="cm-creator-rev-count">({revCount} reviews)</span>
+                                        </div>
+                                    </div>
+                                    <p className="cm-creator-bio-full">{c.bio || ''}</p>
+                                    {skills.length > 0 && (
+                                        <div className="cm-creator-skills">
+                                            {skills.slice(0, 4).map((s, i) => <span key={i} className="cm-skill-chip">{s}</span>)}
+                                        </div>
+                                    )}
+                                    <div className="cm-creator-footer">
+                                        <div>
+                                            <span className="cm-creator-rate-label">HOURLY RATE</span>
+                                            <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                        </div>
+                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <p className="cm-empty-full">No creators found.</p>
+                    )}
+                </div>
+                </>
+            )}
         </main>
     );
 };

@@ -1,108 +1,114 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { ProjectsProvider } from './context/ProjectsContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { ProjectsProvider } from './context/providers/ProjectsProvider';
+import React from 'react';
 import Sidebar from './components/Sidebar';
+import DashboardPage from './pages/DashboardPage';
+import ProjectsPage from './pages/ProjectsPage';
+import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
+import MessagesPage from './pages/MessagesPage';
+import NotificationsPage from './pages/NotificationsPage';
+import SettingsPage from './pages/SettingsPage';
+import WalletPage from './pages/WalletPage';
+import CreatorProfilePage from './pages/CreatorProfilePage';
+import UsersPage from './pages/UsersPage';
+import DisputesPage from './pages/DisputesPage';
+import OrderDetailPage from './pages/OrderDetailPage';
+import ServiceDetailPage from './pages/ServiceDetailPage';
+import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
-// Lazy-loaded page components for route-based code splitting
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const LandingPage = lazy(() => import('./pages/LandingPage'));
-const MessagesPage = lazy(() => import('./pages/MessagesPage'));
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
-const OrdersPage = lazy(() => import('./pages/OrdersPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const WalletPage = lazy(() => import('./pages/WalletPage'));
-const CreatorProfilePage = lazy(() => import('./pages/CreatorProfilePage'));
-const UsersPage = lazy(() => import('./pages/UsersPage'));
-const DisputesPage = lazy(() => import('./pages/DisputesPage'));
-
-// Loading fallback for lazy-loaded routes
-const PageLoader = () => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#a1a1aa' }}>
-    <p>Loading…</p>
-  </div>
-);
-
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (!isLoggedIn) return <LandingPage />;
   return (
-    <div className="dashboard-layout page-fade">
-      <Sidebar userRole={userRole} onLogout={onLogout} />
-      <div className="main-content-wrapper">
-        <main className="main-content">
-          <Outlet />
-        </main>
-        <footer className="app-footer">
-          <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
-        </footer>
+    <ProjectsProvider>
+      <div className="dashboard-layout page-fade">
+        <Sidebar userRole={userRole} onLogout={onLogout} />
+        <div className="main-content-wrapper">
+          <main className="main-content">
+            <Outlet />
+          </main>
+          <footer className="app-footer">
+            <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
+          </footer>
+        </div>
       </div>
-    </div>
+    </ProjectsProvider>
   );
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem('createch_auth') === 'true';
-  });
-
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getToken());
   const [userRole, setUserRole] = useState(() => {
-    return localStorage.getItem('createch_role') || 'creator';
+    const user = getUserData();
+    return user?.role || 'creator';
   });
+  const [userData, setUserData] = useState(() => getUserData());
 
-  // Memoize handlers to prevent unnecessary re-renders
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('createch_auth');
-    localStorage.removeItem('createch_role');
+  // Keep auth state in sync with localStorage changes
+  useEffect(() => {
+    const user = getUserData();
+    if (user) {
+      setUserRole(user.role || 'creator');
+      setUserData(user);
+    }
+  }, [isLoggedIn]);
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const theme = localStorage.getItem('createch_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    const accent = localStorage.getItem('createch_accent');
+    if (accent) document.documentElement.style.setProperty('--accent', accent);
+  }, []);
+
+  const handleLogout = () => {
+    apiLogout();
     setIsLoggedIn(false);
-  }, []);
+    setUserData(null);
+  };
 
-  const handleLogin = useCallback((role = 'creator') => {
-    localStorage.setItem('createch_auth', 'true');
-    localStorage.setItem('createch_role', role);
-    setUserRole(role);
+  const handleLogin = () => {
+    // Called after successful API login; state is already in localStorage
+    const user = getUserData();
+    setUserRole(user?.role || 'creator');
+    setUserData(user);
     setIsLoggedIn(true);
-  }, []);
+  };
 
   return (
-    <ThemeProvider>
-      <ProjectsProvider>
-        <div className="app">
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/landing" element={<LandingPage />} />
-              <Route path="/login" element={
-                isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
-              } />
+      <div className="app">
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/login" element={
+            isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
+          } />
 
-            {/* Protected Routes */}
-            <Route element={<ProtectedLayout isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
+          {/* Protected Routes — key forces re-mount on user change */}
+          <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
 
-              <Route path="/" element={<DashboardPage userRole={userRole} />} />
-              <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/" element={<DashboardPage userRole={userRole} />} />
+            <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
 
-              {/* Admin Routes */}
-              <Route path="/users" element={<UsersPage />} />
-              <Route path="/disputes" element={<DisputesPage />} />
+            {/* Admin Routes */}
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/disputes" element={<DisputesPage />} />
 
-              <Route path="/messages" element={<MessagesPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/settings" element={<SettingsPage userRole={userRole} />} />
-              <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
-              <Route path="/creator-profile" element={<CreatorProfilePage />} />
-            </Route>
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/services/:id" element={<ServiceDetailPage />} />
+            <Route path="/settings" element={<SettingsPage userRole={userRole} onLogout={handleLogout} />} />
+            <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
+            <Route path="/creator-profile" element={<CreatorProfilePage />} />
+          </Route>
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </div>
-      </ProjectsProvider>
-    </ThemeProvider>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
   );
 }
 

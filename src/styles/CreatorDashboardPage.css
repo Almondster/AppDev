@@ -151,13 +151,13 @@
 }
 
 .creator-order-item__title {
-    color: white;
+    color: var(--text-primary);
     font-size: 1.1rem;
     margin-bottom: 4px;
 }
 
 .creator-order-item__detail {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin: 0;
 }
@@ -190,7 +190,7 @@
 .creator-orders__empty {
     text-align: center;
     padding: 3rem 1rem;
-    color: #71717a;
+    color: var(--text-tertiary);
 }
 
 .creator-orders__empty-icon {
