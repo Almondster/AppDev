@@ -1,254 +1,267 @@
-import { useState, useEffect, useRef } from 'react';
-import { fetchMessages, sendMessage as apiSendMessage, fetchUsers } from '../services/api';
-import { Send, Search, Phone, Video, MoreVertical } from 'lucide-react';
-import '../styles/MessagesPage.css';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { fetchMyMessages as apiFetchMessages, createMessage, getUserData, fetchUsers } from '../api';
+import { Search, Paperclip, Send, MoreVertical } from 'lucide-react';
+import './MessagesPage.css';
 
-const MessagesPage = ({ firebaseUid }) => {
-    const [conversations, setConversations] = useState([]);
-    const [activeConversation, setActiveConversation] = useState(null);
+const MessagesPage = () => {
     const [messages, setMessages] = useState([]);
-    const [messageInput, setMessageInput] = useState('');
-    const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
-    const [userMap, setUserMap] = useState({});
-    const chatBodyRef = useRef(null);
+    const [selectedChat, setSelectedChat] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [newMsg, setNewMsg] = useState('');
+    const chatEndRef = useRef(null);
+    const [searchParams] = useSearchParams();
+    const toParam = searchParams.get('to');
 
-    // Load all messages for the current user and build conversation list
+    const userData = getUserData();
+    const myUid = userData?.firebase_uid;
+
     useEffect(() => {
-        if (!firebaseUid) return;
-        setLoading(true);
-
-        Promise.all([
-            fetchMessages({ user_id: firebaseUid }),
-            fetchUsers(),
-        ]).then(([msgData, userData]) => {
-            const allMessages = msgData?.results || msgData || [];
-            const allUsers = userData?.results || userData || [];
-
-            // Build user map for display names
-            const uMap = {};
-            allUsers.forEach(u => {
-                uMap[u.firebase_uid] = {
-                    name: u.full_name || u.display_name || u.email || 'Unknown',
-                    avatar: (u.full_name || u.email || '?').charAt(0).toUpperCase(),
-                };
-            });
-            setUserMap(uMap);
-
-            // Group messages into conversations by the other user
-            const convMap = {};
-            allMessages.forEach(msg => {
-                const otherUid = msg.sender_id === firebaseUid ? msg.receiver_id : msg.sender_id;
-                if (!convMap[otherUid]) {
-                    convMap[otherUid] = {
-                        id: otherUid,
-                        name: msg.sender_id === firebaseUid
-                            ? (msg.receiver_name || uMap[otherUid]?.name || otherUid)
-                            : (msg.sender_name || uMap[otherUid]?.name || otherUid),
-                        avatar: (uMap[otherUid]?.avatar || '?'),
-                        messages: [],
-                        lastMessage: '',
-                        time: '',
-                        unread: 0,
-                    };
+        (async () => {
+            try {
+                const { ok, data } = await apiFetchMessages();
+                if (ok) {
+                    const msgs = data.results || data || [];
+                    setMessages(msgs);
+                    // If ?to= param, auto-select that conversation
+                    if (toParam) {
+                        const hasConv = msgs.some(m => m.sender_id === toParam || m.receiver_id === toParam);
+                        if (hasConv) {
+                            setSelectedChat(toParam);
+                        } else {
+                            // Create a placeholder conversation entry
+                            try {
+                                const uRes = await fetchUsers();
+                                if (uRes.ok) {
+                                    const users = uRes.data.results || uRes.data || [];
+                                    const targetUser = users.find(u => u.firebase_uid === toParam);
+                                    if (targetUser) {
+                                        // Set a placeholder so the conversation appears
+                                        setSelectedChat(toParam);
+                                    }
+                                }
+                            } catch { /* ignore */ }
+                            setSelectedChat(toParam);
+                        }
+                    }
                 }
-                convMap[otherUid].messages.push({
-                    id: msg.id,
-                    sender: msg.sender_id === firebaseUid ? 'me' : 'them',
-                    text: msg.content,
-                    time: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-                    created_at: msg.created_at,
-                });
-                if (!msg.is_read && msg.sender_id !== firebaseUid) {
-                    convMap[otherUid].unread += 1;
-                }
-            });
-
-            // Sort messages within each conversation and set last message
-            const convList = Object.values(convMap).map(conv => {
-                conv.messages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-                const last = conv.messages[conv.messages.length - 1];
-                conv.lastMessage = last?.text || '';
-                conv.time = last?.time || '';
-                return conv;
-            });
-
-            setConversations(convList);
-            if (convList.length > 0 && !activeConversation) {
-                setActiveConversation(convList[0].id);
-                setMessages(convList[0].messages);
+            } catch (err) {
+                console.error('Failed to load messages:', err);
+            } finally {
+                setLoading(false);
             }
-        })
-        .catch(err => console.error('Failed to load messages:', err))
-        .finally(() => setLoading(false));
-    }, [firebaseUid]);
+        })();
+    }, [toParam]);
 
-    // Update messages when conversation changes
-    useEffect(() => {
-        const conv = conversations.find(c => c.id === activeConversation);
-        if (conv) setMessages(conv.messages);
-    }, [activeConversation, conversations]);
-
-    // Scroll to bottom
-    useEffect(() => {
-        if (chatBodyRef.current) {
-            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    // Group messages into conversations by the other user
+    const conversations = messages.reduce((acc, msg) => {
+        const otherId = msg.sender_id === myUid ? msg.receiver_id : msg.sender_id;
+        const otherName = msg.sender_id === myUid
+            ? (msg.receiver_name || msg.receiver_id)
+            : (msg.sender_name || msg.sender_id);
+        if (!acc[otherId]) {
+            acc[otherId] = { userId: otherId, userName: otherName, messages: [] };
         }
-    }, [messages]);
+        acc[otherId].messages.push(msg);
+        return acc;
+    }, {});
 
-    const handleConversationClick = (id) => {
-        setActiveConversation(id);
-        setConversations(prev => prev.map(c =>
-            c.id === id ? { ...c, unread: 0 } : c
-        ));
-    };
+    const convList = Object.values(conversations).sort((a, b) => {
+        const aTime = a.messages[a.messages.length - 1]?.created_at || '';
+        const bTime = b.messages[b.messages.length - 1]?.created_at || '';
+        return new Date(bTime) - new Date(aTime);
+    });
+
+    const filteredConvs = convList.filter(c =>
+        c.userName?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // If toParam set but no conversation exists, create a virtual entry
+    const activeConv = selectedChat ? (conversations[selectedChat] || { userId: selectedChat, userName: selectedChat, messages: [] }) : null;
+    const activeMessages = activeConv?.messages?.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) || [];
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [activeMessages.length, selectedChat]);
 
     const handleSend = async (e) => {
         e.preventDefault();
-        if (!messageInput.trim() || !activeConversation) return;
-
+        if (!newMsg.trim() || !selectedChat) return;
         try {
-            await apiSendMessage({
-                sender_id: firebaseUid,
-                receiver_id: activeConversation,
-                content: messageInput.trim(),
+            const { ok, data } = await createMessage({
+                sender_id: myUid,
+                receiver_id: selectedChat,
+                content: newMsg.trim(),
             });
-
-            const newMsg = {
-                id: Date.now(),
-                sender: 'me',
-                text: messageInput.trim(),
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            };
-
-            setMessages(prev => [...prev, newMsg]);
-            setConversations(prev => prev.map(c =>
-                c.id === activeConversation
-                    ? { ...c, messages: [...c.messages, newMsg], lastMessage: messageInput.trim(), time: 'Just now' }
-                    : c
-            ));
-            setMessageInput('');
-        } catch (err) {
-            console.error('Failed to send message:', err);
-        }
+            if (ok) {
+                setMessages(prev => [...prev, data]);
+                setNewMsg('');
+            }
+        } catch { /* ignore */ }
     };
 
-    const activeChat = conversations.find(c => c.id === activeConversation);
-    const filteredConversations = conversations.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const formatTime = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
-    if (loading) {
-        return (
-            <section className="messages-page page-fade">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: 'var(--text-secondary)' }}>
-                    <p>Loading messages...</p>
-                </div>
-            </section>
-        );
-    }
+    const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
+
+    const getAvatarColor = (name) => {
+        const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6', '#f59e0b'];
+        let hash = 0;
+        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        return colors[Math.abs(hash) % colors.length];
+    };
 
     return (
-        <section className="messages-page page-fade">
-            {/* Conversations Sidebar */}
-            <aside className="messages-sidebar">
-                <div className="messages-sidebar__header">
-                    <h2 className="messages-sidebar__title">Messages</h2>
-                </div>
-                <div className="messages-sidebar__search">
-                    <Search size={16} className="messages-sidebar__search-icon" />
-                    <label htmlFor="messagesSearch" className="sr-only">Search conversations</label>
-                    <input
-                        id="messagesSearch"
-                        type="text"
-                        placeholder="Search conversations..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="messages-sidebar__search-input"
-                    />
-                </div>
-                <div className="messages-sidebar__list">
-                    {filteredConversations.length > 0 ? filteredConversations.map(conv => (
-                        <button
-                            key={conv.id}
-                            className={`conversation-item ${activeConversation === conv.id ? 'conversation-item--active' : ''}`}
-                            onClick={() => handleConversationClick(conv.id)}
-                        >
-                            <div className="conversation-item__avatar-wrapper">
-                                <div className="conversation-item__avatar">{conv.avatar}</div>
-                            </div>
-                            <div className="conversation-item__content">
-                                <div className="conversation-item__top-row">
-                                    <span className="conversation-item__name">{conv.name}</span>
-                                    <span className="conversation-item__time">{conv.time}</span>
+        <main className="msg-page">
+            {/* Breadcrumb */}
+            <div className="msg-breadcrumb">
+                <span className="msg-bc-muted">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
+                <span className="msg-bc-sep">/</span>
+                <span className="msg-bc-active">Messages</span>
+            </div>
+
+            <div className="msg-container">
+                {/* ── Left Panel: Conversation List ── */}
+                <div className="msg-sidebar">
+                    <div className="msg-search">
+                        <Search size={14} className="msg-search-icon" />
+                        <input type="text" placeholder="Search messages..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                    </div>
+                    <div className="msg-conv-list">
+                        {loading ? (
+                            Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i} className="msg-conv-item" style={{ pointerEvents: 'none' }}>
+                                    <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }}></div>
+                                    <div className="msg-conv-info" style={{ flex: 1 }}>
+                                        <div className="skeleton-row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <div className="skeleton" style={{ width: `${70 + (i%3)*25}px`, height: 16 }}></div>
+                                            <div className="skeleton" style={{ width: 42, height: 14 }}></div>
+                                        </div>
+                                        <div className="skeleton" style={{ width: `${60 + (i%4)*12}%`, height: 14 }}></div>
+                                    </div>
                                 </div>
-                                <div className="conversation-item__bottom-row">
-                                    <p className="conversation-item__preview">{conv.lastMessage}</p>
-                                    {conv.unread > 0 && (
-                                        <span className="conversation-item__badge">{conv.unread}</span>
-                                    )}
+                            ))
+                        ) : filteredConvs.length === 0 ? (
+                            <p className="msg-empty-text">No conversations yet.</p>
+                        ) : (
+                            filteredConvs.map(conv => {
+                                const lastMsg = conv.messages[conv.messages.length - 1];
+                                const unread = conv.messages.some(m => !m.is_read && m.sender_id !== myUid);
+                                return (
+                                    <div
+                                        key={conv.userId}
+                                        className={`msg-conv-item ${selectedChat === conv.userId ? 'active' : ''}`}
+                                        onClick={() => setSelectedChat(conv.userId)}
+                                    >
+                                        <div className="msg-conv-avatar" style={{ background: getAvatarColor(conv.userName) }}>
+                                            {getInitial(conv.userName)}
+                                        </div>
+                                        <div className="msg-conv-info">
+                                            <div className="msg-conv-top">
+                                                <span className="msg-conv-name">{conv.userName}</span>
+                                                <span className="msg-conv-time">{formatTime(lastMsg?.created_at)}</span>
+                                            </div>
+                                            <p className="msg-conv-preview">{lastMsg?.content?.slice(0, 45) || '...'}{(lastMsg?.content?.length || 0) > 45 ? '...' : ''}</p>
+                                        </div>
+                                        {unread && <span className="msg-unread-dot"></span>}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Right Panel: Chat View ── */}
+                <div className="msg-chat">
+                    {selectedChat && activeConv ? (
+                        <>
+                            <div className="msg-chat-header">
+                                <div className="msg-chat-header-user">
+                                    <div className="msg-conv-avatar msg-conv-avatar--sm" style={{ background: getAvatarColor(activeConv.userName) }}>
+                                        {getInitial(activeConv.userName)}
+                                    </div>
+                                    <span className="msg-chat-header-name">{activeConv.userName}</span>
+                                </div>
+                                <div className="msg-chat-header-actions">
+                                    <button className="msg-icon-btn"><Search size={16} /></button>
+                                    <button className="msg-icon-btn"><MoreVertical size={16} /></button>
                                 </div>
                             </div>
-                        </button>
-                    )) : (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                            <p>No conversations yet.</p>
+                            <div className="msg-chat-body">
+                                {activeMessages.map(msg => (
+                                    <div key={msg.id} className={`msg-bubble-row ${msg.sender_id === myUid ? 'mine' : 'theirs'}`}>
+                                        <div className={`msg-bubble ${msg.sender_id === myUid ? 'msg-bubble--mine' : 'msg-bubble--theirs'}`}>
+                                            <p>{msg.content || msg.message || ''}</p>
+                                            <span className="msg-bubble-time">{formatTime(msg.created_at)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={chatEndRef}></div>
+                            </div>
+                            <form className="msg-chat-input" onSubmit={handleSend}>
+                                <button type="button" className="msg-icon-btn"><Paperclip size={18} /></button>
+                                <input type="text" placeholder="Type a message..." value={newMsg} onChange={e => setNewMsg(e.target.value)} />
+                                <button type="submit" className="msg-send-btn" disabled={!newMsg.trim()}><Send size={18} /></button>
+                            </form>
+                        </>
+                    ) : loading ? (
+                        <>
+                            {/* Skeleton Chat Header */}
+                            <div className="msg-chat-header">
+                                <div className="msg-chat-header-user">
+                                    <div className="skeleton skeleton-avatar"></div>
+                                    <div className="skeleton" style={{ width: 100, height: 16 }}></div>
+                                </div>
+                                <div className="msg-chat-header-actions">
+                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
+                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
+                                </div>
+                            </div>
+                            {/* Skeleton Chat Bubbles */}
+                            <div className="msg-chat-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
+                                <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '40%' }}>
+                                    <div className="skeleton" style={{ width: '90%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '50%', height: 14 }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--right" style={{ width: '50%' }}>
+                                    <div className="skeleton" style={{ width: '85%', height: 18, marginBottom: 8, background: 'rgba(99,102,241,0.2)' }}></div>
+                                    <div className="skeleton" style={{ width: '95%', height: 18, marginBottom: 8, background: 'rgba(99,102,241,0.2)' }}></div>
+                                    <div className="skeleton" style={{ width: '40%', height: 14, background: 'rgba(99,102,241,0.15)' }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '55%' }}>
+                                    <div className="skeleton" style={{ width: '80%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '60%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '30%', height: 14 }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--right" style={{ width: '45%' }}>
+                                    <div className="skeleton" style={{ width: '75%', height: 18, marginBottom: 8, background: 'rgba(99,102,241,0.2)' }}></div>
+                                    <div className="skeleton" style={{ width: '50%', height: 14, background: 'rgba(99,102,241,0.15)' }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '35%' }}>
+                                    <div className="skeleton" style={{ width: '90%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '45%', height: 14 }}></div>
+                                </div>
+                            </div>
+                            {/* Skeleton Input Bar */}
+                            <div className="msg-chat-input" style={{ pointerEvents: 'none' }}>
+                                <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }}></div>
+                                <div className="skeleton" style={{ flex: 1, height: 42, borderRadius: 8 }}></div>
+                                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 8 }}></div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="msg-chat-empty">
+                            <p>Select a conversation to start messaging</p>
                         </div>
                     )}
                 </div>
-            </aside>
-
-            {/* Chat Area */}
-            <main className="messages-chat">
-                {activeChat ? (
-                    <>
-                        <div className="messages-chat__header">
-                            <div className="messages-chat__header-info">
-                                <div className="conversation-item__avatar-wrapper" style={{ marginRight: '0.75rem' }}>
-                                    <div className="conversation-item__avatar">{activeChat.avatar}</div>
-                                </div>
-                                <div>
-                                    <h3 className="messages-chat__contact-name">{activeChat.name}</h3>
-                                </div>
-                            </div>
-                            <div className="messages-chat__header-actions">
-                                <button className="messages-chat__action-btn" title="Voice call"><Phone size={18} /></button>
-                                <button className="messages-chat__action-btn" title="Video call"><Video size={18} /></button>
-                                <button className="messages-chat__action-btn" title="More options"><MoreVertical size={18} /></button>
-                            </div>
-                        </div>
-
-                        <div className="messages-chat__body" ref={chatBodyRef}>
-                            {messages.map(msg => (
-                                <div key={msg.id} className={`chat-bubble ${msg.sender === 'me' ? 'chat-bubble--sent' : 'chat-bubble--received'}`}>
-                                    <p className="chat-bubble__text">{msg.text}</p>
-                                    <span className="chat-bubble__time">{msg.time}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <form className="messages-chat__compose" onSubmit={handleSend}>
-                            <label htmlFor="messageInput" className="sr-only">Type a message</label>
-                            <input
-                                id="messageInput"
-                                type="text"
-                                placeholder="Type a message..."
-                                value={messageInput}
-                                onChange={(e) => setMessageInput(e.target.value)}
-                                className="messages-chat__input"
-                            />
-                            <button type="submit" className="messages-chat__send-btn" disabled={!messageInput.trim()}>
-                                <Send size={18} />
-                            </button>
-                        </form>
-                    </>
-                ) : (
-                    <div className="messages-chat__empty">
-                        <p>Select a conversation to start messaging</p>
-                    </div>
-                )}
-            </main>
-        </section>
+            </div>
+        </main>
     );
 };
 

@@ -1,227 +1,128 @@
-import { createContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  fetchOrders as apiFetchOrders,
-  fetchServices as apiFetchServices,
-  createService as apiCreateService,
-  updateService as apiUpdateService,
-  deleteService as apiDeleteService,
-  createOrder as apiCreateOrder,
-  updateOrder as apiUpdateOrder,
-  invalidateCache,
-} from '../services/api';
+import { createContext, useState, useEffect, useCallback } from 'react';
+import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, fetchMyServices as apiFetchMyServices, getUserData } from '../api';
 
 const ProjectsContext = createContext();
 
 export { ProjectsContext };
 
-export const ProjectsProvider = ({ children, userRole, firebaseUid }) => {
-  const [services, setServices] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const mountedRef = useRef(true);
-  const fetchIdRef = useRef(0);           // prevents stale updates
+export const ProjectsProvider = ({ children }) => {
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  // ── Fetch data from backend with stale-request protection ──
-  const refreshData = useCallback(async (opts = {}) => {
-    if (!firebaseUid) return;
-
-    const fetchId = ++fetchIdRef.current;
+  // Fetch orders and map them to the project shape
+  const loadProjects = useCallback(async () => {
     setLoading(true);
-    setError(null);
-
     try {
-      // Parallel fetch — services + orders at the same time
-      const servicesParams = userRole === 'creator' ? { creator_id: firebaseUid } : {};
-      const orderParams = userRole === 'admin' ? {} :
-        userRole === 'creator' ? { creator_id: firebaseUid } :
-        { client_id: firebaseUid };
-
-      const [svcData, ordData] = await Promise.all([
-        apiFetchServices(servicesParams),
-        apiFetchOrders(orderParams),
+      const userData = getUserData();
+      const role = userData?.role || 'client';
+      const ordersFetcher = role === 'creator' ? fetchMyCreatorOrders : apiFetchOrders;
+      const [ordersRes, servicesRes] = await Promise.all([
+        ordersFetcher(),
+        role === 'creator' ? apiFetchMyServices() : Promise.resolve({ ok: true, data: [] }),
       ]);
 
-      // Stale guard: only apply if this is still the latest request
-      if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
+      const items = [];
 
-      setServices((svcData?.results || svcData || []).map(s => ({
-        ...s,
-        type: 'service',
-        title: s.title || s.label,
-        budget: parseFloat(s.price) || 0,
-        creator: s.creator_display_name || s.creator_name || s.creator_id,
-        status: s.is_deleted ? 'Deleted' : 'Active',
-        description: s.description || '',
-      })));
-
-      setOrders((ordData?.results || ordData || []).map(o => ({
-        ...o,
-        type: 'order',
-        title: o.service_title,
-        budget: parseFloat(o.price) || 0,
-        creator: o.creator_display_name || o.creator_name || o.creator_id,
-        clientName: o.client_display_name || o.client_name || o.client_id,
-        deadline: o.due_date ? new Date(o.due_date).toISOString().split('T')[0] : null,
-        status: formatStatus(o.status),
-      })));
-
-    } catch (err) {
-      if (fetchId !== fetchIdRef.current || !mountedRef.current) return;
-      setError(err.message);
-      console.error('Failed to fetch project data:', err);
-    } finally {
-      if (fetchId === fetchIdRef.current && mountedRef.current) {
-        setLoading(false);
+      // Map orders to project-like objects
+      if (ordersRes.ok) {
+        const orders = ordersRes.data.results || ordersRes.data || [];
+        orders.forEach((o) => {
+          items.push({
+            id: o.id,
+            title: o.service_title || `Order #${o.id}`,
+            creator: o.creator_display_name || o.creator_name || o.creator_id || 'Unknown',
+            client: o.client_display_name || o.client_name || o.client_id || 'Unknown',
+            status: mapStatus(o.status),
+            budget: parseFloat(o.price) || 0,
+            deadline: o.due_date ? o.due_date.split('T')[0] : '',
+            description: o.service_title || '',
+            _type: 'order',
+          });
+        });
       }
+
+      // Only show services for creators (their own services)
+      if (role === 'creator' && servicesRes.ok) {
+        const services = servicesRes.data.results || servicesRes.data || [];
+        services.forEach((s) => {
+          items.push({
+            id: `svc-${s.id}`,
+            title: s.title || s.label,
+            creator: s.creator_id || 'Unknown',
+            client: '—',
+            status: s.is_public ? 'Active' : 'Pending',
+            budget: parseFloat(s.price) || 0,
+            deadline: '',
+            description: s.description || s.label || '',
+            _type: 'service',
+          });
+        });
+      }
+
+      setProjects(items);
+    } catch (err) {
+      console.error('Failed to load projects from API:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [firebaseUid, userRole]);
-
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
-
-  // ── Creator actions with optimistic updates ──
-
-  const addService = useCallback(async (serviceData) => {
-    const created = await apiCreateService({
-      creator_id: firebaseUid,
-      title: serviceData.title,
-      label: serviceData.title,
-      description: serviceData.description,
-      price: String(serviceData.budget || 'Negotiable'),
-      category: serviceData.category || '',
-      is_public: true,
-    });
-
-    // Optimistic: add without full refetch, then bg-refresh
-    if (mountedRef.current) {
-      setServices(prev => [...prev, {
-        ...created,
-        type: 'service',
-        title: created.title || created.label,
-        budget: parseFloat(created.price) || 0,
-        creator: firebaseUid,
-        status: 'Active',
-      }]);
-    }
-
-    // Background refresh for accurate data
-    invalidateCache('/services/');
-    refreshData();
-    return created;
-  }, [firebaseUid, refreshData]);
-
-  const updateProject = useCallback(async (id, data) => {
-    const isOrder = orders.some(o => o.id === id);
-    if (isOrder) {
-      await apiUpdateOrder(id, {
-        ...data,
-        price: data.budget !== undefined ? String(data.budget) : undefined,
-      });
-      invalidateCache('/orders/');
-    } else {
-      await apiUpdateService(id, {
-        ...data,
-        price: data.budget !== undefined ? String(data.budget) : undefined,
-      });
-      invalidateCache('/services/');
-    }
-    refreshData();
-  }, [orders, refreshData]);
-
-  const deleteProject = useCallback(async (id) => {
-    await apiDeleteService(id);
-
-    // Optimistic removal
-    if (mountedRef.current) {
-      setServices(prev => prev.filter(s => s.id !== id));
-    }
-    invalidateCache('/services/');
   }, []);
 
-  // ── Client actions ──
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
-  const hireCreator = useCallback(async (serviceId, clientName) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service) return null;
+  // CRUD wrappers (local state for now; can wire to API later)
+  const addProject = (project) => {
+    const newProject = { ...project, id: Date.now(), budget: Number(project.budget) };
+    setProjects((prev) => [...prev, newProject]);
+    return newProject;
+  };
 
-    const created = await apiCreateOrder({
-      client_id: firebaseUid,
-      creator_id: service.creator_id,
-      service_title: service.title || service.label,
-      price: service.price || 'Negotiable',
-      status: 'pending',
-      client_name: clientName,
-    });
+  const updateProject = (id, data) => {
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...data, budget: Number(data.budget) } : p))
+    );
+  };
 
-    // Optimistic add
-    if (mountedRef.current) {
-      setOrders(prev => [...prev, {
-        ...created,
-        type: 'order',
-        title: created.service_title || service.title,
-        budget: parseFloat(created.price) || 0,
-        creator: service.creator,
-        clientName: clientName,
-        status: 'Pending',
-      }]);
-    }
+  const deleteProject = (id) => {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+  };
 
-    invalidateCache('/orders/');
-    refreshData();
-    return created;
-  }, [services, firebaseUid, refreshData]);
-
-  // ── Derived data (memoized) ──
-
-  const completedProjects = useMemo(() => orders.filter((p) => p.status === 'Completed'), [orders]);
-  const activeProjects = useMemo(() => orders.filter((p) => p.status === 'In Progress'), [orders]);
-  const pendingProjects = useMemo(() => orders.filter((p) => p.status === 'Pending'), [orders]);
-  const totalRevenue = useMemo(() => completedProjects.reduce((sum, p) => sum + (p.budget || 0), 0), [completedProjects]);
-
-  const contextValue = useMemo(() => ({
-    projects: [...services, ...orders],
-    services,
-    orders,
-    addService,
-    updateProject,
-    deleteProject,
-    hireCreator,
-    completedProjects,
-    activeProjects,
-    pendingProjects,
-    totalRevenue,
-    loading,
-    error,
-    refreshData,
-  }), [services, orders, addService, updateProject, deleteProject, hireCreator, completedProjects, activeProjects, pendingProjects, totalRevenue, loading, error, refreshData]);
+  // Derived data
+  const completedProjects = projects.filter((p) => p.status === 'Completed');
+  const activeProjects = projects.filter((p) => p.status === 'In Progress');
+  const pendingProjects = projects.filter((p) => p.status === 'Pending');
+  const totalRevenue = completedProjects.reduce((sum, p) => sum + (p.budget || 0), 0);
 
   return (
-    <ProjectsContext.Provider value={contextValue}>
+    <ProjectsContext.Provider value={{
+      projects,
+      addProject,
+      updateProject,
+      deleteProject,
+      completedProjects,
+      activeProjects,
+      pendingProjects,
+      totalRevenue,
+      loading,
+      refresh: loadProjects,
+    }}>
       {children}
     </ProjectsContext.Provider>
   );
 };
 
-/** Normalize backend status strings to display-friendly format */
-function formatStatus(status) {
-  if (!status) return 'Pending';
+// Map API statuses to the UI status labels
+function mapStatus(apiStatus) {
   const map = {
-    'pending': 'Pending',
-    'accepted': 'In Progress',
-    'in_progress': 'In Progress',
-    'active': 'In Progress',
-    'delivered': 'Delivered',
-    'completed': 'Completed',
-    'cancelled': 'Cancelled',
-    'disputed': 'Disputed',
-    'suspended': 'Suspended',
+    pending: 'Pending',
+    accepted: 'In Progress',
+    in_progress: 'In Progress',
+    delivered: 'In Progress',
+    completed: 'Completed',
+    cancelled: 'Suspended',
+    rejected: 'Suspended',
+    refunded: 'Suspended',
   };
-  return map[status.toLowerCase()] || status.charAt(0).toUpperCase() + status.slice(1);
+  return map[apiStatus] || apiStatus || 'Pending';
 }

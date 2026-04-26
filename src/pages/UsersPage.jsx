@@ -1,154 +1,156 @@
-import { useState, useEffect } from 'react';
-import { fetchUsers, suspendUser, activateUser } from '../services/api';
-import { Search, MoreHorizontal, ShieldCheck, ShieldOff, User, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BadgeCheck, Search } from 'lucide-react';
+import { fetchUsers as apiFetchUsers } from '../api';
+import api from '../api';
+import ConfirmModal from '../components/ConfirmModal';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [roleFilter, setRoleFilter] = useState('all');
-    const [actionMenuId, setActionMenuId] = useState(null);
+    const [toast, setToast] = useState('');
 
-    const loadUsers = () => {
+    // Confirm modal
+    const [confirmModal, setConfirmModal] = useState({ open: false, id: null, action: '', userName: '' });
+    const [actionLoading, setActionLoading] = useState(false);
+
+    useEffect(() => {
+        loadUsers();
+    }, []);
+
+    const loadUsers = async () => {
         setLoading(true);
-        fetchUsers()
-            .then(data => {
-                setUsers(data?.results || data || []);
-            })
-            .catch(err => console.error('Failed to fetch users:', err))
-            .finally(() => setLoading(false));
-    };
-
-    useEffect(() => { loadUsers(); }, []);
-
-    const handleSuspend = async (userId) => {
         try {
-            await suspendUser(userId);
-            loadUsers();
+            const { ok, data } = await apiFetchUsers();
+            if (ok) {
+                const list = data.results || data || [];
+                setUsers(list.map(u => ({
+                    id: u.id,
+                    firebase_uid: u.firebase_uid,
+                    name: u.display_name || u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+                    role: capitalize(u.role || 'client'),
+                    status: u.is_active !== false ? 'Active' : 'Suspended',
+                    joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+                })));
+            }
         } catch (err) {
-            console.error('Suspend failed:', err);
+            console.error('Failed to load users:', err);
+        } finally {
+            setLoading(false);
         }
-        setActionMenuId(null);
     };
 
-    const handleActivate = async (userId) => {
+    const filtered = users.filter(u =>
+        u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.role.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+    const handleConfirmAction = async () => {
+        const { id, action, userName } = confirmModal;
+        setActionLoading(true);
         try {
-            await activateUser(userId);
-            loadUsers();
-        } catch (err) {
-            console.error('Activate failed:', err);
+            const endpoint = action === 'suspend' ? `/users/${id}/suspend/` : `/users/${id}/activate/`;
+            await api.post(endpoint);
+            // Update local state
+            setUsers(prev => prev.map(u =>
+                u.id === id ? { ...u, status: action === 'suspend' ? 'Suspended' : 'Active' } : u
+            ));
+            showToast(`${userName} has been ${action === 'suspend' ? 'suspended' : 'activated'}.`);
+        } catch {
+            showToast(`Failed to ${action} user.`);
         }
-        setActionMenuId(null);
-    };
-
-    const filteredUsers = users.filter(u => {
-        const matchesSearch = (u.full_name || u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-        return matchesSearch && matchesRole;
-    });
-
-    const roleBadge = (role) => {
-        const colors = {
-            admin: { bg: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e' },
-            creator: { bg: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' },
-            client: { bg: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' },
-        };
-        const c = colors[role] || colors.client;
-        return (
-            <span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '600', textTransform: 'uppercase', background: c.bg, color: c.color }}>
-                {role}
-            </span>
-        );
+        setActionLoading(false);
+        setConfirmModal({ open: false, id: null, action: '', userName: '' });
     };
 
     return (
-        <section className="section page-fade">
-            <header className="section__header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
-                <h2 className="section__title">User Management ({users.length})</h2>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-                        <input
-                            type="text"
-                            placeholder="Search users..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
-                        />
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+
+            <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Platform Users</h1>
+                        <BadgeCheck size={28} color="#3b82f6" />
                     </div>
-                    <select
-                        value={roleFilter}
-                        onChange={(e) => setRoleFilter(e.target.value)}
-                        style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}
-                    >
-                        <option value="all">All Roles</option>
-                        <option value="client">Client</option>
-                        <option value="creator">Creator</option>
-                        <option value="admin">Admin</option>
-                    </select>
+                    <p style={{ color: '#a1a1aa', fontSize: '1rem', margin: 0 }}>Manage accounts, verify creators, and handle suspensions.</p>
+                </div>
+                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                    <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Users</p>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>{users.length}</h2>
                 </div>
             </header>
 
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem' }}>
+                    <Search size={18} color="#a1a1aa" />
+                    <label htmlFor="usersSearch" className="sr-only">Search users</label>
+                    <input id="usersSearch" type="text" placeholder="Search users..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none' }} />
+                </div>
+            </div>
+
             {loading ? (
-                <div className="empty-state"><p>Loading users...</p></div>
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>Loading users...</div>
             ) : (
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User</th>
-                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</th>
-                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Role</th>
-                                <th style={{ textAlign: 'left', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Joined</th>
-                                <th style={{ textAlign: 'right', padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredUsers.map(user => (
-                                <tr key={user.id || user.firebase_uid} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                    <td style={{ padding: '12px 16px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.8rem', flexShrink: 0 }}>
-                                                {(user.full_name || user.email || '?').charAt(0).toUpperCase()}
-                                            </div>
-                                            <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.full_name || user.display_name || 'Unnamed'}</span>
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.email}</td>
-                                    <td style={{ padding: '12px 16px' }}>{roleBadge(user.role)}</td>
-                                    <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td>
-                                    <td style={{ padding: '12px 16px', textAlign: 'right', position: 'relative' }}>
-                                        <button
-                                            onClick={() => setActionMenuId(actionMenuId === user.firebase_uid ? null : user.firebase_uid)}
-                                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px' }}
-                                        >
-                                            <MoreHorizontal size={18} />
-                                        </button>
-                                        {actionMenuId === user.firebase_uid && (
-                                            <div style={{
-                                                position: 'absolute', right: '16px', top: '100%', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '4px', zIndex: 10, minWidth: '140px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
-                                            }}>
-                                                <button onClick={() => handleActivate(user.firebase_uid)} style={{ width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', color: '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', borderRadius: '4px' }}>
-                                                    <ShieldCheck size={14} /> Activate
-                                                </button>
-                                                <button onClick={() => handleSuspend(user.firebase_uid)} style={{ width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', borderRadius: '4px' }}>
-                                                    <ShieldOff size={14} /> Suspend
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {filteredUsers.length === 0 && (
-                        <div className="empty-state"><p>No users found.</p></div>
+                <div className="glass-card" style={{ overflow: 'hidden' }}>
+                    <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '1rem', color: '#a1a1aa', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span>User</span>
+                        <span>Role</span>
+                        <span>Status</span>
+                        <span>Joined</span>
+                    </div>
+                    {filtered.map((user) => (
+                        <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
+                                    {user.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span style={{ color: '#fff', fontWeight: '500' }}>{user.name}</span>
+                            </div>
+                            <span style={{ color: '#d4d4d8' }}>{user.role}</span>
+                            <div>
+                                <span style={{
+                                    padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600',
+                                    backgroundColor: user.status === 'Active' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                    color: user.status === 'Active' ? '#4ade80' : '#f87171'
+                                }}>{user.status}</span>
+                                {user.status === 'Active' ? (
+                                    <button style={{ marginLeft: 12, padding: '2px 10px', fontSize: '0.8rem', background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', cursor: 'pointer' }}
+                                        onClick={() => setConfirmModal({ open: true, id: user.id, action: 'suspend', userName: user.name })}>
+                                        Suspend
+                                    </button>
+                                ) : (
+                                    <button style={{ marginLeft: 12, padding: '2px 10px', fontSize: '0.8rem', background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', cursor: 'pointer' }}
+                                        onClick={() => setConfirmModal({ open: true, id: user.id, action: 'activate', userName: user.name })}>
+                                        Activate
+                                    </button>
+                                )}
+                            </div>
+                            <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>{user.joined}</span>
+                        </div>
+                    ))}
+                    {filtered.length === 0 && (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: '#71717a' }}>No users found.</div>
                     )}
                 </div>
             )}
-        </section>
+
+            <ConfirmModal
+                open={confirmModal.open}
+                title={confirmModal.action === 'suspend' ? 'Suspend User?' : 'Activate User?'}
+                message={<>Are you sure you want to {confirmModal.action} <strong>{confirmModal.userName}</strong>?</>}
+                variant={confirmModal.action === 'suspend' ? 'danger' : 'success'}
+                confirmLabel={confirmModal.action === 'suspend' ? 'Suspend' : 'Activate'}
+                loading={actionLoading}
+                onConfirm={handleConfirmAction}
+                onCancel={() => setConfirmModal({ open: false, id: null, action: '', userName: '' })}
+            />
+        </main>
     );
 };
+
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
 export default UsersPage;

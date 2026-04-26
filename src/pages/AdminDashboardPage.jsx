@@ -1,148 +1,91 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useProjects } from '../hooks/useProjects';
-import { fetchUsers, fetchSupportTickets } from '../services/api';
-import { Users, BarChart3, AlertTriangle, ShieldCheck, ArrowRight, Briefcase, Settings as SettingsIcon, Ticket } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, BarChart3, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { fetchUsers as apiFetchUsers, fetchOrders as apiFetchOrders, fetchSupportTickets as apiFetchTickets } from '../api';
 
-const AdminDashboardPage = ({ firebaseUid }) => {
-    const navigate = useNavigate();
-    const { orders, services, projects, totalRevenue, loading: contextLoading } = useProjects();
+const AdminDashboardPage = () => {
     const [userCount, setUserCount] = useState(0);
-    const [openTickets, setOpenTickets] = useState(0);
+    const [orderCount, setOrderCount] = useState(0);
+    const [totalRevenue, setTotalRevenue] = useState(0);
+    const [ticketCount, setTicketCount] = useState(0);
+    const [recentOrders, setRecentOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchUsers().then(data => {
-            const list = data?.results || data || [];
-            setUserCount(list.length);
-        }).catch(() => {});
-        fetchSupportTickets().then(data => {
-            const list = data?.results || data || [];
-            setOpenTickets(list.filter(t => t.status === 'open').length);
-        }).catch(() => {});
+        (async () => {
+            try {
+                const [uRes, oRes, tRes] = await Promise.all([apiFetchUsers(), apiFetchOrders(), apiFetchTickets()]);
+                if (uRes.ok) {
+                    const users = uRes.data.results || uRes.data || [];
+                    setUserCount(users.length);
+                }
+                if (oRes.ok) {
+                    const orders = oRes.data.results || oRes.data || [];
+                    setOrderCount(orders.length);
+                    setTotalRevenue(orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + parseFloat(o.price || 0), 0));
+                    setRecentOrders(orders.slice(0, 3));
+                }
+                if (tRes.ok) {
+                    const tickets = tRes.data.results || tRes.data || [];
+                    setTicketCount(tickets.length);
+                }
+            } catch (err) {
+                console.error('Admin dashboard error:', err);
+            } finally {
+                setLoading(false);
+            }
+        })();
     }, []);
-
-    const activeOrders = orders.filter(o => o.status === 'In Progress' || o.status === 'Pending');
-    const suspendedOrders = orders.filter(o => o.status === 'Suspended');
-    const platformRevenue = Math.round(totalRevenue * 0.15);
-    const recentOrders = orders.slice(0, 5);
 
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
             <header className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2))' }}>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'white', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <ShieldCheck size={36} color="#f43f5e" /> Admin Command
                 </h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>Platform health, active disputes, and user metrics.</p>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Platform health, active disputes, and user metrics.</p>
             </header>
 
-            {/* Live Stats */}
-            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/users')}>
-                    <div style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', padding: '1rem', borderRadius: '16px' }}>
-                        <Users size={28} />
-                    </div>
+            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    <div style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', padding: '1rem', borderRadius: '16px' }}><Users size={28} /></div>
                     <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Users</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{userCount}</p>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Users</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{loading ? '...' : userCount}</p>
                     </div>
                 </div>
-
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/projects')}>
-                    <div style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', padding: '1rem', borderRadius: '16px' }}>
-                        <BarChart3 size={28} />
-                    </div>
+                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    <div style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', padding: '1rem', borderRadius: '16px' }}><BarChart3 size={28} /></div>
                     <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Revenue</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>₱{platformRevenue.toLocaleString()}</p>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Revenue</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'white', margin: 0 }}>₱{loading ? '...' : totalRevenue.toLocaleString()}</p>
                     </div>
                 </div>
-
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer', border: '1px solid rgba(239, 68, 68, 0.3)' }} onClick={() => navigate('/disputes')}>
-                    <div style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '1rem', borderRadius: '16px' }}>
-                        <Ticket size={28} />
-                    </div>
+                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    <div style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '1rem', borderRadius: '16px' }}><AlertTriangle size={28} /></div>
                     <div>
-                        <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Open Tickets</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#f87171', margin: 0 }}>{openTickets}</p>
-                    </div>
-                </div>
-
-                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }} onClick={() => navigate('/projects')}>
-                    <div style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', padding: '1rem', borderRadius: '16px' }}>
-                        <Briefcase size={28} />
-                    </div>
-                    <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Orders</p>
-                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{activeOrders.length}</p>
+                        <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Support Tickets</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#f87171', margin: 0 }}>{loading ? '...' : ticketCount}</p>
                     </div>
                 </div>
             </section>
 
-            {/* Quick Actions */}
-            <section style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <button onClick={() => navigate('/users')} style={{ padding: '0.75rem 1.5rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Users size={16} /> Manage Users
-                </button>
-                <button onClick={() => navigate('/projects')} style={{ padding: '0.75rem 1.5rem', background: '#a855f7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Briefcase size={16} /> All Projects
-                </button>
-                <button onClick={() => navigate('/disputes')} style={{ padding: '0.75rem 1.5rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <AlertTriangle size={16} /> View Disputes
-                </button>
-                <button onClick={() => navigate('/settings')} style={{ padding: '0.75rem 1.5rem', background: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <SettingsIcon size={16} /> Platform Settings
-                </button>
-            </section>
-
-            {/* Recent Orders Table */}
-            <section className="glass-card">
-                <div className="glass-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Recent Orders</h2>
-                    <button onClick={() => navigate('/projects')} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}>
-                        View All <ArrowRight size={14} />
-                    </button>
-                </div>
-                <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {contextLoading ? (
-                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>Loading...</p>
-                    ) : recentOrders.length > 0 ? recentOrders.map(order => (
-                        <div key={order.id} style={{ padding: '1rem 1.25rem', background: 'var(--card-bg)', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                            <div>
-                                <h4 style={{ color: 'var(--text-primary)', fontSize: '0.95rem', margin: '0 0 2px' }}>{order.title}</h4>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>
-                                    {order.creator} → {order.clientName} • ₱{(order.budget || 0).toLocaleString()}
-                                </p>
-                            </div>
-                            <span style={{
-                                padding: '4px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '600', textTransform: 'uppercase',
-                                background: order.status === 'Completed' ? 'rgba(34,197,94,0.1)' : order.status === 'In Progress' ? 'rgba(56,189,248,0.1)' : order.status === 'Suspended' ? 'rgba(239,68,68,0.1)' : 'rgba(250,204,21,0.1)',
-                                color: order.status === 'Completed' ? '#22c55e' : order.status === 'In Progress' ? '#38bdf8' : order.status === 'Suspended' ? '#ef4444' : '#facc15'
-                            }}>
-                                {order.status}
-                            </span>
-                        </div>
-                    )) : (
-                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>No orders yet.</p>
-                    )}
-                </div>
-            </section>
-
-            {/* Marketplace Services Overview */}
             <section className="glass-card">
                 <div className="glass-card-header">
-                    <h2 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0 }}>Active Marketplace Services</h2>
+                    <h2 style={{ fontSize: '1.25rem', color: 'white', margin: 0 }}>Recent Orders ({orderCount} total)</h2>
                 </div>
-                <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {services.filter(s => s.status === 'Active').length > 0 ? services.filter(s => s.status === 'Active').map(service => (
-                        <div key={service.id} style={{ padding: '1rem 1.25rem', background: 'var(--card-bg)', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <h4 style={{ color: 'var(--text-primary)', fontSize: '0.95rem', margin: '0 0 2px' }}>{service.title}</h4>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>by {service.creator} • ₱{(service.budget || 0).toLocaleString()}</p>
+                <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {recentOrders.map(order => (
+                        <div key={order.id} style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div>
+                                    <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{order.service_title || `Order #${order.id}`}</h3>
+                                    <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>₱{parseFloat(order.price || 0).toLocaleString()} • {order.status}</p>
+                                </div>
                             </div>
-                            <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '600', background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>ACTIVE</span>
                         </div>
-                    )) : (
-                        <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '2rem' }}>No active services.</p>
+                    ))}
+                    {recentOrders.length === 0 && !loading && (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#71717a' }}>No orders found.</div>
                     )}
                 </div>
             </section>

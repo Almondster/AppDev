@@ -1,39 +1,33 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { login, register } from '../api';
 import Button from '../components/Button';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import '../styles/LoginPage.css';
-import '../styles/LogoutPage.css';
+import { Eye, EyeOff } from 'lucide-react';
+import './LoginPage.css';
+import './LogoutPage.css';
 
-const DEMO_ACCOUNTS = [
-  { label: 'Client', email: 'client@createch.com', password: 'Client@1234' },
-  { label: 'Creator', email: 'creator@createch.com', password: 'Creator@1234' },
-  { label: 'Admin', email: 'admin@createch.com', password: 'Admin@1234' },
-];
-
-const LoginPage = ({ onLogin, onRegister }) => {
+const LoginPage = ({ onLogin }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [form, setForm] = useState({
     email: '',
     password: '',
     confirmPassword: '',
-    firstName: '',
-    lastName: '',
-    phone: '',
+    fullName: '',
     role: 'client',
     rememberMe: false,
   });
   const [errors, setErrors] = useState({});
-  const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [apiSuccess, setApiSuccess] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
-    if (serverError) setServerError('');
+    setApiError('');
   };
 
   const validate = () => {
@@ -43,8 +37,7 @@ const LoginPage = ({ onLogin, onRegister }) => {
     if (!form.password) newErrors.password = 'Password is required';
     else if (form.password.length < 8) newErrors.password = 'Minimum 8 characters';
     if (isSignUp) {
-      if (!form.firstName.trim()) newErrors.firstName = 'First name is required';
-      if (!form.lastName.trim()) newErrors.lastName = 'Last name is required';
+      if (!form.fullName.trim()) newErrors.fullName = 'Full name is required';
       if (form.password !== form.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
     }
     setErrors(newErrors);
@@ -55,38 +48,49 @@ const LoginPage = ({ onLogin, onRegister }) => {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
-    setServerError('');
+    setApiError('');
+    setApiSuccess('');
 
     try {
       if (isSignUp) {
-        await onRegister({
+        const nameParts = form.fullName.trim().split(' ');
+        const first_name = nameParts[0] || '';
+        const last_name = nameParts.slice(1).join(' ') || '';
+
+        const { ok, data } = await register({
           email: form.email,
           password: form.password,
           confirm_password: form.confirmPassword,
-          first_name: form.firstName,
-          last_name: form.lastName,
-          phone: form.phone,
+          first_name,
+          last_name,
+          phone: '',
           role: form.role,
         });
-      } else {
-        await onLogin(form.email, form.password);
-      }
-      navigate('/');
-    } catch (err) {
-      setServerError(err.message || 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleDemoLogin = async (email, password) => {
-    setLoading(true);
-    setServerError('');
-    try {
-      await onLogin(email, password);
-      navigate('/');
+        if (ok) {
+          setApiSuccess('Registration successful! Logging you in...');
+          setTimeout(() => {
+            onLogin();
+            navigate('/');
+          }, 800);
+        } else {
+          setApiError(data.error || data.detail || 'Registration failed. Please try again.');
+        }
+      } else {
+        const { ok, data } = await login(form.email, form.password);
+
+        if (ok) {
+          setApiSuccess('Login successful!');
+          setTimeout(() => {
+            onLogin();
+            navigate('/');
+          }, 500);
+        } else {
+          setApiError(data.error || data.detail || 'Invalid email or password.');
+        }
+      }
     } catch (err) {
-      setServerError(err.message || 'Could not connect to server.');
+      setApiError('Cannot connect to server. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -95,8 +99,9 @@ const LoginPage = ({ onLogin, onRegister }) => {
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
     setErrors({});
-    setServerError('');
-    setForm({ email: '', password: '', confirmPassword: '', firstName: '', lastName: '', phone: '', role: 'client', rememberMe: false });
+    setApiError('');
+    setApiSuccess('');
+    setForm({ email: '', password: '', confirmPassword: '', fullName: '', role: 'client', rememberMe: false });
   };
 
   return (
@@ -106,62 +111,57 @@ const LoginPage = ({ onLogin, onRegister }) => {
         <h2>{isSignUp ? 'Create Account' : 'Welcome Back'}</h2>
         <p>{isSignUp ? 'Sign up to get started with CREATECH' : 'Log in to your CREATECH account'}</p>
 
-        {serverError && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>
-            {serverError}
+        {apiError && (
+          <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            {apiError}
+          </div>
+        )}
+        {apiSuccess && (
+          <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            {apiSuccess}
           </div>
         )}
 
         <form className="login-form" onSubmit={handleSubmit}>
           {isSignUp && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="firstName">First Name</label>
-                  <input className={`form-input${errors.firstName ? ' form-input--error' : ''}`} type="text" id="firstName" name="firstName" value={form.firstName} onChange={handleChange} placeholder="Juan" disabled={loading} />
-                  {errors.firstName && <span className="form-error">{errors.firstName}</span>}
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="lastName">Last Name</label>
-                  <input className={`form-input${errors.lastName ? ' form-input--error' : ''}`} type="text" id="lastName" name="lastName" value={form.lastName} onChange={handleChange} placeholder="Dela Cruz" disabled={loading} />
-                  {errors.lastName && <span className="form-error">{errors.lastName}</span>}
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="phone">Phone (optional)</label>
-                <input className="form-input" type="tel" id="phone" name="phone" value={form.phone} onChange={handleChange} placeholder="09123456789" disabled={loading} />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="role">Account Type</label>
-                <select id="role" name="role" className="form-input sort-select" style={{ maxWidth: '100%' }} value={form.role} onChange={handleChange} disabled={loading}>
-                  <option value="client">Client</option>
-                  <option value="creator">Creator</option>
-                </select>
-              </div>
-            </>
+            <div className="form-group">
+              <label className="form-label" htmlFor="fullName">Full Name</label>
+              <input className={`form-input${errors.fullName ? ' form-input--error' : ''}`} type="text" id="fullName" name="fullName" value={form.fullName} onChange={handleChange} placeholder="Juan Dela Cruz" />
+              {errors.fullName && <span className="form-error">{errors.fullName}</span>}
+            </div>
           )}
-
           <div className="form-group">
             <label className="form-label" htmlFor="login-email">Email</label>
-            <input className={`form-input${errors.email ? ' form-input--error' : ''}`} type="email" id="login-email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" disabled={loading} />
+            <input className={`form-input${errors.email ? ' form-input--error' : ''}`} type="email" id="login-email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" />
             {errors.email && <span className="form-error">{errors.email}</span>}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="login-password">Password</label>
             <div className="password-wrapper">
-              <input className={`form-input${errors.password ? ' form-input--error' : ''}`} type={showPassword ? 'text' : 'password'} id="login-password" name="password" value={form.password} onChange={handleChange} placeholder="••••••••" disabled={loading} />
+              <input className={`form-input${errors.password ? ' form-input--error' : ''}`} type={showPassword ? 'text' : 'password'} id="login-password" name="password" value={form.password} onChange={handleChange} placeholder="••••••••" />
               <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
             {errors.password && <span className="form-error">{errors.password}</span>}
           </div>
+
           {isSignUp && (
-            <div className="form-group">
-              <label className="form-label" htmlFor="confirmPassword">Confirm Password</label>
-              <input className={`form-input${errors.confirmPassword ? ' form-input--error' : ''}`} type="password" id="confirmPassword" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} placeholder="••••••••" disabled={loading} />
-              {errors.confirmPassword && <span className="form-error">{errors.confirmPassword}</span>}
-            </div>
+            <>
+              <div className="form-group">
+                <label className="form-label" htmlFor="confirmPassword">Confirm Password</label>
+                <input className={`form-input${errors.confirmPassword ? ' form-input--error' : ''}`} type="password" id="confirmPassword" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} placeholder="••••••••" />
+                {errors.confirmPassword && <span className="form-error">{errors.confirmPassword}</span>}
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label className="form-label" htmlFor="role">I want to join as</label>
+                <select id="role" name="role" className="form-input sort-select" style={{ maxWidth: '100%' }} value={form.role} onChange={handleChange}>
+                  <option value="client">Client — I want to hire creators</option>
+                  <option value="creator">Creator — I want to offer services</option>
+                </select>
+              </div>
+            </>
           )}
 
           {!isSignUp && (
@@ -173,44 +173,10 @@ const LoginPage = ({ onLogin, onRegister }) => {
             </div>
           )}
 
-          <Button variant="primary" type="submit" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }} disabled={loading}>
-            {loading ? <><Loader2 size={16} className="spin" /> {isSignUp ? 'Creating...' : 'Signing in...'}</> : (isSignUp ? 'Sign Up' : 'Log In')}
+          <Button variant="primary" type="submit" style={{ width: '100%', display: 'flex', justifyContent: 'center' }} disabled={loading}>
+            {loading ? 'Please wait...' : (isSignUp ? 'Sign Up' : 'Log In')}
           </Button>
         </form>
-
-        {!isSignUp && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1rem 0' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-color, #333)' }} />
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Demo Accounts</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-color, #333)' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-              {DEMO_ACCOUNTS.map((demo) => (
-                <button
-                  key={demo.label}
-                  type="button"
-                  onClick={() => handleDemoLogin(demo.email, demo.password)}
-                  disabled={loading}
-                  style={{
-                    padding: '0.6rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color, #333)',
-                    background: 'var(--card-bg, #1a1a2e)',
-                    color: 'var(--text-primary, #fff)',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    opacity: loading ? 0.6 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {demo.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
 
         <p className="login-toggle" style={{ marginTop: '16px' }}>
           {isSignUp ? 'Already have an account? ' : "Don't have an account? "}

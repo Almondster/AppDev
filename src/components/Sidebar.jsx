@@ -1,17 +1,48 @@
 import { NavLink } from 'react-router-dom';
-import { Settings, LogOut, Moon, Sun } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
-import { ROLES } from '../constants/roles';
-import { ROUTES } from '../constants/routes';
-import { CREATOR_MENU, CLIENT_MENU, ADMIN_MENU } from '../constants/navigation';
+import {
+    LayoutGrid,
+    Briefcase,
+    MessageSquare,
+    Bell,
+    Wallet,
+    Settings,
+    LogOut,
+    Users,
+    AlertTriangle,
+    ShieldCheck
+} from 'lucide-react';
+import { getUserData } from '../api';
 
 const Sidebar = ({ userRole, onLogout }) => {
-    const { theme, toggleTheme } = useTheme();
+    const userData = getUserData();
+    // Define navigation links based on user role
+    const clientMenu = [
+        { to: '/', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
+        { to: '/projects', label: 'My Orders', icon: <Briefcase size={18} /> },
+        { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
+        { to: '/notifications', label: 'Notifications', icon: <Bell size={18} /> },
+        { to: '/wallet', label: 'Billing', icon: <Wallet size={18} /> },
+    ];
 
-    // Select menu based on role
-    let currentMenu = CREATOR_MENU;
-    if (userRole === ROLES.CLIENT) currentMenu = CLIENT_MENU;
-    else if (userRole === ROLES.ADMIN) currentMenu = ADMIN_MENU;
+    const creatorMenu = [
+        { to: '/', label: 'Studio', icon: <LayoutGrid size={18} /> },
+        { to: '/projects', label: 'My Gigs', icon: <Briefcase size={18} /> },
+        { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
+        { to: '/notifications', label: 'Notifications', icon: <Bell size={18} /> },
+        { to: '/wallet', label: 'Earnings', icon: <Wallet size={18} /> },
+    ];
+
+    const adminMenu = [
+        { to: '/', label: 'Dashboard', icon: <ShieldCheck size={18} /> },
+        { to: '/projects', label: 'All Projects', icon: <Briefcase size={18} /> },
+        { to: '/users', label: 'Manage Users', icon: <Users size={18} /> },
+        { to: '/disputes', label: 'Disputes', icon: <AlertTriangle size={18} /> },
+        { to: '/settings', label: 'Platform Settings', icon: <Settings size={18} /> },
+    ];
+
+    let currentMenu = creatorMenu;
+    if (userRole === 'client') currentMenu = clientMenu;
+    else if (userRole === 'admin') currentMenu = adminMenu;
 
     return (
         <aside className="sidebar glass-panel">
@@ -24,10 +55,10 @@ const Sidebar = ({ userRole, onLogout }) => {
 
             <div className="sidebar-user">
                 <div className="sidebar-avatar">
-                    {userRole === ROLES.CREATOR ? 'C' : userRole === ROLES.CLIENT ? 'CL' : 'A'}
+                    {(userData?.full_name || userRole || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div className="sidebar-user-info">
-                    <span className="sidebar-user-name">Test User</span>
+                    <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>
                     <span className="sidebar-user-role">{userRole}</span>
                 </div>
             </div>
@@ -37,22 +68,18 @@ const Sidebar = ({ userRole, onLogout }) => {
                     <NavLink
                         key={item.to}
                         to={item.to}
-                        end={item.to === ROUTES.HOME}
+                        end={item.to === '/'}
                         className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}
                     >
-                        <item.icon size={18} />
+                        {item.icon}
                         <span>{item.label}</span>
                     </NavLink>
                 ))}
             </nav>
 
             <div className="sidebar-footer">
-                <button className="nav-item nav-item--theme" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
-                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                    <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
-                </button>
-                {userRole !== ROLES.ADMIN && (
-                    <NavLink to={ROUTES.SETTINGS} className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
+                {userRole !== 'admin' && (
+                    <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
                         <Settings size={18} />
                         <span>Settings</span>
                     </NavLink>

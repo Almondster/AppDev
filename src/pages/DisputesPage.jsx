@@ -1,159 +1,211 @@
-import { useState, useEffect } from 'react';
-import { fetchSupportTickets, updateSupportTicket } from '../services/api';
-import { Search, MessageSquare, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { fetchSupportTickets as apiFetchTickets, fetchReports as apiFetchReports, updateSupportTicket } from '../api';
+import { AlertOctagon, CheckCircle, MessageSquare, Send } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 
 const DisputesPage = () => {
-    const [tickets, setTickets] = useState([]);
+    const [disputes, setDisputes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('all');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [respondingTo, setRespondingTo] = useState(null);
-    const [response, setResponse] = useState('');
+    const [toast, setToast] = useState('');
 
-    const loadTickets = () => {
-        setLoading(true);
-        fetchSupportTickets()
-            .then(data => setTickets(data?.results || data || []))
-            .catch(err => console.error('Failed to fetch tickets:', err))
-            .finally(() => setLoading(false));
-    };
+    // Response modal state
+    const [responseModal, setResponseModal] = useState({ open: false, id: null, type: '' });
+    const [responseText, setResponseText] = useState('');
+    const [responding, setResponding] = useState(false);
 
-    useEffect(() => { loadTickets(); }, []);
+    // Resolve confirm
+    const [resolveConfirm, setResolveConfirm] = useState({ open: false, id: null, type: '' });
+    const [resolving, setResolving] = useState(false);
 
-    const handleResolve = async (id) => {
+    useEffect(() => {
+        (async () => {
+            try {
+                const [ticketsRes, reportsRes] = await Promise.all([apiFetchTickets(), apiFetchReports()]);
+                const items = [];
+
+                if (ticketsRes.ok) {
+                    (ticketsRes.data.results || ticketsRes.data || []).forEach(t => {
+                        items.push({
+                            id: t.id,
+                            rawId: `TKT-${t.id}`,
+                            type: 'ticket',
+                            client: t.user_id || 'Unknown',
+                            creator: '—',
+                            status: t.status || 'open',
+                            date: t.created_at ? new Date(t.created_at).toLocaleDateString() : '—',
+                            issue: t.message || t.subject || t.description || 'No description',
+                            adminResponse: t.admin_response || '',
+                        });
+                    });
+                }
+                if (reportsRes.ok) {
+                    (reportsRes.data.results || reportsRes.data || []).forEach(r => {
+                        items.push({
+                            id: r.id,
+                            rawId: `RPT-${r.id}`,
+                            type: 'report',
+                            client: r.reporter_id || 'Unknown',
+                            creator: r.reported_id || 'Unknown',
+                            status: r.status || 'pending',
+                            date: r.created_at ? new Date(r.created_at).toLocaleDateString() : '—',
+                            issue: r.reason || 'No reason provided',
+                            adminResponse: '',
+                        });
+                    });
+                }
+
+                setDisputes(items);
+            } catch (err) {
+                console.error('Failed to load disputes:', err);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, []);
+
+    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+    const handleResolve = async () => {
+        setResolving(true);
+        const { id, type } = resolveConfirm;
         try {
-            await updateSupportTicket(id, { status: 'resolved', resolved_at: new Date().toISOString() });
-            loadTickets();
-        } catch (err) {
-            console.error('Failed to resolve ticket:', err);
-        }
+            if (type === 'ticket') {
+                const { ok } = await updateSupportTicket(id, { status: 'resolved', resolved_at: new Date().toISOString() });
+                if (ok) {
+                    setDisputes(prev => prev.map(d => d.id === id && d.type === 'ticket' ? { ...d, status: 'resolved' } : d));
+                    showToast('Ticket resolved.');
+                }
+            } else {
+                // For reports, just update local state (backend doesn't have status update for reports)
+                setDisputes(prev => prev.map(d => d.id === id && d.type === 'report' ? { ...d, status: 'resolved' } : d));
+                showToast('Report marked as resolved.');
+            }
+        } catch { showToast('Failed to resolve.'); }
+        setResolving(false);
+        setResolveConfirm({ open: false, id: null, type: '' });
     };
 
-    const handleRespond = async (id) => {
-        if (!response.trim()) return;
+    const handleSendResponse = async () => {
+        if (!responseText.trim()) return;
+        setResponding(true);
+        const { id } = responseModal;
         try {
-            await updateSupportTicket(id, { admin_response: response, status: 'resolved', resolved_at: new Date().toISOString() });
-            setRespondingTo(null);
-            setResponse('');
-            loadTickets();
-        } catch (err) {
-            console.error('Failed to respond:', err);
-        }
+            const { ok } = await updateSupportTicket(id, { admin_response: responseText.trim() });
+            if (ok) {
+                setDisputes(prev => prev.map(d => d.id === id && d.type === 'ticket' ? { ...d, adminResponse: responseText.trim() } : d));
+                showToast('Response sent.');
+                setResponseModal({ open: false, id: null, type: '' });
+                setResponseText('');
+            }
+        } catch { showToast('Failed to send response.'); }
+        setResponding(false);
     };
 
-    const filtered = tickets.filter(t => {
-        const matchFilter = filter === 'all' || t.status === filter;
-        const matchSearch = (t.ticket_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (t.message || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (t.email || '').toLowerCase().includes(searchTerm.toLowerCase());
-        return matchFilter && matchSearch;
-    });
-
-    const statusIcon = (status) => {
-        if (status === 'open') return <Clock size={16} color="#facc15" />;
-        if (status === 'resolved') return <CheckCircle size={16} color="#22c55e" />;
-        return <AlertTriangle size={16} color="#ef4444" />;
-    };
-
-    const statusBadge = (status) => {
-        const colors = {
-            open: { bg: 'rgba(250, 204, 21, 0.1)', color: '#facc15' },
-            resolved: { bg: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' },
-            closed: { bg: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' },
-        };
-        const c = colors[status] || colors.open;
-        return <span style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '600', textTransform: 'uppercase', background: c.bg, color: c.color }}>{status}</span>;
+    const getStatusStyle = (status) => {
+        if (status === 'resolved') return { bg: 'rgba(16,185,129,0.1)', color: '#10b981' };
+        if (status === 'closed') return { bg: 'rgba(113,113,122,0.1)', color: '#71717a' };
+        return { bg: 'rgba(239,68,68,0.1)', color: '#f87171' };
     };
 
     return (
-        <section className="section page-fade">
-            <header className="section__header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
-                <h2 className="section__title">Support Tickets ({tickets.length})</h2>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ position: 'relative' }}>
-                        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-                        <input type="text" placeholder="Search tickets..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', padding: '8px 16px 8px 36px', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }} />
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+
+            <header className="glass-card" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 24, 27, 0.6))', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Active Disputes</h1>
+                        <AlertOctagon size={28} color="#ef4444" />
                     </div>
-                    <div className="filter-group">
-                        {['all', 'open', 'resolved'].map(f => (
-                            <button key={f} className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`} onClick={() => setFilter(f)}>
-                                {f.charAt(0).toUpperCase() + f.slice(1)}
-                            </button>
-                        ))}
-                    </div>
+                    <p style={{ color: '#fca5a5', fontSize: '1rem', margin: 0 }}>Arbitrate platform conflicts and review escrow claims.</p>
+                </div>
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
+                    <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Open Items</p>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>{disputes.filter(d => d.status !== 'resolved').length}</h2>
                 </div>
             </header>
 
             {loading ? (
-                <div className="empty-state"><p>Loading tickets...</p></div>
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>Loading disputes...</div>
+            ) : disputes.length === 0 ? (
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#71717a' }}>No disputes or support tickets found.</div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {filtered.length > 0 ? filtered.map(ticket => (
-                        <div key={ticket.id} className="glass-card" style={{ padding: '1.25rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                        {statusIcon(ticket.status)}
-                                        <h3 style={{ color: 'var(--text-primary)', fontSize: '1rem', margin: 0, fontWeight: '600' }}>
-                                            #{ticket.ticket_number}
-                                        </h3>
-                                        {statusBadge(ticket.status)}
-                                        {ticket.priority && ticket.priority !== 'normal' && (
-                                            <span style={{ padding: '2px 8px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: '600', textTransform: 'uppercase', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>{ticket.priority}</span>
-                                        )}
-                                    </div>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>{ticket.email} • {ticket.category || 'General'} • {ticket.user_role || 'user'}</p>
-                                </div>
-                                <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem' }}>{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : ''}</span>
-                            </div>
-
-                            <p style={{ color: 'var(--text-primary)', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '1rem', background: 'var(--input-bg)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                                {ticket.message}
-                            </p>
-
-                            {ticket.admin_response && (
-                                <div style={{ background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '0.75rem' }}>
-                                    <p style={{ color: '#22c55e', fontSize: '0.75rem', fontWeight: '600', marginBottom: '4px' }}>Admin Response</p>
-                                    <p style={{ color: 'var(--text-primary)', fontSize: '0.85rem', margin: 0 }}>{ticket.admin_response}</p>
-                                </div>
-                            )}
-
-                            {ticket.status === 'open' && (
-                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                    {respondingTo === ticket.id ? (
-                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <textarea
-                                                value={response}
-                                                onChange={(e) => setResponse(e.target.value)}
-                                                placeholder="Type your response..."
-                                                rows={3}
-                                                style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', resize: 'vertical' }}
-                                            />
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <button onClick={() => handleRespond(ticket.id)} style={{ padding: '0.5rem 1rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>Send & Resolve</button>
-                                                <button onClick={() => { setRespondingTo(null); setResponse(''); }} style={{ padding: '0.5rem 1rem', background: 'var(--input-bg)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
-                                            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {disputes.map((dispute) => {
+                        const st = getStatusStyle(dispute.status);
+                        return (
+                            <div key={dispute.rawId} className="glass-card" style={{ padding: '1.5rem', borderLeft: `4px solid ${st.color}` }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                                            <h3 style={{ color: '#fff', fontSize: '1.1rem', margin: 0 }}>{dispute.rawId}</h3>
+                                            <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600', backgroundColor: st.bg, color: st.color }}>{dispute.status}</span>
                                         </div>
-                                    ) : (
-                                        <>
-                                            <button onClick={() => setRespondingTo(ticket.id)} style={{ padding: '0.5rem 1rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <MessageSquare size={14} /> Respond
-                                            </button>
-                                            <button onClick={() => handleResolve(ticket.id)} style={{ padding: '0.5rem 1rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Filed on {dispute.date} • From: {dispute.client}</p>
+                                    </div>
+                                    {/* Action buttons */}
+                                    {dispute.status !== 'resolved' && (
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            {dispute.type === 'ticket' && (
+                                                <button onClick={() => { setResponseModal({ open: true, id: dispute.id, type: dispute.type }); setResponseText(dispute.adminResponse || ''); }}
+                                                    style={{ padding: '0.45rem 0.85rem', borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <MessageSquare size={14} /> Respond
+                                                </button>
+                                            )}
+                                            <button onClick={() => setResolveConfirm({ open: true, id: dispute.id, type: dispute.type })}
+                                                style={{ padding: '0.45rem 0.85rem', borderRadius: 8, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 4 }}>
                                                 <CheckCircle size={14} /> Resolve
                                             </button>
-                                        </>
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    )) : (
-                        <div className="empty-state"><p>No tickets found.</p></div>
-                    )}
+                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px' }}>
+                                    <p style={{ color: '#d4d4d8', fontSize: '0.95rem', margin: 0, lineHeight: '1.5' }}>{dispute.issue}</p>
+                                </div>
+                                {dispute.adminResponse && (
+                                    <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(99,102,241,0.08)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.15)' }}>
+                                        <p style={{ color: '#818cf8', fontSize: '0.85rem', margin: 0 }}><strong>Admin Response:</strong> {dispute.adminResponse}</p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
-        </section>
+
+            {/* Resolve Confirm */}
+            <ConfirmModal
+                open={resolveConfirm.open}
+                title="Resolve this item?"
+                message="This will mark the dispute as resolved."
+                variant="success"
+                confirmLabel="Resolve"
+                loading={resolving}
+                onConfirm={handleResolve}
+                onCancel={() => setResolveConfirm({ open: false, id: null, type: '' })}
+            />
+
+            {/* Response Modal */}
+            {responseModal.open && (
+                <div className="confirm-overlay" onClick={() => setResponseModal({ open: false, id: null, type: '' })}>
+                    <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+                        <h3 className="confirm-modal__title">Admin Response</h3>
+                        <textarea
+                            value={responseText}
+                            onChange={e => setResponseText(e.target.value)}
+                            placeholder="Type your response to the user..."
+                            style={{ width: '100%', minHeight: 120, marginTop: '1rem', padding: '0.75rem', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#fff', fontFamily: 'inherit', fontSize: '0.95rem', resize: 'vertical' }}
+                        />
+                        <div className="confirm-modal__actions" style={{ marginTop: '1rem' }}>
+                            <button className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setResponseModal({ open: false, id: null, type: '' })}>Cancel</button>
+                            <button className="confirm-modal__btn confirm-modal__btn--confirm" onClick={handleSendResponse} disabled={responding || !responseText.trim()}>
+                                {responding ? 'Sending...' : 'Send Response'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </main>
     );
 };
 
