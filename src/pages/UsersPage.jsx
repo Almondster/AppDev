@@ -1,6 +1,8 @@
 
 import { ShieldAlert, BadgeCheck, MoreVertical, Search, Filter } from 'lucide-react';
 import mockUsers from '../components/mockUsers';
+import ServiceCard from '../components/ServiceCard';
+import RoleBadge from '../components/RoleBadge';
 import '../styles/UsersPage.css';
 
 const UsersPage = () => {
@@ -36,9 +38,10 @@ const UsersPage = () => {
 
             {/* Users List */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: '#a1a1aa', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: '#a1a1aa', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     <span>User</span>
                     <span>Role</span>
+                    <span>Services</span>
                     <span>Status</span>
                     <span>Joined</span>
                     <span>Reports</span>
@@ -46,14 +49,15 @@ const UsersPage = () => {
                 </div>
 
                 {mockUsers.map((user) => (
-                    <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center' }}>
+                    <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
                                 {user.name.charAt(0)}
                             </div>
                             <span style={{ color: '#fff', fontWeight: '500' }}>{user.name}</span>
                         </div>
-                        <span style={{ color: '#d4d4d8' }}>{user.role}</span>
+                        <RoleBadge role={user.role} />
+                        <ServiceCard services={user.services} />
                         <div>
                             <span style={{
                                 padding: '4px 10px',
