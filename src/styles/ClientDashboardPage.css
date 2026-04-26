@@ -14,12 +14,12 @@
 .client-dashboard__title {
     font-size: 2.5rem;
     font-weight: bold;
-    color: white;
+    color: var(--text-primary);
     margin-bottom: 0.5rem;
 }
 
 .client-dashboard__subtitle {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     font-size: 1.1rem;
 }
 
@@ -57,7 +57,7 @@
 }
 
 .client-stat-card__label {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -66,7 +66,7 @@
 .client-stat-card__value {
     font-size: 1.75rem;
     font-weight: bold;
-    color: white;
+    color: var(--text-primary);
     margin: 0;
 }
 
@@ -85,7 +85,7 @@
 
 .client-section__title {
     font-size: 1.25rem;
-    color: white;
+    color: var(--text-primary);
     margin: 0;
 }
 
@@ -104,10 +104,10 @@
 
 .client-creator-card {
     min-width: 140px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--card-bg);
     padding: 1.5rem 1rem;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     text-align: center;
 }
 
@@ -115,12 +115,12 @@
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    background: #27272a;
+    background: var(--bg-tertiary);
     margin: 0 auto 12px;
 }
 
 .client-creator-card__name {
-    color: white;
+    color: var(--text-primary);
     font-size: 0.9rem;
     margin: 0 0 4px;
 }
@@ -137,9 +137,9 @@
 /* Active Hires */
 .client-hire-item {
     padding: 1.25rem;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--card-bg);
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -148,13 +148,13 @@
 }
 
 .client-hire-item__title {
-    color: white;
+    color: var(--text-primary);
     font-size: 1.1rem;
     margin-bottom: 4px;
 }
 
 .client-hire-item__detail {
-    color: #a1a1aa;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin: 0;
 }
@@ -171,33 +171,33 @@
 
 /* Glass Tabs */
 .glass-tab {
-  padding-bottom: 12px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-transform: capitalize;
-  transition: color 0.2s;
-  position: relative;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: #71717a;
+    padding-bottom: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-transform: capitalize;
+    transition: color 0.2s;
+    position: relative;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
 }
 
 .glass-tab:hover {
-  color: #d4d4d8;
+    color: var(--text-secondary);
 }
 
 .glass-tab--active {
-  color: #ffffff;
+    color: var(--text-primary);
 }
 
 .glass-tab--active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: #ffffff;
-  border-radius: 2px 2px 0 0;
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--text-primary);
+    border-radius: 2px 2px 0 0;
 }

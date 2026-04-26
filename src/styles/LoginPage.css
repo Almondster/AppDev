@@ -4,22 +4,22 @@
   align-items: center;
   text-align: center;
   gap: 14px;
-  background: #18181b;
+  background: var(--card-bg);
   padding: 48px 40px;
   border-radius: 12px;
-  border: 1px solid #27272a;
+  border: 1px solid var(--border-color);
   max-width: 400px;
   width: 100%;
 }
 
 .login-card h2 {
-  color: #fafafa;
+  color: var(--text-primary);
   font-size: 1.25rem;
   font-weight: 600;
 }
 
 .login-card p {
-  color: #71717a;
+  color: var(--text-tertiary);
   font-size: 0.85rem;
 }
 
@@ -54,7 +54,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #71717a;
+  color: var(--text-tertiary);
   font-size: 0.72rem;
   font-family: inherit;
   font-weight: 500;
@@ -63,12 +63,12 @@
 }
 
 .password-toggle:hover {
-  color: #d4d4d8;
+  color: var(--text-primary);
 }
 
 .login-toggle {
   font-size: 0.8rem;
-  color: #71717a;
+  color: var(--text-tertiary);
 }
 
 .login-toggle a {
@@ -88,17 +88,17 @@
   gap: 6px;
   cursor: pointer;
   font-size: 0.82rem;
-  color: #d4d4d8;
+  color: var(--text-primary);
   padding: 6px 10px;
   border-radius: 6px;
-  border: 1px solid #27272a;
-  background: #0e0e11;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
   transition: border-color 0.2s, background 0.2s;
 }
 
 .checkbox-label:hover {
-  border-color: #3f3f46;
-  background: #18181b;
+  border-color: var(--bg-tertiary);
+  background: var(--card-bg);
 }
 
 .checkbox-label input {

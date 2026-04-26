@@ -12,8 +12,10 @@ import {
     ShieldCheck,
     Package
 } from 'lucide-react';
+import { getUserData } from '../api';
 
 const Sidebar = ({ userRole, onLogout }) => {
+    const userData = getUserData();
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
@@ -55,11 +57,10 @@ const Sidebar = ({ userRole, onLogout }) => {
 
             <div className="sidebar-user">
                 <div className="sidebar-avatar">
-                    {/* Placeholder Avatar based on role */}
-                    {userRole === 'creator' ? 'C' : userRole === 'client' ? 'CL' : 'A'}
+                    {(userData?.full_name || userRole || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div className="sidebar-user-info">
-                    <span className="sidebar-user-name">Test User</span>
+                    <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>
                     <span className="sidebar-user-role">{userRole}</span>
                 </div>
             </div>

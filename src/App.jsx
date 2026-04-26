@@ -1,89 +1,114 @@
-import { Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { ProjectsProvider, OrdersProvider } from './context/providers';
-import { useAuth } from './context/hooks/useAuth';
-import { PUBLIC_ROUTES, PROTECTED_ROUTES } from './config/routes';
+import { ProjectsProvider } from './context/ProjectsContext';
+import React from 'react';
 import Sidebar from './components/Sidebar';
+import DashboardPage from './pages/DashboardPage';
+import ProjectsPage from './pages/ProjectsPage';
+import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
+import MessagesPage from './pages/MessagesPage';
+import NotificationsPage from './pages/NotificationsPage';
+import SettingsPage from './pages/SettingsPage';
+import WalletPage from './pages/WalletPage';
+import CreatorProfilePage from './pages/CreatorProfilePage';
+import UsersPage from './pages/UsersPage';
+import DisputesPage from './pages/DisputesPage';
+import OrderDetailPage from './pages/OrderDetailPage';
+import ServiceDetailPage from './pages/ServiceDetailPage';
+import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
-
-// Loading fallback for lazy-loaded routes
-const PageLoader = () => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#a1a1aa' }}>
-    <p>Loading…</p>
-  </div>
-);
 
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
   if (!isLoggedIn) return <Navigate to="/login" replace />;
   return (
-    <div className="dashboard-layout page-fade">
-      <Sidebar userRole={userRole} onLogout={onLogout} />
-      <div className="main-content-wrapper">
-        <main className="main-content">
-          <Outlet />
-        </main>
-        <footer className="app-footer">
-          <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
-        </footer>
+    <ProjectsProvider>
+      <div className="dashboard-layout page-fade">
+        <Sidebar userRole={userRole} onLogout={onLogout} />
+        <div className="main-content-wrapper">
+          <main className="main-content">
+            <Outlet />
+          </main>
+          <footer className="app-footer">
+            <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
+          </footer>
+        </div>
       </div>
-    </div>
+    </ProjectsProvider>
   );
 }
 
 function App() {
-  const { isLoggedIn, userRole, handleLogin, handleLogout } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getToken());
+  const [userRole, setUserRole] = useState(() => {
+    const user = getUserData();
+    return user?.role || 'creator';
+  });
+  const [userData, setUserData] = useState(() => getUserData());
+
+  // Keep auth state in sync with localStorage changes
+  useEffect(() => {
+    const user = getUserData();
+    if (user) {
+      setUserRole(user.role || 'creator');
+      setUserData(user);
+    }
+  }, [isLoggedIn]);
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const theme = localStorage.getItem('createch_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    const accent = localStorage.getItem('createch_accent');
+    if (accent) document.documentElement.style.setProperty('--accent', accent);
+  }, []);
+
+  const handleLogout = () => {
+    apiLogout();
+    setIsLoggedIn(false);
+    setUserData(null);
+  };
+
+  const handleLogin = () => {
+    // Called after successful API login; state is already in localStorage
+    const user = getUserData();
+    setUserRole(user?.role || 'creator');
+    setUserData(user);
+    setIsLoggedIn(true);
+  };
 
   return (
-    <ProjectsProvider>
-      <OrdersProvider>
-        <div className="app">
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              {/* Public Routes */}
-              {PUBLIC_ROUTES.map((route) => (
-                <Route
-                  key={route.path}
-                  path={route.path}
-                  element={
-                    route.path === '/login' && isLoggedIn ? (
-                      <Navigate to="/" replace />
-                    ) : route.path === '/login' ? (
-                      <route.component onLogin={handleLogin} />
-                    ) : (
-                      <route.component />
-                    )
-                  }
-                />
-              ))}
+      <div className="app">
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/login" element={
+            isLoggedIn ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />
+          } />
 
-              {/* Protected Routes */}
-              <Route element={<ProtectedLayout isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
-                {PROTECTED_ROUTES.map((route) => {
-                  // Skip admin routes for non-admin users
-                  if (route.admin && userRole !== 'admin') return null;
+          {/* Protected Routes — key forces re-mount on user change */}
+          <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
 
-                  const props = route.props ? route.props.reduce((acc, prop) => {
-                    if (prop === 'userRole') acc.userRole = userRole;
-                    return acc;
-                  }, {}) : {};
+            <Route path="/" element={<DashboardPage userRole={userRole} />} />
+            <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
 
-                  return (
-                    <Route
-                      key={route.path}
-                      path={route.path}
-                      element={<route.component {...props} />}
-                    />
-                  );
-                })}
-              </Route>
+            {/* Admin Routes */}
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/disputes" element={<DisputesPage />} />
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </div>
-      </OrdersProvider>
-    </ProjectsProvider>
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/services/:id" element={<ServiceDetailPage />} />
+            <Route path="/settings" element={<SettingsPage userRole={userRole} onLogout={handleLogout} />} />
+            <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
+            <Route path="/creator-profile" element={<CreatorProfilePage />} />
+          </Route>
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
   );
 }
 
