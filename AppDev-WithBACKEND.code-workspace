@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../Createch-backend"
+		},
+		{
+			"path": "../CREATECH-BACKEND-FASTAPI"
 		}
 	],
 	"settings": {}
