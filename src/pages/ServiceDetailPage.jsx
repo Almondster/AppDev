@@ -110,7 +110,7 @@ const ServiceDetailPage = () => {
   }
 
   const creatorUser = creator?.user || {};
-  const creatorName = creatorUser.display_name || service.creator_id;
+  const creatorName = creatorUser.display_name || creatorUser.username || service.creator_id;
 
   return (
     <main className="service-detail">
