@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BadgeCheck, Search } from 'lucide-react';
 import { fetchUsers as apiFetchUsers, patchUser } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import '../styles/UsersPage.css';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
@@ -94,25 +95,27 @@ const UsersPage = () => {
                 </div>
             </div>
 
-            {loading ? (
+{loading ? (
                 <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>Loading users...</div>
             ) : (
                 <div className="glass-card" style={{ overflow: 'hidden' }}>
-                    <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '1rem', color: '#a1a1aa', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: '#a1a1aa', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         <span>User</span>
                         <span>Role</span>
                         <span>Status</span>
                         <span>Joined</span>
+                        <span>Action</span>
+                        <span style={{ textAlign: 'right' }}>More</span>
                     </div>
                     {filtered.map((user) => (
-                        <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center' }}>
+                        <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
                                 <span style={{ color: '#fff', fontWeight: '500' }}>{user.name}</span>
                             </div>
-                            <span style={{ color: '#d4d4d8' }}>{user.role}</span>
+                            <RoleBadge role={user.role} />
                             <div>
                                 <span style={{
                                     padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600',
@@ -132,6 +135,11 @@ const UsersPage = () => {
                                 )}
                             </div>
                             <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>{user.joined}</span>
+                            <div style={{ textAlign: 'right' }}>
+                                <button style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer' }}>
+                                    <MoreVertical size={18} />
+                                </button>
+                            </div>
                         </div>
                     ))}
                     {filtered.length === 0 && (

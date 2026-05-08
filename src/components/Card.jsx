@@ -1,4 +1,6 @@
-const Card = ({ title, children, status, onClick, clickable = false }) => {
+import { memo } from 'react';
+
+const Card = memo(({ title, children, status, onClick, clickable = false }) => {
   return (
     <article
       className={`card${clickable ? ' card--clickable' : ''}`}
@@ -19,6 +21,8 @@ const Card = ({ title, children, status, onClick, clickable = false }) => {
       </div>
     </article>
   );
-};
+});
+
+Card.displayName = 'Card';
 
 export default Card;

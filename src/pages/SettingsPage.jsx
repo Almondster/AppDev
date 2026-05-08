@@ -294,7 +294,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={cardStyle}>
                                 <h3 style={{ color: 'var(--text-primary, #fff)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Appearance</h3>
-                                
+
                                 {/* Theme Toggle */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div>
