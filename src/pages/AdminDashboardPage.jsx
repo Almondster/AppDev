@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, BarChart3, AlertTriangle, ShieldCheck } from 'lucide-react';
-import { fetchUsers as apiFetchUsers, fetchOrders as apiFetchOrders, fetchSupportTickets as apiFetchTickets } from '../api';
+import { Users, BarChart3, AlertTriangle, ShieldCheck, Tag, Plus, Trash2, X } from 'lucide-react';
+import { fetchUsers as apiFetchUsers, fetchOrders as apiFetchOrders, fetchSupportTickets as apiFetchTickets, fetchCategories, createCategory, deleteCategory, fetchServices } from '../api';
+import ConfirmModal from '../components/ConfirmModal';
 
 const AdminDashboardPage = () => {
     const [userCount, setUserCount] = useState(0);
@@ -10,10 +11,18 @@ const AdminDashboardPage = () => {
     const [recentOrders, setRecentOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // Categories state
+    const [categories, setCategories] = useState([]);
+    const [catForm, setCatForm] = useState({ name: '', description: '' });
+    const [catLoading, setCatLoading] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
+    const [deleting, setDeleting] = useState(false);
+    const [serviceCount, setServiceCount] = useState(0);
+
     useEffect(() => {
         (async () => {
             try {
-                const [uRes, oRes, tRes] = await Promise.all([apiFetchUsers(), apiFetchOrders(), apiFetchTickets()]);
+                const [uRes, oRes, tRes, cRes, sRes] = await Promise.all([apiFetchUsers(), apiFetchOrders(), apiFetchTickets(), fetchCategories(), fetchServices()]);
                 if (uRes.ok) {
                     const users = uRes.data.results || uRes.data || [];
                     setUserCount(users.length);
@@ -28,6 +37,8 @@ const AdminDashboardPage = () => {
                     const tickets = tRes.data.results || tRes.data || [];
                     setTicketCount(tickets.length);
                 }
+                if (cRes.ok) setCategories(cRes.data.results || cRes.data || []);
+                if (sRes.ok) setServiceCount((sRes.data.results || sRes.data || []).length);
             } catch (err) {
                 console.error('Admin dashboard error:', err);
             } finally {
@@ -35,6 +46,29 @@ const AdminDashboardPage = () => {
             }
         })();
     }, []);
+
+    const handleAddCategory = async (e) => {
+        e.preventDefault();
+        setCatLoading(true);
+        try {
+            const { ok, data } = await createCategory({ name: catForm.name, description: catForm.description });
+            if (ok) {
+                setCategories(prev => [...prev, data]);
+                setCatForm({ name: '', description: '' });
+            }
+        } catch {}
+        setCatLoading(false);
+    };
+
+    const handleDeleteCategory = async () => {
+        setDeleting(true);
+        try {
+            const { ok } = await deleteCategory(deleteConfirm.id);
+            if (ok) setCategories(prev => prev.filter(c => c.id !== deleteConfirm.id));
+        } catch {}
+        setDeleting(false);
+        setDeleteConfirm({ open: false, id: null, name: '' });
+    };;
 
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
@@ -89,6 +123,50 @@ const AdminDashboardPage = () => {
                     )}
                 </div>
             </section>
+
+            {/* Categories Management */}
+            <section className="glass-card">
+                <div className="glass-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: '1.25rem', color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><Tag size={20} /> Manage Categories ({categories.length})</h2>
+                </div>
+                <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <input value={catForm.name} onChange={e => setCatForm(p => ({ ...p, name: e.target.value }))} placeholder="Category name" required
+                            style={{ flex: 1, padding: '0.6rem 0.9rem', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem', minWidth: 150 }} />
+                        <input value={catForm.description} onChange={e => setCatForm(p => ({ ...p, description: e.target.value }))} placeholder="Description (optional)"
+                            style={{ flex: 2, padding: '0.6rem 0.9rem', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem', minWidth: 200 }} />
+                        <button type="submit" disabled={catLoading} style={{ padding: '0.6rem 1.2rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Plus size={16} /> {catLoading ? 'Adding...' : 'Add'}
+                        </button>
+                    </form>
+                    {categories.length === 0 ? (
+                        <p style={{ color: '#52525b', textAlign: 'center', padding: '1.5rem' }}>No categories yet. Add one above.</p>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.5rem' }}>
+                            {categories.map(c => (
+                                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div>
+                                        <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.9rem' }}>{c.name}</p>
+                                        {c.description && <p style={{ color: '#71717a', fontSize: '0.8rem', margin: '2px 0 0' }}>{c.description}</p>}
+                                    </div>
+                                    <button onClick={() => setDeleteConfirm({ open: true, id: c.id, name: c.name })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            <ConfirmModal
+                open={deleteConfirm.open}
+                title="Delete Category?"
+                message={<>Are you sure you want to delete <strong>"{deleteConfirm.name}"</strong>?</>}
+                variant="danger"
+                confirmLabel="Delete"
+                loading={deleting}
+                onConfirm={handleDeleteCategory}
+                onCancel={() => setDeleteConfirm({ open: false, id: null, name: '' })}
+            />
         </main>
     );
 };
