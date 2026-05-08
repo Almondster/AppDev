@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown } from 'lucide-react';
-import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews } from '../api';
+import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, fetchMatches, createMatch } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import './ClientDashboardPage.css';
 
@@ -80,6 +80,12 @@ const ClientDashboardPage = () => {
     // Confirm modal state
     const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
     const [orderLoading, setOrderLoading] = useState(false);
+
+    // Smart Match state
+    const [matchModal, setMatchModal] = useState(false);
+    const [matchDesc, setMatchDesc] = useState('');
+    const [matchResults, setMatchResults] = useState([]);
+    const [matching, setMatching] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -237,7 +243,7 @@ const ClientDashboardPage = () => {
                 <div className="cm-hero-buttons">
                     <button className={`cm-hero-btn ${viewMode === 'services' ? 'active' : ''}`} onClick={() => { setViewMode('services'); setSearchTerm(''); }}>Find Services</button>
                     <button className={`cm-hero-btn ${viewMode === 'creators' ? 'active' : ''}`} onClick={() => { setViewMode('creators'); setSearchTerm(''); }}>Find Creators</button>
-                    <button className="cm-hero-btn cm-hero-btn--purple"><Sparkles size={14} /> Use Smart Match</button>
+                    <button className="cm-hero-btn cm-hero-btn--purple" onClick={() => setMatchModal(true)}><Sparkles size={14} /> Use Smart Match</button>
                 </div>
 
                 <div className="cm-search-bar">
@@ -350,6 +356,89 @@ const ClientDashboardPage = () => {
                 onConfirm={handlePlaceOrder}
                 onCancel={() => setConfirmModal({ open: false, service: null })}
             />
+
+            {/* Smart Match Modal */}
+            {matchModal && (
+                <div className="confirm-overlay" onClick={() => { setMatchModal(false); setMatchResults([]); }}>
+                    <div className="confirm-modal" style={{ maxWidth: 520, width: '95%' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 className="confirm-modal__title" style={{ margin: 0 }}><Sparkles size={18} style={{ verticalAlign: 'middle', marginRight: 6, color: '#a855f7' }} /> Smart Match</h3>
+                            <button onClick={() => { setMatchModal(false); setMatchResults([]); }} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}><X size={20} /></button>
+                        </div>
+
+                        {matchResults.length === 0 ? (
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                setMatching(true);
+                                try {
+                                    // Create match request and find suitable creators
+                                    const scores = creators.map(c => {
+                                        const cSkills = (c.skills || '').toLowerCase();
+                                        const desc = matchDesc.toLowerCase();
+                                        const words = desc.split(/\s+/);
+                                        const matchCount = words.filter(w => w.length > 3 && cSkills.includes(w)).length;
+                                        return { ...c, score: Math.min(95, 40 + matchCount * 15 + Math.floor(Math.random() * 20)) };
+                                    }).sort((a, b) => b.score - a.score).slice(0, 5);
+                                    setMatchResults(scores);
+
+                                    // Save match to backend
+                                    for (const m of scores.slice(0, 3)) {
+                                        await createMatch({
+                                            client_id: userData?.firebase_uid,
+                                            creator_id: m.user_id,
+                                            match_score: m.score,
+                                            project_description: matchDesc,
+                                            reasons: [`Skill match: ${m.skills || 'General'}`.slice(0, 80)],
+                                            status: 'suggested',
+                                        }).catch(() => {});
+                                    }
+                                } catch { setOrderMsg('Matching failed.'); setOrderMsgType('error'); }
+                                setMatching(false);
+                            }}>
+                                <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1rem' }}>Describe your project and we'll find the best creators for you.</p>
+                                <textarea
+                                    value={matchDesc}
+                                    onChange={e => setMatchDesc(e.target.value)}
+                                    placeholder="e.g. I need a modern logo design for my coffee shop brand with minimalist style..."
+                                    required
+                                    style={{ width: '100%', minHeight: 100, padding: '0.75rem', borderRadius: 10, background: 'var(--bg-input, #18181b)', border: '1px solid var(--border, #27272a)', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', marginBottom: '1rem' }}
+                                />
+                                <div className="confirm-modal__actions">
+                                    <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setMatchModal(false)}>Cancel</button>
+                                    <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" style={{ background: '#a855f7' }} disabled={matching}>
+                                        {matching ? 'Finding matches...' : 'Find Creators'}
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div>
+                                <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: '0 0 1rem' }}>Top matches for: <em>"{matchDesc.slice(0, 60)}..."</em></p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 320, overflowY: 'auto' }}>
+                                    {matchResults.map((m, i) => {
+                                        const user = m.user || {};
+                                        return (
+                                            <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}
+                                                onClick={() => { setMatchModal(false); setMatchResults([]); navigate(`/creator-profile?uid=${m.user_id}`); }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: '50%', background: getAvatarColor(user.display_name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
+                                                    {getInitial(user.display_name)}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{user.display_name || 'Creator'}</p>
+                                                    <p style={{ color: '#71717a', fontSize: '0.8rem', margin: 0 }}>{(m.skills || '').slice(0, 50)}</p>
+                                                </div>
+                                                <div style={{ background: `rgba(168,85,247,${m.score > 70 ? 0.2 : 0.1})`, color: '#c084fc', padding: '4px 10px', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem' }}>
+                                                    {m.score}%
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <button onClick={() => setMatchResults([])} style={{ marginTop: '1rem', padding: '0.5rem 1rem', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#a1a1aa', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>Try Different Description</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {viewMode === 'creators' && (
                 <>

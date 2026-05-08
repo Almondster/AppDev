@@ -10,6 +10,7 @@ const CreatorDashboardPage = () => {
     const [orders, setOrders] = useState([]);
     const [services, setServices] = useState([]);
     const [reviews, setReviews] = useState([]);
+    const [analytics, setAnalytics] = useState({ views: 0, clicks: 0 });
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [serviceForm, setServiceForm] = useState({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
@@ -23,10 +24,11 @@ const CreatorDashboardPage = () => {
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, sRes, rRes] = await Promise.all([
+                const [oRes, sRes, rRes, aRes] = await Promise.all([
                     apiFetchOrders(),
                     apiFetchServices(),
                     fetchReviews(),
+                    fetchAnalytics(),
                 ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
                 if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
@@ -35,6 +37,12 @@ const CreatorDashboardPage = () => {
                     // Filter reviews for this creator
                     const uid = userData?.firebase_uid;
                     setReviews(uid ? allReviews.filter(r => r.reviewee_id === uid) : allReviews);
+                }
+                if (aRes.ok) {
+                    const entries = (aRes.data.results || aRes.data || []).filter(a => a.creator_id === userData?.firebase_uid);
+                    const totalViews = entries.reduce((s, a) => s + (a.views || 0), 0);
+                    const totalClicks = entries.reduce((s, a) => s + (a.clicks || 0), 0);
+                    setAnalytics({ views: totalViews, clicks: totalClicks });
                 }
             } catch (err) {
                 console.error('Failed to load dashboard:', err);
@@ -279,12 +287,12 @@ const CreatorDashboardPage = () => {
                     <div className="interactions-grid">
                         <div className="interaction-card">
                             <div className="ic-top"><Eye size={20} className="ic-icon ic-icon--blue" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
-                            <p className="ic-value">{loading ? '...' : 0}</p>
+                            <p className="ic-value">{loading ? '...' : analytics.views}</p>
                             <p className="ic-label">Views</p>
                         </div>
                         <div className="interaction-card">
                             <div className="ic-top"><MousePointerClick size={20} className="ic-icon ic-icon--orange" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
-                            <p className="ic-value">{loading ? '...' : 0}</p>
+                            <p className="ic-value">{loading ? '...' : analytics.clicks}</p>
                             <p className="ic-label">Clicks</p>
                         </div>
                         <div className="interaction-card">

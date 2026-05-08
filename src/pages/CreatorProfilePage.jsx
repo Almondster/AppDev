@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchCreatorByUid, fetchServices, fetchReviews, fetchFollows, getUserData, createFollow, deleteFollow, createOrder, fetchUsers } from '../api';
-import { ArrowLeft, MapPin, Star, MessageSquare, UserPlus, UserMinus } from 'lucide-react';
+import { fetchCreatorByUid, fetchServices, fetchReviews, fetchFollows, fetchBlocks, getUserData, createFollow, deleteFollow, createBlock, deleteBlock, createReport, createOrder, fetchUsers } from '../api';
+import { ArrowLeft, MapPin, Star, MessageSquare, UserPlus, UserMinus, ShieldBan, Flag } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './CreatorProfilePage.css';
 
@@ -19,6 +19,13 @@ const CreatorProfilePage = () => {
     const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
     const [orderLoading, setOrderLoading] = useState(false);
     const [toast, setToast] = useState('');
+
+    // Block & Report state
+    const [isBlocked, setIsBlocked] = useState(false);
+    const [blockId, setBlockId] = useState(null);
+    const [reportModal, setReportModal] = useState(false);
+    const [reportReason, setReportReason] = useState('');
+    const [reporting, setReporting] = useState(false);
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
@@ -62,6 +69,17 @@ const CreatorProfilePage = () => {
                     if (myFollow) {
                         setIsFollowing(true);
                         setFollowId(myFollow.id);
+                    }
+                }
+
+                // Check block status
+                const bRes = await fetchBlocks();
+                if (bRes.ok) {
+                    const allBlocks = bRes.data.results || bRes.data || [];
+                    const myBlock = allBlocks.find(b => b.blocker_id === userData?.firebase_uid && b.blocked_id === profileUid);
+                    if (myBlock) {
+                        setIsBlocked(true);
+                        setBlockId(myBlock.id);
                     }
                 }
             } catch (err) {
@@ -128,6 +146,34 @@ const CreatorProfilePage = () => {
                 }
             } catch { showToast('Failed to follow.'); }
         }
+    };
+
+    const handleBlock = async () => {
+        if (isBlocked && blockId) {
+            try {
+                await deleteBlock(blockId);
+                setIsBlocked(false);
+                setBlockId(null);
+                showToast('User unblocked');
+            } catch { showToast('Failed to unblock.'); }
+        } else {
+            try {
+                const { ok, data } = await createBlock({ blocker_id: userData?.firebase_uid, blocked_id: profileUid });
+                if (ok) { setIsBlocked(true); setBlockId(data.id); showToast('User blocked'); }
+            } catch { showToast('Failed to block.'); }
+        }
+    };
+
+    const handleReport = async (e) => {
+        e.preventDefault();
+        if (!reportReason.trim()) return;
+        setReporting(true);
+        try {
+            const { ok } = await createReport({ reporter_id: userData?.firebase_uid, reported_id: profileUid, reason: reportReason });
+            if (ok) { showToast('Report submitted. Our team will review it.'); setReportModal(false); setReportReason(''); }
+            else showToast('Failed to submit report.');
+        } catch { showToast('Connection error.'); }
+        setReporting(false);
     };
 
     const handleOrderService = async () => {
@@ -203,6 +249,20 @@ const CreatorProfilePage = () => {
                         onClick={() => navigate(`/messages?to=${profileUid}`)}
                     >
                         <MessageSquare size={14} /> Message
+                    </button>
+                    <button
+                        className="cp-cover-btn"
+                        style={{ background: isBlocked ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 6, color: isBlocked ? '#f87171' : 'inherit' }}
+                        onClick={handleBlock}
+                    >
+                        <ShieldBan size={14} /> {isBlocked ? 'Unblock' : 'Block'}
+                    </button>
+                    <button
+                        className="cp-cover-btn"
+                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 6, color: '#f87171' }}
+                        onClick={() => setReportModal(true)}
+                    >
+                        <Flag size={14} /> Report
                     </button>
                 </div>
             )}
@@ -404,6 +464,29 @@ const CreatorProfilePage = () => {
                 onConfirm={handleOrderService}
                 onCancel={() => setConfirmModal({ open: false, service: null })}
             />
+
+            {/* Report Modal */}
+            {reportModal && (
+                <div className="confirm-overlay" onClick={() => setReportModal(false)}>
+                    <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+                        <h3 className="confirm-modal__title">Report User</h3>
+                        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1rem' }}>Describe the issue. Our team will investigate.</p>
+                        <form onSubmit={handleReport}>
+                            <textarea
+                                value={reportReason}
+                                onChange={e => setReportReason(e.target.value)}
+                                placeholder="Why are you reporting this user?"
+                                required
+                                style={{ width: '100%', minHeight: 100, padding: '0.75rem', borderRadius: 10, background: 'var(--bg-input, #18181b)', border: '1px solid var(--border, #27272a)', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', marginBottom: '1rem' }}
+                            />
+                            <div className="confirm-modal__actions">
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setReportModal(false)}>Cancel</button>
+                                <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" style={{ background: '#ef4444' }} disabled={reporting}>{reporting ? 'Submitting...' : 'Submit Report'}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </section>
     );
 };

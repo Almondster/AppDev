@@ -19,6 +19,16 @@ import ServiceDetailPage from './pages/ServiceDetailPage';
 import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
+// ---------------------------------------------------------------------------
+// Role-based route guard — redirects non-matching roles to "/"
+// ---------------------------------------------------------------------------
+function RoleGuard({ allowedRoles, userRole }) {
+  if (!allowedRoles.includes(userRole)) {
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}
+
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
   if (!isLoggedIn) return <Navigate to="/login" replace />;
   return (
@@ -92,9 +102,11 @@ function App() {
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
 
-            {/* Admin Routes */}
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/disputes" element={<DisputesPage />} />
+            {/* Admin-only Routes — guarded by role */}
+            <Route element={<RoleGuard allowedRoles={['admin']} userRole={userRole} />}>
+              <Route path="/users" element={<UsersPage />} />
+              <Route path="/disputes" element={<DisputesPage />} />
+            </Route>
 
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />

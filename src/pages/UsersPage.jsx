@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BadgeCheck, Search } from 'lucide-react';
-import { fetchUsers as apiFetchUsers } from '../api';
-import api from '../api';
+import { fetchUsers as apiFetchUsers, patchUser } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 
 const UsersPage = () => {
@@ -51,13 +50,17 @@ const UsersPage = () => {
         const { id, action, userName } = confirmModal;
         setActionLoading(true);
         try {
-            const endpoint = action === 'suspend' ? `/users/${id}/suspend/` : `/users/${id}/activate/`;
-            await api.post(endpoint);
-            // Update local state
-            setUsers(prev => prev.map(u =>
-                u.id === id ? { ...u, status: action === 'suspend' ? 'Suspended' : 'Active' } : u
-            ));
-            showToast(`${userName} has been ${action === 'suspend' ? 'suspended' : 'activated'}.`);
+            const newActive = action !== 'suspend';
+            const { ok } = await patchUser(id, { is_active: newActive });
+            if (ok) {
+                // Update local state
+                setUsers(prev => prev.map(u =>
+                    u.id === id ? { ...u, status: newActive ? 'Active' : 'Suspended' } : u
+                ));
+                showToast(`${userName} has been ${action === 'suspend' ? 'suspended' : 'activated'}.`);
+            } else {
+                showToast(`Failed to ${action} user.`);
+            }
         } catch {
             showToast(`Failed to ${action} user.`);
         }
