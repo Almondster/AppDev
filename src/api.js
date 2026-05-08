@@ -34,7 +34,9 @@ async function request(method, path, body = null) {
   const res = await fetch(`${API_BASE}${path}`, opts);
 
   // Handle 401 — token expired or invalid → auto-logout
-  if (res.status === 401) {
+  // Skip for auth endpoints (login/register return 401 for invalid credentials)
+  const isAuthPath = path.startsWith('/auth/');
+  if (res.status === 401 && !isAuthPath) {
     clearToken();
     clearUserData();
     // Redirect to login if not already there
