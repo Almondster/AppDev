@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect, useCallback } from 'react';
-import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, fetchMyServices as apiFetchMyServices, getUserData } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, fetchMyServices as apiFetchMyServices, getUserData } from '../../api';
 
 const ProjectsContext = createContext();
 
@@ -80,7 +80,7 @@ export const ProjectsProvider = ({ children }) => {
 
   const updateProject = (id, data) => {
     setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...data, budget: Number(data.budget) } : p))
+      prev.map((p) => (p.id === id ? { ...p, ...data, budget: data.budget !== undefined ? Number(data.budget) : p.budget } : p))
     );
   };
 

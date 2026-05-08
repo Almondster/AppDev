@@ -90,7 +90,13 @@ const OrdersPage = () => {
                         </button>
                     ))}
                 </div>
-            </header>
+                <label htmlFor="orderSort" className="sr-only">Sort orders</label>
+                <select id="orderSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                    <option value="recent">Sort: Recent</option>
+                    <option value="amount">Sort: Amount</option>
+                    <option value="client">Sort: Client</option>
+                </select>
+            </div>
 
             {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
             {success && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{success}</div>}

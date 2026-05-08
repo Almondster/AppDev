@@ -1,4 +1,6 @@
-const Button = ({ children, variant = 'primary', onClick, icon, disabled = false }) => {
+import { memo } from 'react';
+
+const Button = memo(({ children, variant = 'primary', onClick, icon, disabled = false }) => {
   return (
     <button
       className={`btn btn--${variant}`}
@@ -9,6 +11,8 @@ const Button = ({ children, variant = 'primary', onClick, icon, disabled = false
       {children}
     </button>
   );
-};
+});
+
+Button.displayName = 'Button';
 
 export default Button;
