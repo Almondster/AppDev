@@ -112,7 +112,7 @@ const AdminDashboardPage = () => {
                         <div key={order.id} style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div>
-                                    <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{order.service_title || `Order #${order.id}`}</h3>
+                                    <h3 style={{ color: 'white', fontSize: '1.1rem', marginBottom: '4px' }}>{order.service_title || 'Untitled service'}</h3>
                                     <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>₱{parseFloat(order.price || 0).toLocaleString()} • {order.status}</p>
                                 </div>
                             </div>

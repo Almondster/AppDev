@@ -54,6 +54,7 @@
 }
 
 .od-subtitle {
+  display: none;
   color: #71717a;
   font-size: 0.9rem;
   margin: 0.25rem 0 0;
@@ -72,6 +73,10 @@
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.od-grid--single {
+  grid-template-columns: 1fr;
 }
 
 @media (max-width: 700px) {
@@ -117,6 +122,116 @@
   color: #fff;
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+.od-muted {
+  color: #71717a;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.od-delivery-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  margin-bottom: 1rem;
+}
+
+.od-delivery-box a {
+  color: #818cf8;
+  overflow-wrap: anywhere;
+}
+
+.od-download-link {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #a5b4fc;
+  font-weight: 700;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.od-download-link:hover {
+  color: #c7d2fe;
+}
+
+.od-delivery-box p {
+  margin: 0;
+  color: #d4d4d8;
+  line-height: 1.5;
+}
+
+.od-locked-output {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(250,204,21,0.16);
+  border-radius: 10px;
+  background: rgba(250,204,21,0.08);
+  color: #facc15;
+  font-size: 0.9rem;
+}
+
+.od-delivery-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.od-delivery-form input,
+.od-delivery-form textarea {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  color: #fff;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  outline: none;
+}
+
+.od-delivery-form textarea {
+  resize: vertical;
+}
+
+.od-file-upload {
+  position: relative;
+  min-height: 44px;
+  border: 1px dashed rgba(129, 140, 248, 0.45);
+  border-radius: 8px;
+  background: rgba(99,102,241,0.08);
+  color: #c7d2fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.od-file-upload:hover {
+  border-color: rgba(129, 140, 248, 0.75);
+  background: rgba(99,102,241,0.14);
+  color: #eef2ff;
+}
+
+.od-file-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .od-actions {

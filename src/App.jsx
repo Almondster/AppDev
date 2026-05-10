@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ProjectsProvider } from './context/providers/ProjectsProvider';
 import React from 'react';
 import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import MyGigsPage from './pages/MyGigsPage';
@@ -32,6 +33,8 @@ function RoleGuard({ allowedRoles, userRole }) {
 }
 
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
+  const location = useLocation();
+
   if (!isLoggedIn) return <LandingPage />;
   return (
     <ProjectsProvider>
@@ -39,7 +42,9 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
         <Sidebar userRole={userRole} onLogout={onLogout} />
         <div className="main-content-wrapper">
           <main className="main-content">
-            <Outlet />
+            <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+              <Outlet />
+            </ErrorBoundary>
           </main>
           <footer className="app-footer">
             <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>

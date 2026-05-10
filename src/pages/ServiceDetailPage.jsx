@@ -110,7 +110,12 @@ const ServiceDetailPage = () => {
   }
 
   const creatorUser = creator?.user || {};
-  const creatorName = creatorUser.display_name || creatorUser.username || service.creator_id;
+  const serviceTitle = safeText(service.title || service.label, 'Untitled service');
+  const serviceCreatorId = safeText(service.creator_id, 'Unknown creator');
+  const creatorName = safeText(
+    creatorUser.display_name || creatorUser.full_name || creatorUser.username || serviceCreatorId,
+    'Unknown creator'
+  );
 
   return (
     <main className="service-detail">

@@ -165,8 +165,13 @@ export const deleteService    = (id) => api.delete(`/services/${id}`);
 export const fetchOrders      = () => api.get('/orders/');
 export const fetchOrder       = (id) => api.get(`/orders/${id}`);
 export const createOrder      = (body) => api.post('/orders/', body);
-export const updateOrder      = (id, body) => api.patch(`/orders/${id}`, body);
-export const deleteOrder      = (id) => api.delete(`/orders/${id}`);
+export const updateOrder      = (id, body) => api.patch(`/orders/${id}/`, body);
+export const deleteOrder      = (id) => api.delete(`/orders/${id}/`);
+export const acceptOrder      = (id) => api.post(`/orders/${id}/accept/`);
+export const rejectOrder      = (id, reason) => api.post(`/orders/${id}/reject/`, { reason });
+export const submitPartialOutput = (id, body) => api.post(`/orders/${id}/partial-output/`, body);
+export const submitFinalOutput   = (id, body) => api.post(`/orders/${id}/final-output/`, body);
+export const payOrder            = (id) => api.post(`/orders/${id}/pay/`);
 export const updateOrderStatus = (id, status) =>
   api.post(`/orders/${id}/update_status/`, { status });
 
@@ -186,6 +191,7 @@ export const fetchMessages    = () => api.get('/messages/');
 export const fetchMessage     = (id) => api.get(`/messages/${id}`);
 export const createMessage    = (body) => api.post('/messages/', body);
 export const patchMessage     = (id, body) => api.patch(`/messages/${id}`, body);
+export const updateMessage    = (id, body) => api.patch(`/messages/${id}/`, body);
 export const deleteMessage    = (id) => api.delete(`/messages/${id}`);
 
 // ---------------------------------------------------------------------------
