@@ -10,9 +10,12 @@ import {
     Users,
     AlertTriangle,
     ShieldCheck,
-    Package
+    Package,
+    Sun,
+    Moon,
 } from 'lucide-react';
 import { getUserData } from '../api';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 const Sidebar = ({ userRole, onLogout }) => {
     const userData = getUserData();
@@ -41,6 +44,8 @@ const Sidebar = ({ userRole, onLogout }) => {
         { to: '/disputes', label: 'Disputes', icon: <AlertTriangle size={18} /> },
         { to: '/settings', label: 'Platform Settings', icon: <Settings size={18} /> },
     ];
+
+    const { theme, toggleTheme } = useTheme();
 
     let currentMenu = creatorMenu;
     if (userRole === 'client') currentMenu = clientMenu;
@@ -80,6 +85,10 @@ const Sidebar = ({ userRole, onLogout }) => {
             </nav>
 
             <div className="sidebar-footer">
+                <button className="nav-item" type="button" onClick={toggleTheme} style={{ justifyContent: 'space-between', gap: 10 }}>
+                    {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
+                    <span>{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
                 {userRole !== 'admin' && (
                     <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
                         <Settings size={18} />

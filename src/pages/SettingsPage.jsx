@@ -10,6 +10,7 @@ import {
     createSupportTicket, fetchSupportTickets,
 } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import { useTheme } from '../context/ThemeContext.jsx';
 import './SettingsPage.css';
 
 const TABS = [
@@ -67,14 +68,8 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const [deleteConfirm, setDeleteConfirm] = useState({ open: false, type: '', id: null });
     const [deleting, setDeleting] = useState(false);
 
-    // Theme / Personalization
-    const [theme, setTheme] = useState(() => localStorage.getItem('createch_theme') || 'dark');
+    const { theme, setTheme } = useTheme();
     const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
-
-    useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('createch_theme', theme);
-    }, [theme]);
 
     useEffect(() => {
         document.documentElement.style.setProperty('--accent', accentColor);
@@ -259,13 +254,13 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {activeTab === 'profile' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Profile Information</h3>
+                                <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Profile Information</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.5rem', overflow: 'hidden', flexShrink: 0 }}>
+                                    <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.5rem', overflow: 'hidden', flexShrink: 0 }}>
                                         {profileForm.avatar_url ? <img src={profileForm.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (profileForm.full_name || 'U').charAt(0).toUpperCase()}
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Avatar URL</label>
+                                        <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Avatar URL</label>
                                         <input style={inputStyle} placeholder="https://example.com/photo.jpg" value={profileForm.avatar_url}
                                             onChange={e => setProfileForm(p => ({ ...p, avatar_url: e.target.value }))} />
                                     </div>
@@ -293,23 +288,23 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {activeTab === 'personalization' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={cardStyle}>
-                                <h3 style={{ color: 'var(--text-primary, #fff)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Appearance</h3>
+                                <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Appearance</h3>
 
                                 {/* Theme Toggle */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
                                     <div>
-                                        <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>Theme</p>
-                                        <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '2px 0 0' }}>Switch between light and dark mode</p>
+                                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>Theme</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '2px 0 0' }}>Switch between light and dark mode</p>
                                     </div>
                                     <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
                                         <button onClick={() => setTheme('light')} style={{
                                             padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
-                                            background: theme === 'light' ? '#6366f1' : 'transparent', color: theme === 'light' ? '#fff' : '#a1a1aa',
+                                            background: theme === 'light' ? 'var(--accent)' : 'transparent', color: theme === 'light' ? '#fff' : 'var(--text-muted)',
                                             transition: 'all 0.2s',
                                         }}>Light</button>
                                         <button onClick={() => setTheme('dark')} style={{
                                             padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
-                                            background: theme === 'dark' ? '#6366f1' : 'transparent', color: theme === 'dark' ? '#fff' : '#a1a1aa',
+                                            background: theme === 'dark' ? 'var(--accent)' : 'transparent', color: theme === 'dark' ? '#fff' : 'var(--text-muted)',
                                             transition: 'all 0.2s',
                                         }}>Dark</button>
                                     </div>
@@ -375,8 +370,8 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {/* ─── Security ─── */}
                     {activeTab === 'security' && (
                         <div style={cardStyle}>
-                            <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Security</h3>
-                            <p style={{ color: '#a1a1aa', lineHeight: 1.6 }}>
+                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Security</h3>
+                            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
                                 Your account uses Firebase Authentication. Password changes are managed through your email provider.
                             </p>
                             <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
@@ -386,12 +381,12 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                 </p>
                             </div>
                             <div style={{ marginTop: '1.5rem' }}>
-                                <p style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>Account info:</p>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <span style={{ color: '#71717a' }}>Role</span><span style={{ color: '#fff', fontWeight: 600, textTransform: 'capitalize' }}>{userRole}</span>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Account info:</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Role</span><span style={{ color: 'var(--text-primary)', fontWeight: 600, textTransform: 'capitalize' }}>{userRole}</span>
                                 </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <span style={{ color: '#71717a' }}>UID</span><span style={{ color: '#d4d4d8', fontSize: '0.8rem' }}>{userData?.firebase_uid?.substring(0, 16)}...</span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>UID</span><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{userData?.firebase_uid?.substring(0, 16)}...</span>
                                 </div>
                             </div>
                         </div>
@@ -400,17 +395,17 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {/* ─── Notifications ─── */}
                     {activeTab === 'notifications' && (
                         <div style={cardStyle}>
-                            <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Notification Preferences</h3>
+                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Notification Preferences</h3>
                             {[
                                 { key: 'email', label: 'Email Notifications', desc: 'Receive updates via email' },
                                 { key: 'orders', label: 'Order Updates', desc: 'Get notified about order status changes' },
                                 { key: 'messages', label: 'New Messages', desc: 'Alert when you receive a new message' },
                                 { key: 'marketing', label: 'Marketing & Promotions', desc: 'Tips, offers, and platform news' },
                             ].map(item => (
-                                <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
                                     <div>
-                                        <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
-                                        <p style={{ color: '#71717a', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
+                                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
                                     </div>
                                     <button onClick={() => toggleNotif(item.key)} style={{
                                         width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',

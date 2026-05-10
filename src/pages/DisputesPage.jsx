@@ -114,21 +114,21 @@ const DisputesPage = () => {
             <header className="glass-card" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 24, 27, 0.6))', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Active Disputes</h1>
+                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Active Disputes</h1>
                         <AlertOctagon size={28} color="#ef4444" />
                     </div>
                     <p style={{ color: '#fca5a5', fontSize: '1rem', margin: 0 }}>Arbitrate platform conflicts and review escrow claims.</p>
                 </div>
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'center' }}>
                     <p style={{ color: '#fca5a5', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Open Items</p>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>{disputes.filter(d => d.status !== 'resolved').length}</h2>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>{disputes.filter(d => d.status !== 'resolved').length}</h2>
                 </div>
             </header>
 
             {loading ? (
-                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>Loading disputes...</div>
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading disputes...</div>
             ) : disputes.length === 0 ? (
-                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#71717a' }}>No disputes or support tickets found.</div>
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No disputes or support tickets found.</div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     {disputes.map((dispute) => {
@@ -138,10 +138,10 @@ const DisputesPage = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                                            <h3 style={{ color: '#fff', fontSize: '1.1rem', margin: 0 }}>{dispute.rawId}</h3>
+                                            <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', margin: 0 }}>{dispute.rawId}</h3>
                                             <span style={{ padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600', backgroundColor: st.bg, color: st.color }}>{dispute.status}</span>
                                         </div>
-                                        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Filed on {dispute.date} • From: {dispute.client}</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Filed on {dispute.date} • From: {dispute.client}</p>
                                     </div>
                                     {/* Action buttons */}
                                     {dispute.status !== 'resolved' && (
@@ -159,8 +159,8 @@ const DisputesPage = () => {
                                         </div>
                                     )}
                                 </div>
-                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px' }}>
-                                    <p style={{ color: '#d4d4d8', fontSize: '0.95rem', margin: 0, lineHeight: '1.5' }}>{dispute.issue}</p>
+                                <div style={{ background: 'var(--bg-card)', padding: '1rem', borderRadius: '12px' }}>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: 0, lineHeight: '1.5' }}>{dispute.issue}</p>
                                 </div>
                                 {dispute.adminResponse && (
                                     <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(99,102,241,0.08)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.15)' }}>

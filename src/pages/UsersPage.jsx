@@ -75,30 +75,30 @@ const UsersPage = () => {
             <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>Platform Users</h1>
+                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Platform Users</h1>
                         <BadgeCheck size={28} color="#3b82f6" />
                     </div>
-                    <p style={{ color: '#a1a1aa', fontSize: '1rem', margin: 0 }}>Manage accounts, verify creators, and handle suspensions.</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>Manage accounts, verify creators, and handle suspensions.</p>
                 </div>
-                <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-                    <p style={{ color: '#a1a1aa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Users</p>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#fff', margin: 0 }}>{users.length}</h2>
+                <div style={{ background: 'var(--bg-secondary)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Users</p>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>{users.length}</h2>
                 </div>
             </header>
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem' }}>
-                    <Search size={18} color="#a1a1aa" />
+                <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                    <Search size={18} color="var(--text-muted)" />
                     <label htmlFor="usersSearch" className="sr-only">Search users</label>
-                    <input id="usersSearch" type="text" placeholder="Search users..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none' }} />
+                    <input id="usersSearch" type="text" placeholder="Search users..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none' }} />
                 </div>
             </div>
 
 {loading ? (
-                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: '#a1a1aa' }}>Loading users...</div>
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading users...</div>
             ) : (
                 <div className="glass-card" style={{ overflow: 'hidden' }}>
-                    <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: '#a1a1aa', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         <span>User</span>
                         <span>Role</span>
                         <span>Status</span>
@@ -107,12 +107,12 @@ const UsersPage = () => {
                         <span style={{ textAlign: 'right' }}>More</span>
                     </div>
                     {filtered.map((user) => (
-                        <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center' }}>
+                        <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
-                                <span style={{ color: '#fff', fontWeight: '500' }}>{user.name}</span>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.name}</span>
                             </div>
                             <RoleBadge role={user.role} />
                             <div>
@@ -133,16 +133,16 @@ const UsersPage = () => {
                                     </button>
                                 )}
                             </div>
-                            <span style={{ color: '#a1a1aa', fontSize: '0.85rem' }}>{user.joined}</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{user.joined}</span>
                             <div style={{ textAlign: 'right' }}>
-                                <button style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer' }}>
+                                <button style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                                     <MoreVertical size={18} />
                                 </button>
                             </div>
                         </div>
                     ))}
                     {filtered.length === 0 && (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: '#71717a' }}>No users found.</div>
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No users found.</div>
                     )}
                 </div>
             )}

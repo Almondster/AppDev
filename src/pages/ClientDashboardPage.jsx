@@ -325,7 +325,7 @@ const ClientDashboardPage = () => {
                                                 <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || '3 days'}</span>
                                                 <span className="cm-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
                                             </div>
-                                            <button className="cm-order-btn" style={{ marginTop: 10, padding: '8px 0', borderRadius: 6, background: '#6366f1', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }} onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}>
+                                            <button className="cm-order-btn" style={{ marginTop: 10, padding: '8px 0', borderRadius: 6, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }} onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}>
                                                 Order
                                             </button>
                                         </div>
