@@ -47,6 +47,12 @@ const ServiceDetailPage = () => {
     })();
   }, [id]);
 
+  const safeText = (value, fallback = '') => {
+    if (value === undefined || value === null) return fallback;
+    const text = String(value).trim();
+    return text || fallback;
+  };
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
   const handleOrder = async () => {

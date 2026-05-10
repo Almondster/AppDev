@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, getUserData, rejectOrder, updateOrder } from '../api';
+import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, rejectOrder, updateOrder } from '../api';
 import { Eye, CheckCircle, XCircle } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './ProjectsPage.css';
@@ -243,9 +243,9 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                         </tbody>
                     </table>
                 </div>
-            {false && (
-                /* Kanban View */
-                <div className="gigs-kanban">
+            {/* Kanban View disabled until it is ready */}
+            {/*
+            <div className="gigs-kanban">
                     {['pending', 'active', 'completed', 'cancelled'].map(col => {
                         const colOrders = orders.filter(o => mapStatus(o.status) === col);
                         return (

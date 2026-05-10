@@ -11,7 +11,8 @@ export const useAuth = () => {
     try {
       const stored = localStorage.getItem(AUTH_STORAGE_KEY);
       return stored ? JSON.parse(stored).isLoggedIn : false;
-    } catch (e) {
+    } catch (err) {
+      console.error('Failed to read auth state:', err);
       return false;
     }
   });
@@ -20,7 +21,8 @@ export const useAuth = () => {
     try {
       const stored = localStorage.getItem(AUTH_STORAGE_KEY);
       return stored ? JSON.parse(stored).userRole : 'creator';
-    } catch (e) {
+    } catch (err) {
+      console.error('Failed to read auth role:', err);
       return 'creator';
     }
   });

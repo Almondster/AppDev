@@ -9,7 +9,6 @@ const CreatorDashboardPage = () => {
     const [orders, setOrders] = useState([]);
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [formMsg, setFormMsg] = useState('');
 
     const userData = getUserData();
     const navigate = useNavigate();

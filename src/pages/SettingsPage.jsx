@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
     User, Shield, Bell, CreditCard, HelpCircle, LogOut, Camera, Users, Heart,
     ChevronRight, Mail, Phone, Globe, Palette, Save, X, Send, UserPlus, UserMinus, Trash2,
@@ -10,7 +10,7 @@ import {
     createSupportTicket, fetchSupportTickets,
 } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
-import { useTheme } from '../context/ThemeContext.jsx';
+import { useTheme } from '../context/hooks/useTheme.js';
 import './SettingsPage.css';
 
 const TABS = [
@@ -24,7 +24,6 @@ const TABS = [
 ];
 
 const SettingsPage = ({ userRole, onLogout }) => {
-    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const initialTab = searchParams.get('tab') || 'profile';
     const [activeTab, setActiveTab] = useState(initialTab);
@@ -80,31 +79,51 @@ const SettingsPage = ({ userRole, onLogout }) => {
 
     // Load tab-specific data
     useEffect(() => {
-        if (activeTab === 'followers') {
+        const loadFollowersAndFollowing = async () => {
             setSocialLoading(true);
-            Promise.all([fetchMyFollowers(), fetchMyFollowing()])
-                .then(([fRes, gRes]) => {
-                    if (fRes.ok) setFollowers(fRes.data.results || fRes.data || []);
-                    if (gRes.ok) setFollowing(gRes.data.results || gRes.data || []);
-                })
-                .finally(() => setSocialLoading(false));
-        }
-        if (activeTab === 'payout') {
-            Promise.all([fetchMyWallets(), fetchMyPaymentMethods()])
-                .then(([wRes, pRes]) => {
-                    if (wRes.ok) setWallets(wRes.data.results || wRes.data || []);
-                    if (pRes.ok) setPaymentMethods(pRes.data.results || pRes.data || []);
-                });
-        }
-        if (activeTab === 'help') {
-            fetchSupportTickets().then(res => {
+            try {
+                const [fRes, gRes] = await Promise.all([fetchMyFollowers(), fetchMyFollowing()]);
+                if (fRes.ok) setFollowers(fRes.data.results || fRes.data || []);
+                if (gRes.ok) setFollowing(gRes.data.results || gRes.data || []);
+            } catch (err) {
+                console.error('Failed to load followers:', err);
+            } finally {
+                setSocialLoading(false);
+            }
+        };
+
+        const loadPayoutData = async () => {
+            try {
+                const [wRes, pRes] = await Promise.all([fetchMyWallets(), fetchMyPaymentMethods()]);
+                if (wRes.ok) setWallets(wRes.data.results || wRes.data || []);
+                if (pRes.ok) setPaymentMethods(pRes.data.results || pRes.data || []);
+            } catch (err) {
+                console.error('Failed to load payout data:', err);
+            }
+        };
+
+        const loadHelpTickets = async () => {
+            try {
+                const res = await fetchSupportTickets();
                 if (res.ok) {
                     const all = res.data.results || res.data || [];
                     setTickets(all.filter(t => t.user_id === userData?.firebase_uid));
                 }
-            });
+            } catch (err) {
+                console.error('Failed to load support tickets:', err);
+            }
+        };
+
+        if (activeTab === 'followers') {
+            loadFollowersAndFollowing();
         }
-    }, [activeTab]);
+        if (activeTab === 'payout') {
+            loadPayoutData();
+        }
+        if (activeTab === 'help') {
+            loadHelpTickets();
+        }
+    }, [activeTab, userData?.firebase_uid]);
 
     // ── PROFILE ──
     const handleProfileSave = async () => {

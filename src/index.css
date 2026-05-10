@@ -626,7 +626,25 @@ body {
 
 @media (max-width: 768px) {
   .dashboard-layout {
+    flex-direction: column;
     padding: 0 1rem;
+  }
+
+  .sidebar {
+    width: 100%;
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 0.75rem;
+  }
+
+  .main-content-wrapper {
+    padding: 1rem;
+  }
+
+  .main-content {
+    min-height: auto;
   }
 
   .app-header {

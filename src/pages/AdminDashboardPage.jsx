@@ -56,7 +56,9 @@ const AdminDashboardPage = () => {
                 setCategories(prev => [...prev, data]);
                 setCatForm({ name: '', description: '' });
             }
-        } catch {}
+        } catch (err) {
+            console.error('Failed to add category:', err);
+        }
         setCatLoading(false);
     };
 
@@ -65,7 +67,9 @@ const AdminDashboardPage = () => {
         try {
             const { ok } = await deleteCategory(deleteConfirm.id);
             if (ok) setCategories(prev => prev.filter(c => c.id !== deleteConfirm.id));
-        } catch {}
+        } catch (err) {
+            console.error('Failed to delete category:', err);
+        }
         setDeleting(false);
         setDeleteConfirm({ open: false, id: null, name: '' });
     };;
@@ -92,6 +96,13 @@ const AdminDashboardPage = () => {
                     <div>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Revenue</p>
                         <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>₱{loading ? '...' : totalRevenue.toLocaleString()}</p>
+                    </div>
+                </div>
+                <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                    <div style={{ background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', padding: '1rem', borderRadius: '16px' }}><Package size={28} /></div>
+                    <div>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service Listings</p>
+                        <p style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>{loading ? '...' : serviceCount}</p>
                     </div>
                 </div>
                 <div className="glass-card glass-card--hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', border: '1px solid rgba(239, 68, 68, 0.3)', background: 'var(--bg-secondary)' }}>

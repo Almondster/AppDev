@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
-import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, fetchMatches, createMatch, fetchCategories } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, createMatch, fetchCategories } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import './ClientDashboardPage.css';
 
@@ -61,7 +61,7 @@ const CreatorSkeleton = () => (
 );
 
 const ClientDashboardPage = () => {
-    const [orders, setOrders] = useState([]);
+    const [, setOrders] = useState([]);
     const [services, setServices] = useState([]);
     const [creators, setCreators] = useState([]);
     const [reviews, setReviews] = useState([]);
@@ -438,7 +438,7 @@ const ClientDashboardPage = () => {
                             <div>
                                 <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: '0 0 1rem' }}>Top matches for: <em>"{matchDesc.slice(0, 60)}..."</em></p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 320, overflowY: 'auto' }}>
-                                    {matchResults.map((m, i) => {
+                                    {matchResults.map((m) => {
                                         const user = m.user || {};
                                         return (
                                             <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}

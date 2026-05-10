@@ -108,10 +108,10 @@ const CreatorProfilePage = () => {
         if (Array.isArray(raw)) return raw;
         if (typeof raw === 'string') {
             // Try JSON parse (handles ["a","b"])
-            try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch {}
+            try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch (err) { console.error('Failed to parse skills JSON:', err); }
             // Handle Python-style list: ['a', 'b'] → convert single quotes to double quotes
             if (raw.startsWith('[')) {
-                try { const parsed = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(parsed)) return parsed; } catch {}
+                try { const parsed = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(parsed)) return parsed; } catch (err) { console.error('Failed to parse skills Python list:', err); }
             }
             // Handle postgres text array format: {a,b,c}
             const trimmed = raw.replace(/^\[|\]$|^\{|\}$/g, '').trim();

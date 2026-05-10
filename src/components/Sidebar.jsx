@@ -15,7 +15,7 @@ import {
     Moon,
 } from 'lucide-react';
 import { getUserData } from '../api';
-import { useTheme } from '../context/ThemeContext.jsx';
+import { useTheme } from '../context/hooks/useTheme.js';
 
 const Sidebar = ({ userRole, onLogout }) => {
     const userData = getUserData();
