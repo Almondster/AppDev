@@ -3,6 +3,7 @@ import { BadgeCheck, Search } from 'lucide-react';
 import { fetchUsers as apiFetchUsers } from '../api';
 import api from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import '../styles/UsersPage.css';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
@@ -104,7 +105,7 @@ const UsersPage = () => {
                     {filtered.map((user) => (
                         <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
+                                <div className="users-table__avatar">
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
                                 <span style={{ color: '#fff', fontWeight: '500' }}>{user.name}</span>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ProjectsProvider } from './context/providers/ProjectsProvider';
 import React from 'react';
 import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
+import MyGigsPage from './pages/MyGigsPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/MessagesPage';
@@ -20,6 +22,8 @@ import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
+  const location = useLocation();
+
   if (!isLoggedIn) return <LandingPage />;
   return (
     <ProjectsProvider>
@@ -27,7 +31,9 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
         <Sidebar userRole={userRole} onLogout={onLogout} />
         <div className="main-content-wrapper">
           <main className="main-content">
-            <Outlet />
+            <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+              <Outlet />
+            </ErrorBoundary>
           </main>
           <footer className="app-footer">
             <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
@@ -91,6 +97,8 @@ function App() {
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/my-gigs" element={<MyGigsPage />} />
 
             {/* Admin Routes */}
             <Route path="/users" element={<UsersPage />} />

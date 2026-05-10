@@ -158,17 +158,37 @@ const ClientDashboardPage = () => {
         return 0; // recommended = default
     });
 
+    const safeText = (value, fallback = '') => {
+        if (value === null || value === undefined || value === '') return fallback;
+        return String(value);
+    };
+
+    const getCreatorUid = (creator) => creator?.user_id ?? creator?.user?.id ?? null;
+    const getCreatorUser = (creator) => creator?.user || {};
+    const getCreatorName = (creator) => {
+        const user = getCreatorUser(creator);
+        return safeText(
+            user.display_name ||
+            user.full_name ||
+            user.username ||
+            user.email ||
+            creator?.display_name ||
+            creator?.username,
+            'Creator'
+        );
+    };
+
     const filteredCreators = creators.filter(c => {
-        const safe = v => (typeof v === 'string' ? v : (v ? String(v) : ''));
         const skillsArr = parseSkills(c.skills);
+        const creatorName = getCreatorName(c);
         return (
-            safe(c.display_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            safe(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            skillsArr.some(s => safe(s).toLowerCase().includes(searchTerm.toLowerCase()))
+            safeText(creatorName).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safeText(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            skillsArr.some(s => safeText(s).toLowerCase().includes(searchTerm.toLowerCase()))
         );
     });
 
-    const getCreatorReviews = (uid) => reviews.filter(r => r.reviewee_id === uid);
+    const getCreatorReviews = (uid) => reviews.filter(r => String(r.reviewee_id) === String(uid));
     const getAvgRating = (uid) => {
         const cr = getCreatorReviews(uid);
         return cr.length > 0 ? (cr.reduce((s, r) => s + (r.rating || 0), 0) / cr.length).toFixed(1) : null;
@@ -184,12 +204,7 @@ const ClientDashboardPage = () => {
         setOrderLoading(true);
         try {
             const { ok, data } = await createOrder({
-                client_id: userData?.firebase_uid,
-                creator_id: service.creator_id,
-                service_title: service.title || service.label,
-                price: service.price,
-                status: 'pending',
-                client_name: userData?.full_name || userData?.email,
+                service_id: service.id,
             });
             if (ok) {
                 setOrderMsg(`Order placed for "${service.title || service.label}"!`);
@@ -209,17 +224,18 @@ const ClientDashboardPage = () => {
         setConfirmModal({ open: false, service: null });
     };
 
-    const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
+    const getInitial = (name) => safeText(name, 'U').charAt(0).toUpperCase();
     const getAvatarColor = (name) => {
         const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6', '#f59e0b', '#ec4899'];
+        const text = safeText(name);
         let hash = 0;
-        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash);
         return colors[Math.abs(hash) % colors.length];
     };
 
 
     // Get full creator object for a service
-    const getCreator = (creatorId) => creators.find(cr => cr.user_id === creatorId) || {};
+    const getCreator = (creatorId) => creators.find(cr => String(getCreatorUid(cr)) === String(creatorId)) || {};
 
     return (
         <main className="client-marketplace">
@@ -285,7 +301,8 @@ const ClientDashboardPage = () => {
                         ) : sortedServices.length > 0 ? (
                             sortedServices.map(svc => {
                                 const creator = getCreator(svc.creator_id);
-                                const user = creator.user || {};
+                                const user = getCreatorUser(creator);
+                                const creatorName = getCreatorName(creator);
                                 const rating = getAvgRating(svc.creator_id);
                                 return (
                                     <div key={svc.id} className="cm-service-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/services/${svc.id}`)}>
@@ -302,13 +319,13 @@ const ClientDashboardPage = () => {
                                         <div className="cm-service-info" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             <div className="cm-service-creator" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                                 {user.avatar_url ? (
-                                                    <img className="cm-service-creator-avatar" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #23272f' }} />
+                                                    <img className="cm-service-creator-avatar" src={user.avatar_url} alt={creatorName} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #23272f' }} />
                                                 ) : (
-                                                    <div className="cm-service-creator-avatar" style={{ width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(user.display_name), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, border: '2px solid var(--bg-secondary)' }}>
-                                                        {getInitial(user.display_name)}
+                                                    <div className="cm-service-creator-avatar" style={{ width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(creatorName), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, border: '2px solid var(--bg-secondary)' }}>
+                                                        {getInitial(creatorName)}
                                                     </div>
                                                 )}
-                                                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{user.display_name || svc.creator_id}</span>
+                                                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{creatorName}</span>
                                             </div>
                                             <h4 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{svc.title || svc.label}</h4>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 }}>
@@ -356,7 +373,7 @@ const ClientDashboardPage = () => {
                 {/* Top Creators Section */}
                 {(() => {
                     const topCreators = filteredCreators
-                        .map(c => ({ ...c, _rating: parseFloat(getAvgRating(c.user_id)) || 0 }))
+                        .map(c => ({ ...c, _uid: getCreatorUid(c), _name: getCreatorName(c), _rating: parseFloat(getAvgRating(getCreatorUid(c))) || 0 }))
                         .sort((a, b) => b._rating - a._rating)
                         .slice(0, 3)
                         .filter(c => c._rating > 0);
@@ -368,21 +385,23 @@ const ClientDashboardPage = () => {
                             <h3 className="cm-section-heading">Top Creators</h3>
                             <div className="cm-creators-grid">
                                 {topCreators.map(c => {
-                                    const revCount = getCreatorReviews(c.user_id).length;
+                                    const creatorUid = c._uid;
+                                    const creatorName = c._name;
+                                    const revCount = getCreatorReviews(creatorUid).length;
                                     const skills = parseSkills(c.skills);
-                                    const user = c.user || {};
+                                    const user = getCreatorUser(c);
                                     return (
-                                        <div key={`top-${c.user_id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                        <div key={`top-${creatorUid || c.id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/creator-profile?uid=${creatorUid}`)}>
                                             <div className="cm-creator-header">
                                                 {user.avatar_url ? (
-                                                    <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                                    <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={creatorName} style={{ objectFit: 'cover' }} />
                                                 ) : (
-                                                    <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
-                                                        {getInitial(user.display_name)}
+                                                    <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(creatorName) }}>
+                                                        {getInitial(creatorName)}
                                                     </div>
                                                 )}
                                                 <div className="cm-creator-meta">
-                                                    <h4>{user.display_name || 'Creator'}</h4>
+                                                    <h4>{creatorName}</h4>
                                                     <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
                                                 </div>
                                                 <div className="cm-creator-rating">
@@ -402,7 +421,7 @@ const ClientDashboardPage = () => {
                                                     <span className="cm-creator-rate-label">HOURLY RATE</span>
                                                     <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
                                                 </div>
-                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
                                             </div>
                                         </div>
                                     );
@@ -419,22 +438,24 @@ const ClientDashboardPage = () => {
                         Array.from({ length: 6 }).map((_, i) => <CreatorSkeleton key={i} />)
                     ) : filteredCreators.length > 0 ? (
                         filteredCreators.map(c => {
-                            const rating = getAvgRating(c.user_id);
-                            const revCount = getCreatorReviews(c.user_id).length;
+                            const creatorUid = getCreatorUid(c);
+                            const creatorName = getCreatorName(c);
+                            const rating = getAvgRating(creatorUid);
+                            const revCount = getCreatorReviews(creatorUid).length;
                             const skills = parseSkills(c.skills);
-                            const user = c.user || {};
+                            const user = getCreatorUser(c);
                             return (
-                                <div key={c.user_id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                <div key={creatorUid || c.id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/creator-profile?uid=${creatorUid}`)}>
                                     <div className="cm-creator-header">
                                         {user.avatar_url ? (
-                                            <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                            <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={creatorName} style={{ objectFit: 'cover' }} />
                                         ) : (
-                                            <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
-                                                {getInitial(user.display_name)}
+                                            <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(creatorName) }}>
+                                                {getInitial(creatorName)}
                                             </div>
                                         )}
                                         <div className="cm-creator-meta">
-                                            <h4>{user.display_name || 'Creator'}</h4>
+                                            <h4>{creatorName}</h4>
                                             <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
                                         </div>
                                         <div className="cm-creator-rating">
@@ -454,7 +475,7 @@ const ClientDashboardPage = () => {
                                             <span className="cm-creator-rate-label">HOURLY RATE</span>
                                             <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
                                         </div>
-                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
                                     </div>
                                 </div>
                             );

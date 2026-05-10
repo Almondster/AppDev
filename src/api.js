@@ -129,6 +129,11 @@ export const fetchOrder       = (id) => api.get(`/orders/${id}/`);
 export const createOrder      = (body) => api.post('/orders/', body);
 export const updateOrder      = (id, body) => api.patch(`/orders/${id}/`, body);
 export const deleteOrder      = (id) => api.delete(`/orders/${id}/`);
+export const acceptOrder      = (id) => api.post(`/orders/${id}/accept/`);
+export const rejectOrder      = (id, reason) => api.post(`/orders/${id}/reject/`, { reason });
+export const submitPartialOutput = (id, body) => api.post(`/orders/${id}/partial-output/`, body);
+export const submitFinalOutput   = (id, body) => api.post(`/orders/${id}/final-output/`, body);
+export const payOrder            = (id) => api.post(`/orders/${id}/pay/`);
 
 // Update order status (custom action)
 export const updateOrderStatus = (id, status) =>
@@ -139,6 +144,7 @@ export const createReview     = (body) => api.post('/reviews/', body);
 
 export const fetchMessages    = () => api.get('/messages/');
 export const createMessage    = (body) => api.post('/messages/', body);
+export const updateMessage    = (id, body) => api.patch(`/messages/${id}/`, body);
 
 export const fetchFollows     = () => api.get('/follows/');
 export const createFollow     = (body) => api.post('/follows/', body);

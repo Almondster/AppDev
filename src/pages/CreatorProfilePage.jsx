@@ -24,7 +24,12 @@ const CreatorProfilePage = () => {
 
     const userData = getUserData();
     const profileUid = searchParams.get('uid') || userData?.firebase_uid;
-    const isOwnProfile = profileUid === userData?.firebase_uid;
+    const isOwnProfile = String(profileUid) === String(userData?.firebase_uid);
+    const sameId = (a, b) => String(a) === String(b);
+    const safeText = (value, fallback = '') => {
+        if (value === null || value === undefined || value === '') return fallback;
+        return String(value);
+    };
 
     useEffect(() => {
         (async () => {
@@ -44,24 +49,27 @@ const CreatorProfilePage = () => {
                 // Always try to find the user record as fallback
                 if (uRes.ok) {
                     const users = uRes.data.results || uRes.data || [];
-                    const foundUser = users.find(u => u.firebase_uid === profileUid);
+                    const foundUser = users.find(u => sameId(u.firebase_uid ?? u.id, profileUid));
                     if (foundUser) setUserProfile(foundUser);
                 }
                 if (sRes.ok) {
                     const allServices = sRes.data.results || sRes.data || [];
-                    setServices(allServices.filter(s => s.creator_id === profileUid));
+                    setServices(allServices.filter(s => sameId(s.creator_id, profileUid)));
                 }
                 if (rRes.ok) {
                     const allReviews = rRes.data.results || rRes.data || [];
-                    setReviews(allReviews.filter(r => r.reviewee_id === profileUid));
+                    setReviews(allReviews.filter(r => sameId(r.reviewee_id, profileUid)));
                 }
                 if (fRes.ok) {
                     const allFollows = fRes.data.results || fRes.data || [];
-                    setFollowers(allFollows.filter(f => f.following_id === profileUid).length);
-                    const myFollow = allFollows.find(f => f.follower_id === userData?.firebase_uid && f.following_id === profileUid);
+                    setFollowers(allFollows.filter(f => sameId(f.following_id, profileUid)).length);
+                    const myFollow = allFollows.find(f => sameId(f.follower_id, userData?.firebase_uid) && sameId(f.following_id, profileUid));
                     if (myFollow) {
                         setIsFollowing(true);
                         setFollowId(myFollow.id);
+                    } else {
+                        setIsFollowing(false);
+                        setFollowId(null);
                     }
                 }
             } catch (err) {
@@ -99,9 +107,17 @@ const CreatorProfilePage = () => {
 
     // Use creator.user OR the fetched userProfile as fallback
     const creatorUser = creator?.user || userProfile || {};
-    const displayName = creatorUser.display_name || creatorUser.full_name || creator?.display_name || userData?.full_name || 'User';
+    const displayName = safeText(
+        creatorUser.display_name ||
+        creatorUser.full_name ||
+        creatorUser.username ||
+        creatorUser.email ||
+        creator?.display_name ||
+        creator?.username,
+        'Creator'
+    );
     const avatarUrl = creatorUser.avatar_url || null;
-    const userRole = userProfile?.role || 'client';
+    const userRole = creatorUser.role || userProfile?.role || (creator ? 'creator' : 'client');
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
@@ -136,12 +152,7 @@ const CreatorProfilePage = () => {
         setOrderLoading(true);
         try {
             const { ok } = await createOrder({
-                client_id: userData?.firebase_uid,
-                creator_id: service.creator_id,
-                service_title: service.title || service.label,
-                price: service.price,
-                status: 'pending',
-                client_name: userData?.full_name || userData?.email,
+                service_id: service.id,
             });
             if (ok) {
                 showToast(`Order placed for "${service.title}"!`);
@@ -167,7 +178,7 @@ const CreatorProfilePage = () => {
                     <img src={avatarUrl} alt="Avatar" />
                 ) : (
                     <div className="cp-avatar-placeholder">
-                        {displayName.charAt(0).toUpperCase()}
+                        {safeText(displayName, 'U').charAt(0).toUpperCase()}
                     </div>
                 )}
             </div>

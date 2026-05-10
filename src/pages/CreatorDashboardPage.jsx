@@ -1,21 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchMyCreatorOrders as apiFetchOrders, fetchMyServices as apiFetchServices, fetchReviews, createService, deleteService, getUserData, fetchAnalytics } from '../api';
-import { Eye, MousePointerClick, Briefcase, DollarSign, Clock, Star, Plus, X, Upload, Trash2 } from 'lucide-react';
-import ConfirmModal from '../components/ConfirmModal';
+import { fetchMyCreatorOrders as apiFetchOrders, fetchReviews, getUserData } from '../api';
+import { Eye, MousePointerClick, Briefcase, DollarSign, Clock, Star } from 'lucide-react';
 import './CreatorDashboardPage.css';
 
 const CreatorDashboardPage = () => {
     const [tab, setTab] = useState('overview');
     const [orders, setOrders] = useState([]);
-    const [services, setServices] = useState([]);
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
     const [formMsg, setFormMsg] = useState('');
-    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, title: '' });
-    const [deleteLoading, setDeleteLoading] = useState(false);
 
     const userData = getUserData();
     const navigate = useNavigate();
@@ -23,13 +17,11 @@ const CreatorDashboardPage = () => {
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, sRes, rRes] = await Promise.all([
+                const [oRes, rRes] = await Promise.all([
                     apiFetchOrders(),
-                    apiFetchServices(),
                     fetchReviews(),
                 ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
-                if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
                 if (rRes.ok) {
                     const allReviews = rRes.data.results || rRes.data || [];
                     // Filter reviews for this creator
@@ -45,7 +37,7 @@ const CreatorDashboardPage = () => {
     }, []);
 
     const completed = orders.filter(o => o.status === 'completed');
-    const active = orders.filter(o => ['in_progress', 'accepted', 'delivered', 'pending'].includes(o.status));
+    const active = orders.filter(o => ['pending', 'accepted', 'partial_submitted', 'final_submitted'].includes(o.status));
     const revenue = completed.reduce((s, o) => s + parseFloat(o.price || 0), 0);
     const todayRevenue = completed.filter(o => {
         const d = new Date(o.updated_at || o.created_at);
@@ -56,44 +48,6 @@ const CreatorDashboardPage = () => {
     const avgRating = reviews.length > 0
         ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
         : '0.0';
-
-    const handleCreateService = async (e) => {
-        e.preventDefault();
-        try {
-            const { ok, data } = await createService({
-                creator_id: userData?.firebase_uid,
-                title: serviceForm.title,
-                label: serviceForm.title,
-                description: serviceForm.description,
-                price: parseFloat(serviceForm.price) || 0,
-                category: serviceForm.category,
-                image_url: serviceForm.image_url || null,
-                is_public: true,
-                is_deleted: false,
-            });
-            if (ok) {
-                setServices(prev => [...prev, data]);
-                setServiceForm({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
-                setShowModal(false);
-                setFormMsg('Service created successfully!');
-                setTimeout(() => setFormMsg(''), 3000);
-            }
-        } catch {
-            setFormMsg('Connection error.');
-            setTimeout(() => setFormMsg(''), 3000);
-        }
-    };
-
-    const handleDeleteService = async () => {
-        if (!deleteConfirm.id) return;
-        setDeleteLoading(true);
-        try {
-            await deleteService(deleteConfirm.id);
-            setServices(prev => prev.filter(s => s.id !== deleteConfirm.id));
-        } catch { /* ignore */ }
-        setDeleteLoading(false);
-        setDeleteConfirm({ open: false, id: null, title: '' });
-    };
 
     const renderStars = (rating) => {
         return [...Array(5)].map((_, i) => (
@@ -114,18 +68,15 @@ const CreatorDashboardPage = () => {
             <div className="studio-tab-bar">
                 <div className="studio-tabs">
                     <button className={`studio-tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
-                    <button className={`studio-tab ${tab === 'services' ? 'active' : ''}`} onClick={() => setTab('services')}>My Services</button>
                     <button className={`studio-tab ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')}>Reviews</button>
                 </div>
                 <div className="studio-actions">
                     <button className="studio-btn-outline" onClick={() => navigate('/creator-profile')}>
                         <Star size={14} /> View Public Profile
                     </button>
-                    {tab === 'services' && (
-                        <button className="studio-btn-primary" onClick={() => setShowModal(true)}>
-                            <Plus size={14} /> Add Service
-                        </button>
-                    )}
+                    <button className="studio-btn-outline" onClick={() => navigate('/my-gigs')}>
+                        <Briefcase size={14} /> Manage Gigs
+                    </button>
                 </div>
             </div>
 
@@ -196,25 +147,6 @@ const CreatorDashboardPage = () => {
                             <div className="skeleton" style={{ width: '100%', height: 180, borderRadius: 8 }}></div>
                         </div>
                     </div>
-                </div>
-            )}
-            {loading && tab === 'services' && (
-                <div className="services-grid">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="service-card" style={{ pointerEvents: 'none' }}>
-                            <div className="service-card-img"><div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 0 }}></div></div>
-                            <div className="service-card-body">
-                                <div className="skeleton" style={{ width: '75%', height: 18, marginBottom: 8 }}></div>
-                                <div className="skeleton" style={{ width: '90%', height: 14, marginBottom: 5 }}></div>
-                                <div className="skeleton" style={{ width: '60%', height: 14, marginBottom: 14 }}></div>
-                                <div className="skeleton-divider"></div>
-                                <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
-                                    <div className="skeleton" style={{ width: 70, height: 20 }}></div>
-                                    <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8 }}></div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
                 </div>
             )}
             {loading && tab === 'reviews' && (
@@ -304,12 +236,12 @@ const CreatorDashboardPage = () => {
                         <div className="bottom-card">
                             <div className="bottom-card-header">
                                 <h3>Ongoing Projects</h3>
-                                <a onClick={(e) => { e.preventDefault(); navigate('/projects'); }} href="#" className="view-all-link">View All</a>
+                                <a onClick={(e) => { e.preventDefault(); navigate('/orders'); }} href="#" className="view-all-link">View All</a>
                             </div>
                             <div className="bottom-card-body">
                                 {active.length > 0 ? active.slice(0, 3).map(o => (
-                                    <div key={o.id} className="ongoing-item">
-                                        <span className="ongoing-title">{o.service_title || `Order #${o.id}`}</span>
+                                    <div key={o.id} className="ongoing-item" style={{ cursor: 'pointer' }} onClick={() => navigate(`/orders/${o.id}`)}>
+                                        <span className="ongoing-title">{o.service_title || 'Untitled service'}</span>
                                         <span className="ongoing-status">{o.status?.replace('_', ' ')}</span>
                                     </div>
                                 )) : (
@@ -327,33 +259,6 @@ const CreatorDashboardPage = () => {
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* ─── MY SERVICES TAB ─── */}
-            {!loading && tab === 'services' && (
-                <div className="studio-services">
-                    {services.length === 0 ? (
-                        <p className="empty-text" style={{ marginTop: '3rem' }}>No services found. Create your first service to get started.</p>
-                    ) : (
-                        <div className="services-grid">
-                            {services.map(svc => (
-                                <div key={svc.id} className="service-card">
-                                    <div className="service-card-img">
-                                        {svc.image_url ? <img src={svc.image_url} alt={svc.title} /> : <div className="service-card-placeholder">{(svc.title || 'S').charAt(0)}</div>}
-                                    </div>
-                                    <div className="service-card-body">
-                                        <h4>{svc.title || svc.label}</h4>
-                                        {svc.description && <p className="service-desc">{svc.description.slice(0, 80)}{svc.description.length > 80 ? '...' : ''}</p>}
-                                        <div className="service-card-footer">
-                                            <span className="service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
-                                            <button onClick={() => handleDeleteService(svc.id)} className="service-delete-btn"><Trash2 size={14} /></button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -384,77 +289,6 @@ const CreatorDashboardPage = () => {
                 </div>
             )}
 
-            {/* ─── CREATE SERVICE MODAL ─── */}
-            {showModal && (
-                <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>Create New Service</h2>
-                            <button className="modal-close" onClick={() => setShowModal(false)}><X size={20} /></button>
-                        </div>
-                        <form onSubmit={handleCreateService} className="modal-form">
-                            <label className="modal-label">Cover Image URL</label>
-                            <input type="url" placeholder="https://example.com/my-service-cover.jpg" value={serviceForm.image_url} onChange={e => setServiceForm(p => ({ ...p, image_url: e.target.value }))} style={{ marginBottom: '1rem' }} />
-
-                            <div className="form-row">
-                                <div className="form-col">
-                                    <label className="modal-label">Service Title</label>
-                                    <input type="text" placeholder="e.g. Professional Logo Design" required value={serviceForm.title} onChange={e => setServiceForm(p => ({ ...p, title: e.target.value }))} />
-                                </div>
-                                <div className="form-col">
-                                    <label className="modal-label">Starting Price (₱)</label>
-                                    <input type="number" placeholder="e.g. 5000" required min="1" value={serviceForm.price} onChange={e => setServiceForm(p => ({ ...p, price: e.target.value }))} />
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-col">
-                                    <label className="modal-label">Category</label>
-                                    <select value={serviceForm.category} onChange={e => setServiceForm(p => ({ ...p, category: e.target.value }))}>
-                                        <option>Design & Creative</option>
-                                        <option>Development & IT</option>
-                                        <option>Digital Marketing</option>
-                                        <option>Music & Audio</option>
-                                        <option>Video & Animation</option>
-                                        <option>Writing & Translation</option>
-                                    </select>
-                                </div>
-                                <div className="form-col">
-                                    <label className="modal-label">Subcategory</label>
-                                    <select value={serviceForm.subcategory} onChange={e => setServiceForm(p => ({ ...p, subcategory: e.target.value }))}>
-                                        <option>Logo Design</option>
-                                        <option>Brand Identity</option>
-                                        <option>Illustration</option>
-                                        <option>UI/UX Design</option>
-                                        <option>Print Design</option>
-                                        <option>Other</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <label className="modal-label">Description</label>
-                            <textarea rows={4} placeholder="Describe what you will provide..." value={serviceForm.description} onChange={e => setServiceForm(p => ({ ...p, description: e.target.value }))} />
-
-                            <div className="modal-footer">
-                                <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Cancel</button>
-                                <button type="submit" className="btn-create">Create Service</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Delete Service Confirm */}
-            <ConfirmModal
-                open={deleteConfirm.open}
-                title="Delete Service?"
-                message={<>Are you sure you want to delete <strong>"{deleteConfirm.title}"</strong>? This action cannot be undone.</>}
-                variant="danger"
-                confirmLabel="Delete"
-                loading={deleteLoading}
-                onConfirm={handleDeleteService}
-                onCancel={() => setDeleteConfirm({ open: false, id: null, title: '' })}
-            />
         </main>
     );
 };

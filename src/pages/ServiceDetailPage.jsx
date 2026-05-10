@@ -49,19 +49,19 @@ const ServiceDetailPage = () => {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
 
+  const safeText = (value, fallback = '') => {
+    if (value === null || value === undefined || value === '') return fallback;
+    return String(value);
+  };
+
   const handleOrder = async () => {
     setOrdering(true);
     try {
       const { ok } = await createOrder({
-        client_id: userData?.firebase_uid,
-        creator_id: service.creator_id,
-        service_title: service.title || service.label,
-        price: service.price,
-        status: 'pending',
-        client_name: userData?.full_name || userData?.email,
+        service_id: service.id,
       });
       if (ok) {
-        showToast(`Order placed for "${service.title}"! Redirecting...`);
+        showToast(`Order placed for "${safeText(service.title || service.label, 'Untitled service')}"! Redirecting...`);
         setTimeout(() => navigate('/projects'), 1500);
       } else {
         showToast('Failed to place order.');
@@ -77,11 +77,12 @@ const ServiceDetailPage = () => {
     ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
     : null;
 
-  const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
+  const getInitial = (name) => safeText(name, 'U').charAt(0).toUpperCase();
   const getColor = (name) => {
     const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6'];
+    const text = safeText(name);
     let hash = 0;
-    for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash);
     return colors[Math.abs(hash) % colors.length];
   };
 
@@ -110,14 +111,16 @@ const ServiceDetailPage = () => {
   }
 
   const creatorUser = creator?.user || {};
-  const creatorName = creatorUser.display_name || service.creator_id;
+  const serviceTitle = safeText(service.title || service.label, 'Untitled service');
+  const serviceCreatorId = safeText(service.creator_id, 'Unknown creator');
+  const creatorName = safeText(creatorUser.display_name || creatorUser.full_name || serviceCreatorId, 'Unknown creator');
 
   return (
     <main className="service-detail">
       <div className="sd-breadcrumb">
         <span>Marketplace</span>
         <span className="sd-bc-sep">/</span>
-        <span className="sd-bc-active">{service.title || service.label}</span>
+        <span className="sd-bc-active">{serviceTitle}</span>
       </div>
 
       <button className="sd-back" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button>
@@ -129,13 +132,13 @@ const ServiceDetailPage = () => {
         <div>
           <div className="sd-hero">
             {service.image_url ? (
-              <img src={service.image_url} alt={service.title} className="sd-hero-image" />
+              <img src={service.image_url} alt={serviceTitle} className="sd-hero-image" />
             ) : (
-              <div className="sd-hero-placeholder">{getInitial(service.title)}</div>
+              <div className="sd-hero-placeholder">{getInitial(serviceTitle)}</div>
             )}
             <div className="sd-hero-body">
               {service.category && <span className="sd-category-chip">{service.category}</span>}
-              <h1 className="sd-title">{service.title || service.label}</h1>
+              <h1 className="sd-title">{serviceTitle}</h1>
               <p className="sd-description">{service.description || 'No description provided.'}</p>
 
               <div className="sd-meta-row">
@@ -191,11 +194,11 @@ const ServiceDetailPage = () => {
               </button>
             )}
 
-            <button className="sd-message-btn" onClick={() => navigate(`/messages?to=${service.creator_id}`)}>
+            <button className="sd-message-btn" onClick={() => navigate(`/messages?to=${serviceCreatorId}`)}>
               <MessageSquare size={16} /> Contact Creator
             </button>
 
-            <div className="sd-creator-info" onClick={() => navigate(`/creator-profile?uid=${service.creator_id}`)}>
+            <div className="sd-creator-info" onClick={() => navigate(`/creator-profile?uid=${serviceCreatorId}`)}>
               <div className="sd-creator-avatar" style={{ background: getColor(creatorName) }}>
                 {getInitial(creatorName)}
               </div>
@@ -213,7 +216,7 @@ const ServiceDetailPage = () => {
       <ConfirmModal
         open={confirmOpen}
         title="Place Order?"
-        message={<>You are about to order <strong>"{service.title}"</strong> for <strong>₱{parseFloat(service.price || 0).toLocaleString()}</strong>. The creator will be notified and can accept your order.</>}
+        message={<>You are about to order <strong>"{serviceTitle}"</strong> for <strong>₱{parseFloat(service.price || 0).toLocaleString()}</strong>. The creator will be notified and can accept your order.</>}
         variant="info"
         confirmLabel="Place Order"
         loading={ordering}

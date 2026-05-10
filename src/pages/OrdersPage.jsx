@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, createOrder, deleteOrder, updateOrder, getUserData, updateOrderStatus } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, createOrder, deleteOrder, updateOrder, getUserData, updateOrderStatus, fetchUser } from '../api';
 
 const OrdersPage = () => {
     const [filter, setFilter] = useState('All');
@@ -7,6 +7,35 @@ const OrdersPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+
+    const hydrateParticipantNames = async (list) => {
+        const ids = [...new Set(
+            list
+                .flatMap(o => [
+                    o.client_display_name || o.client_name ? null : o.client_id,
+                    o.creator_display_name || o.creator_name ? null : o.creator_id,
+                ])
+                .filter(Boolean)
+        )];
+
+        if (ids.length === 0) return list;
+
+        const entries = await Promise.all(ids.map(async (id) => {
+            try {
+                const { ok, data } = await fetchUser(id);
+                return [String(id), ok ? data?.username : null];
+            } catch {
+                return [String(id), null];
+            }
+        }));
+        const namesById = Object.fromEntries(entries);
+
+        return list.map(o => ({
+            ...o,
+            client_display_name: o.client_display_name || o.client_name || namesById[String(o.client_id)],
+            creator_display_name: o.creator_display_name || o.creator_name || namesById[String(o.creator_id)],
+        }));
+    };
 
     const loadOrders = async () => {
         setLoading(true);
@@ -19,14 +48,14 @@ const OrdersPage = () => {
                 ? await fetchMyCreatorOrders()
                 : await apiFetchOrders();
             if (ok) {
-                const list = data.results || data || [];
+                const list = await hydrateParticipantNames(data.results || data || []);
                 setOrders(list.map(o => ({
                     id: o.id,
-                    service: o.service_title || `Order #${o.id}`,
+                    service: o.service_title || 'Untitled service',
                     status: capitalize(o.status),
                     amount: `₱${parseFloat(o.price || 0).toLocaleString()}`,
-                    creator: o.creator_display_name || o.creator_name || o.creator_id,
-                    client: o.client_display_name || o.client_name || o.client_id,
+                    creator: o.creator_display_name || o.creator_name || 'Unknown creator',
+                    client: o.client_display_name || o.client_name || 'Unknown client',
                     date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
                 })));
             } else {
@@ -113,7 +142,6 @@ const OrdersPage = () => {
                                 <span className={`badge badge--${order.status.toLowerCase().replace(' ', '-')}`}>{order.status}</span>
                             </div>
                             <div className="card__body">
-                                <p><strong>Order ID:</strong> {order.id}</p>
                                 <p><strong>Amount:</strong> {order.amount}</p>
                                 {order.creator && <p><strong>Creator:</strong> {order.creator}</p>}
                                 {order.date && <p><strong>Date:</strong> {order.date}</p>}
