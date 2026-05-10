@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ProjectsProvider } from './context/providers/ProjectsProvider';
 import React from 'react';
 import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
+import MyGigsPage from './pages/MyGigsPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/MessagesPage';
@@ -19,7 +21,19 @@ import ServiceDetailPage from './pages/ServiceDetailPage';
 import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
+// ---------------------------------------------------------------------------
+// Role-based route guard — redirects non-matching roles to "/"
+// ---------------------------------------------------------------------------
+function RoleGuard({ allowedRoles, userRole }) {
+  if (!allowedRoles.includes(userRole)) {
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}
+
 function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
+  const location = useLocation();
+
   if (!isLoggedIn) return <LandingPage />;
   return (
     <ProjectsProvider>
@@ -27,7 +41,9 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
         <Sidebar userRole={userRole} onLogout={onLogout} />
         <div className="main-content-wrapper">
           <main className="main-content">
-            <Outlet />
+            <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+              <Outlet />
+            </ErrorBoundary>
           </main>
           <footer className="app-footer">
             <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
@@ -91,10 +107,19 @@ function App() {
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
 
-            {/* Admin Routes */}
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/disputes" element={<DisputesPage />} />
+            {/* Creator-only Routes */}
+            <Route element={<RoleGuard allowedRoles={['creator']} userRole={userRole} />}>
+              <Route path="/my-gigs" element={<MyGigsPage userRole={userRole} />} />
+              <Route path="/creator-profile" element={<CreatorProfilePage />} />
+            </Route>
+
+            {/* Admin-only Routes — guarded by role */}
+            <Route element={<RoleGuard allowedRoles={['admin']} userRole={userRole} />}>
+              <Route path="/users" element={<UsersPage />} />
+              <Route path="/disputes" element={<DisputesPage />} />
+            </Route>
 
             <Route path="/messages" element={<MessagesPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
@@ -102,7 +127,6 @@ function App() {
             <Route path="/services/:id" element={<ServiceDetailPage />} />
             <Route path="/settings" element={<SettingsPage userRole={userRole} onLogout={handleLogout} />} />
             <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
-            <Route path="/creator-profile" element={<CreatorProfilePage />} />
           </Route>
 
           {/* Fallback */}

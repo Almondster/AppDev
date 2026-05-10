@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, createOrder, deleteOrder, updateOrder, getUserData, updateOrderStatus } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, deleteOrder, getUserData, updateOrderStatus } from '../api';
 
 const OrdersPage = () => {
     const [filter, setFilter] = useState('All');
+    const [sortBy, setSortBy] = useState('recent');
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -14,7 +15,6 @@ const OrdersPage = () => {
         try {
             const userData = getUserData();
             const role = userData?.role || 'client';
-            // Fetch orders based on user role
             const { ok, data } = role === 'creator'
                 ? await fetchMyCreatorOrders()
                 : await apiFetchOrders();
@@ -25,9 +25,11 @@ const OrdersPage = () => {
                     service: o.service_title || `Order #${o.id}`,
                     status: capitalize(o.status),
                     amount: `₱${parseFloat(o.price || 0).toLocaleString()}`,
+                    rawPrice: parseFloat(o.price || 0),
                     creator: o.creator_display_name || o.creator_name || o.creator_id,
                     client: o.client_display_name || o.client_name || o.client_id,
                     date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
+                    rawDate: o.created_at || '',
                 })));
             } else {
                 setError('Failed to load orders.');
@@ -45,6 +47,12 @@ const OrdersPage = () => {
         ? orders
         : orders.filter(o => o.status === filter);
 
+    const sortedOrders = [...filteredOrders].sort((a, b) => {
+        if (sortBy === 'amount') return b.rawPrice - a.rawPrice;
+        if (sortBy === 'client') return (a.client || '').localeCompare(b.client || '');
+        return new Date(b.rawDate || 0) - new Date(a.rawDate || 0);
+    });
+
     const handleDelete = async (id) => {
         if (!window.confirm('Remove this order?')) return;
         const { ok } = await deleteOrder(id);
@@ -57,7 +65,6 @@ const OrdersPage = () => {
         setTimeout(() => { setSuccess(''); setError(''); }, 3000);
     };
 
-    // Order status update handler
     const [statusUpdating, setStatusUpdating] = useState(null);
     const [statusError, setStatusError] = useState('');
 
@@ -96,7 +103,7 @@ const OrdersPage = () => {
                     <option value="amount">Sort: Amount</option>
                     <option value="client">Sort: Client</option>
                 </select>
-            </div>
+            </header>
 
             {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
             {success && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{success}</div>}
@@ -106,7 +113,7 @@ const OrdersPage = () => {
                 <div className="empty-state"><p>Loading orders...</p></div>
             ) : (
                 <div className="card-grid">
-                    {filteredOrders.length > 0 ? filteredOrders.map(order => (
+                    {sortedOrders.length > 0 ? sortedOrders.map(order => (
                         <div key={order.id} className="card card--clickable">
                             <div className="card__header">
                                 <h3 className="card__title">{order.service}</h3>
@@ -120,7 +127,6 @@ const OrdersPage = () => {
                             </div>
                             <div className="card__actions" style={{ marginTop: '0.75rem' }}>
                                 <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(order.id)}>Remove</button>
-                                {/* Order status update dropdown */}
                                 <select
                                     value={order.status}
                                     onChange={e => handleStatusUpdate(order.id, e.target.value)}

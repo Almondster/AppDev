@@ -1,17 +1,51 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchMyCreatorOrders, fetchMyOrders, getUserData, updateOrder } from '../api';
-import { List, LayoutGrid, MoreVertical, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, getUserData, rejectOrder, updateOrder } from '../api';
+import { Eye, CheckCircle, XCircle } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './ProjectsPage.css';
 
 const STATUS_FILTERS = ['all', 'pending', 'active', 'completed', 'refunded', 'cancelled'];
 
+const hydrateOrderParticipantNames = async (orders) => {
+    const userIds = [...new Set(
+        orders
+            .flatMap(order => [
+                order.client_display_name || order.client_name ? null : order.client_id,
+                order.creator_display_name || order.creator_name ? null : order.creator_id,
+            ])
+            .filter(Boolean)
+    )];
+
+    if (userIds.length === 0) return orders;
+
+    const entries = await Promise.all(userIds.map(async (userId) => {
+        try {
+            const { ok, data } = await fetchUser(userId);
+            return [String(userId), ok ? data?.username : null];
+        } catch {
+            return [String(userId), null];
+        }
+    }));
+    const namesById = Object.fromEntries(entries);
+
+    return orders.map(order => {
+        const clientName = order.client_display_name || order.client_name || namesById[String(order.client_id)];
+        const creatorName = order.creator_display_name || order.creator_name || namesById[String(order.creator_id)];
+        return {
+            ...order,
+            client_name: clientName,
+            client_display_name: clientName,
+            creator_name: creatorName,
+            creator_display_name: creatorName,
+        };
+    });
+};
+
 const ProjectsPage = ({ userRole = 'creator' }) => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
-    const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban'
 
     const userData = getUserData();
     const isCreator = userRole === 'creator';
@@ -26,7 +60,10 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
             try {
                 const fetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
                 const { ok, data } = await fetcher();
-                if (ok) setOrders(data.results || data || []);
+                if (ok) {
+                    const list = data.results || data || [];
+                    setOrders(await hydrateOrderParticipantNames(list));
+                }
             } catch (err) {
                 console.error('Failed to load orders:', err);
             } finally {
@@ -36,7 +73,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     }, []);
 
     const mapStatus = (status) => {
-        if (['in_progress', 'accepted', 'delivered'].includes(status)) return 'active';
+        if (['accepted', 'partial_submitted', 'final_submitted', 'in_progress', 'delivered'].includes(status)) return 'active';
         if (['cancelled', 'rejected'].includes(status)) return 'cancelled';
         return status || 'pending';
     };
@@ -61,9 +98,33 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                     const { ok } = await updateOrder(orderId, { status: newStatus });
                     if (ok) {
                         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-                        setToast(`Order #${orderId} updated to ${newStatus.replace('_', ' ')}`);
+                        setToast(`Order updated to ${newStatus.replace('_', ' ')}`);
                         setTimeout(() => setToast(''), 3000);
                     }
+                } catch {
+                    setToast('Failed to update order.');
+                    setTimeout(() => setToast(''), 3000);
+                }
+                setActionLoading(false);
+                setConfirmModal(prev => ({ ...prev, open: false }));
+            },
+        });
+    };
+
+    const confirmWorkflowAction = (orderId, title, message, action, variant = 'info') => {
+        setConfirmModal({
+            open: true, title, message, variant,
+            action: async () => {
+                setActionLoading(true);
+                try {
+                    const { ok, data } = await action();
+                    if (ok) {
+                        setOrders(prev => prev.map(o => o.id === orderId ? data : o));
+                        setToast('Order updated.');
+                    } else {
+                        setToast(data?.detail || 'Failed to update order.');
+                    }
+                    setTimeout(() => setToast(''), 3000);
                 } catch {
                     setToast('Failed to update order.');
                     setTimeout(() => setToast(''), 3000);
@@ -108,10 +169,6 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                     <h1 className="gigs-title">{isCreator ? 'Project Management' : 'My Orders'}</h1>
                     <p className="gigs-subtitle">{isCreator ? 'Manage your gig pipeline.' : 'Track your active orders and history.'}</p>
                 </div>
-                <div className="gigs-view-toggle">
-                    <button className={`gigs-view-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>List</button>
-                    <button className={`gigs-view-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => setViewMode('kanban')}>Kanban</button>
-                </div>
             </div>
 
             {/* Filter Tabs */}
@@ -124,13 +181,10 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                 ))}
             </div>
 
-            {/* Table / List View */}
-            {viewMode === 'list' ? (
-                <div className="gigs-table-wrapper">
+            <div className="gigs-table-wrapper">
                     <table className="gigs-table">
                         <thead>
                             <tr>
-                                <th>Order ID</th>
                                 <th>Service</th>
                                 <th>{isCreator ? 'Client' : 'Creator'}</th>
                                 <th>Status</th>
@@ -143,7 +197,6 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                             {loading ? (
                                 Array.from({ length: 8 }).map((_, i) => (
                                     <tr key={i} style={{ opacity: 1 - (i * 0.06) }}>
-                                        <td><div className="skeleton" style={{ width: 40, height: 16 }}></div></td>
                                         <td><div className="skeleton" style={{ width: `${55 + (i%4)*12}%`, height: 16 }}></div></td>
                                         <td><div className="skeleton" style={{ width: `${50 + (i%3)*15}%`, height: 16 }}></div></td>
                                         <td><div className="skeleton" style={{ width: 65, height: 24, borderRadius: 6 }}></div></td>
@@ -155,38 +208,42 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                             ) : filtered.length > 0 ? (
                                 filtered.map(order => (
                                     <tr key={order.id}>
-                                        <td className="gigs-cell-id">#{order.id}</td>
-                                        <td className="gigs-cell-service">{order.service_title || `Order #${order.id}`}</td>
-                                        <td className="gigs-cell-user">{isCreator ? (order.client_display_name || order.client_name || order.client_id) : (order.creator_display_name || order.creator_name || order.creator_id)}</td>
+                                        <td className="gigs-cell-service">{order.service_title || 'Untitled service'}</td>
+                                        <td className="gigs-cell-user">{isCreator ? (order.client_display_name || order.client_name || 'Unknown client') : (order.creator_display_name || order.creator_name || 'Unknown creator')}</td>
                                         <td>{getStatusBadge(order.status)}</td>
                                         <td className="gigs-cell-date">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</td>
                                         <td className="gigs-cell-amount">₱{parseFloat(order.price || 0).toLocaleString()}</td>
                                         <td>
                                             <div className="gigs-action-group">
                                                 {isCreator && order.status === 'pending' && (
-                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Accept order" onClick={() => confirmStatusChange(order.id, 'in_progress', 'Accept Order?', 'This order will move to In Progress.', 'info')}>Accept</button>
+                                                    <>
+                                                        <button className="gigs-action-btn gigs-action-btn--accept" title="Accept order" onClick={() => confirmWorkflowAction(order.id, 'Accept Order?', 'This order will move to Accepted.', () => acceptOrder(order.id), 'success')}>Accept</button>
+                                                        <button className="gigs-action-btn gigs-action-btn--cancel" title="Reject order" onClick={() => confirmWorkflowAction(order.id, 'Reject Order?', 'This will decline the client order.', () => rejectOrder(order.id, 'Rejected by creator.'), 'danger')}>Reject</button>
+                                                    </>
                                                 )}
-                                                {isCreator && order.status === 'in_progress' && (
-                                                    <button className="gigs-action-btn gigs-action-btn--deliver" title="Mark as delivered" onClick={() => confirmStatusChange(order.id, 'delivered', 'Mark as Delivered?', 'The client will be notified.', 'success')}>Deliver</button>
+                                                {isCreator && ['accepted', 'partial_submitted', 'final_submitted'].includes(order.status) && (
+                                                    <button className="gigs-action-btn gigs-action-btn--deliver" title="Submit output" onClick={() => navigate(`/orders/${order.id}`)}>Submit output</button>
                                                 )}
-                                                {!isCreator && order.status === 'delivered' && (
-                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Complete order" onClick={() => confirmStatusChange(order.id, 'completed', 'Complete Order?', 'This will release payment to the creator.', 'success')}><CheckCircle size={14} /> Complete</button>
+                                                {!isCreator && order.status === 'final_submitted' && (
+                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Pay and unlock final output" onClick={() => navigate(`/orders/${order.id}`)}><CheckCircle size={14} /> Pay</button>
                                                 )}
-                                                {!['completed','cancelled','refunded','rejected'].includes(order.status) && (
+                                                {!['completed','cancelled','refunded','rejected','final_submitted'].includes(order.status) && (
                                                     <button className="gigs-action-btn gigs-action-btn--cancel" title="Cancel order" onClick={() => confirmStatusChange(order.id, 'cancelled', 'Cancel Order?', 'This action cannot be undone.', 'danger')} style={{ color: '#f87171', fontSize: '0.75rem' }}><XCircle size={14} /></button>
                                                 )}
-                                                <button className="gigs-action-btn" title="View details" onClick={() => navigate(`/orders/${order.id}`)}><Eye size={16} /></button>
+                                                {!(isCreator && ['accepted', 'partial_submitted', 'final_submitted'].includes(order.status)) && (
+                                                    <button className="gigs-action-btn" title="View details" onClick={() => navigate(`/orders/${order.id}`)}><Eye size={16} /></button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan="7" className="gigs-empty">No orders found.</td></tr>
+                                <tr><td colSpan="6" className="gigs-empty">No orders found.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
-            ) : (
+            {false && (
                 /* Kanban View */
                 <div className="gigs-kanban">
                     {['pending', 'active', 'completed', 'cancelled'].map(col => {
@@ -200,7 +257,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                                 <div className="kanban-cards">
                                     {colOrders.map(order => (
                                         <div key={order.id} className="kanban-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/orders/${order.id}`)}>
-                                            <h4>{order.service_title || `Order #${order.id}`}</h4>
+                                            <h4>{order.service_title || 'Untitled service'}</h4>
                                             <p>{isCreator ? (order.client_display_name || order.client_name || '') : (order.creator_display_name || order.creator_name || '')}</p>
                                             <div className="kanban-card-footer">
                                                 <span className="kanban-price">₱{parseFloat(order.price || 0).toLocaleString()}</span>

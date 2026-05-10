@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown } from 'lucide-react';
-import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews } from '../api';
+import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, fetchMatches, createMatch, fetchCategories } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import './ClientDashboardPage.css';
 
@@ -73,6 +73,7 @@ const ClientDashboardPage = () => {
     const [activeCategory, setActiveCategory] = useState('All');
     const [viewMode, setViewMode] = useState('services');
     const [sortBy, setSortBy] = useState('recommended');
+    const [categories, setCategories] = useState([]);
 
     const userData = getUserData();
     const navigate = useNavigate();
@@ -81,14 +82,26 @@ const ClientDashboardPage = () => {
     const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
     const [orderLoading, setOrderLoading] = useState(false);
 
+    // Smart Match state
+    const [matchModal, setMatchModal] = useState(false);
+    const [matchDesc, setMatchDesc] = useState('');
+    const [matchResults, setMatchResults] = useState([]);
+    const [matching, setMatching] = useState(false);
+
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, sRes, cRes, rRes] = await Promise.all([apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews()]);
+                const [oRes, sRes, cRes, rRes, catRes] = await Promise.all([
+                    apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews(), fetchCategories()
+                ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
                 if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
                 if (cRes.ok) setCreators(cRes.data.results || cRes.data || []);
                 if (rRes.ok) setReviews(rRes.data.results || rRes.data || []);
+                if (catRes.ok) {
+                    const catList = catRes.data.results || catRes.data || [];
+                    setCategories(catList.map(c => c.name || c.label || 'Other'));
+                }
             } catch (err) {
                 console.error('Client dashboard error:', err);
                 setError('Failed to load marketplace data. Please try again.');
@@ -116,8 +129,8 @@ const ClientDashboardPage = () => {
 
     const publicServices = services.filter(s => s.is_public !== false);
 
-    // Canonical service categories
-    const CATEGORIES = ['All', 'Design & Creative', 'Development & IT', 'Digital Marketing', 'Music & Audio', 'Video & Animation', 'Writing & Translation'];
+    // Build category filter list from backend data (with 'All' prepended)
+    const CATEGORIES = ['All', ...categories];
 
     // Map old/missing categories to canonical ones based on label or category value
     const inferCategory = (svc) => {
@@ -158,17 +171,37 @@ const ClientDashboardPage = () => {
         return 0; // recommended = default
     });
 
+    const safeText = (value, fallback = '') => {
+        if (value === null || value === undefined || value === '') return fallback;
+        return String(value);
+    };
+
+    const getCreatorUid = (creator) => creator?.user_id ?? creator?.user?.id ?? null;
+    const getCreatorUser = (creator) => creator?.user || {};
+    const getCreatorName = (creator) => {
+        const user = getCreatorUser(creator);
+        return safeText(
+            user.display_name ||
+            user.full_name ||
+            user.username ||
+            user.email ||
+            creator?.display_name ||
+            creator?.username,
+            'Creator'
+        );
+    };
+
     const filteredCreators = creators.filter(c => {
-        const safe = v => (typeof v === 'string' ? v : (v ? String(v) : ''));
         const skillsArr = parseSkills(c.skills);
+        const creatorName = getCreatorName(c);
         return (
-            safe(c.display_name).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            safe(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            skillsArr.some(s => safe(s).toLowerCase().includes(searchTerm.toLowerCase()))
+            safeText(creatorName).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safeText(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            skillsArr.some(s => safeText(s).toLowerCase().includes(searchTerm.toLowerCase()))
         );
     });
 
-    const getCreatorReviews = (uid) => reviews.filter(r => r.reviewee_id === uid);
+    const getCreatorReviews = (uid) => reviews.filter(r => String(r.reviewee_id) === String(uid));
     const getAvgRating = (uid) => {
         const cr = getCreatorReviews(uid);
         return cr.length > 0 ? (cr.reduce((s, r) => s + (r.rating || 0), 0) / cr.length).toFixed(1) : null;
@@ -184,12 +217,7 @@ const ClientDashboardPage = () => {
         setOrderLoading(true);
         try {
             const { ok, data } = await createOrder({
-                client_id: userData?.firebase_uid,
-                creator_id: service.creator_id,
-                service_title: service.title || service.label,
-                price: service.price,
-                status: 'pending',
-                client_name: userData?.full_name || userData?.email,
+                service_id: service.id,
             });
             if (ok) {
                 setOrderMsg(`Order placed for "${service.title || service.label}"!`);
@@ -209,17 +237,18 @@ const ClientDashboardPage = () => {
         setConfirmModal({ open: false, service: null });
     };
 
-    const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
+    const getInitial = (name) => safeText(name, 'U').charAt(0).toUpperCase();
     const getAvatarColor = (name) => {
         const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6', '#f59e0b', '#ec4899'];
+        const text = safeText(name);
         let hash = 0;
-        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        for (let i = 0; i < text.length; i++) hash = text.charCodeAt(i) + ((hash << 5) - hash);
         return colors[Math.abs(hash) % colors.length];
     };
 
 
     // Get full creator object for a service
-    const getCreator = (creatorId) => creators.find(cr => cr.user_id === creatorId) || {};
+    const getCreator = (creatorId) => creators.find(cr => String(getCreatorUid(cr)) === String(creatorId)) || {};
 
     return (
         <main className="client-marketplace">
@@ -237,7 +266,7 @@ const ClientDashboardPage = () => {
                 <div className="cm-hero-buttons">
                     <button className={`cm-hero-btn ${viewMode === 'services' ? 'active' : ''}`} onClick={() => { setViewMode('services'); setSearchTerm(''); }}>Find Services</button>
                     <button className={`cm-hero-btn ${viewMode === 'creators' ? 'active' : ''}`} onClick={() => { setViewMode('creators'); setSearchTerm(''); }}>Find Creators</button>
-                    <button className="cm-hero-btn cm-hero-btn--purple"><Sparkles size={14} /> Use Smart Match</button>
+                    <button className="cm-hero-btn cm-hero-btn--purple" onClick={() => setMatchModal(true)}><Sparkles size={14} /> Use Smart Match</button>
                 </div>
 
                 <div className="cm-search-bar">
@@ -285,7 +314,8 @@ const ClientDashboardPage = () => {
                         ) : sortedServices.length > 0 ? (
                             sortedServices.map(svc => {
                                 const creator = getCreator(svc.creator_id);
-                                const user = creator.user || {};
+                                const user = getCreatorUser(creator);
+                                const creatorName = getCreatorName(creator);
                                 const rating = getAvgRating(svc.creator_id);
                                 return (
                                     <div key={svc.id} className="cm-service-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/services/${svc.id}`)}>
@@ -302,13 +332,13 @@ const ClientDashboardPage = () => {
                                         <div className="cm-service-info" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             <div className="cm-service-creator" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                                 {user.avatar_url ? (
-                                                    <img className="cm-service-creator-avatar" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #23272f' }} />
+                                                    <img className="cm-service-creator-avatar" src={user.avatar_url} alt={creatorName} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '2px solid #23272f' }} />
                                                 ) : (
-                                                    <div className="cm-service-creator-avatar" style={{ width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(user.display_name), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, border: '2px solid var(--bg-secondary)' }}>
-                                                        {getInitial(user.display_name)}
+                                                    <div className="cm-service-creator-avatar" style={{ width: 32, height: 32, borderRadius: '50%', background: getAvatarColor(creatorName), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, border: '2px solid var(--bg-secondary)' }}>
+                                                        {getInitial(creatorName)}
                                                     </div>
                                                 )}
-                                                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{user.display_name || svc.creator_id}</span>
+                                                <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{creatorName}</span>
                                             </div>
                                             <h4 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{svc.title || svc.label}</h4>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 24 }}>
@@ -322,7 +352,7 @@ const ClientDashboardPage = () => {
                                                 )}
                                             </div>
                                             <div className="cm-service-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                                                <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || '3 days'}</span>
+                                                <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || 'N/A'}</span>
                                                 <span className="cm-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
                                             </div>
                                             <button className="cm-order-btn" style={{ marginTop: 10, padding: '8px 0', borderRadius: 6, background: 'var(--accent)', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }} onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}>
@@ -351,12 +381,95 @@ const ClientDashboardPage = () => {
                 onCancel={() => setConfirmModal({ open: false, service: null })}
             />
 
+            {/* Smart Match Modal */}
+            {matchModal && (
+                <div className="confirm-overlay" onClick={() => { setMatchModal(false); setMatchResults([]); }}>
+                    <div className="confirm-modal" style={{ maxWidth: 520, width: '95%' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 className="confirm-modal__title" style={{ margin: 0 }}><Sparkles size={18} style={{ verticalAlign: 'middle', marginRight: 6, color: '#a855f7' }} /> Smart Match</h3>
+                            <button onClick={() => { setMatchModal(false); setMatchResults([]); }} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}><X size={20} /></button>
+                        </div>
+
+                        {matchResults.length === 0 ? (
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                setMatching(true);
+                                try {
+                                    // Create match request and find suitable creators
+                                    const scores = creators.map(c => {
+                                        const cSkills = (c.skills || '').toLowerCase();
+                                        const desc = matchDesc.toLowerCase();
+                                        const words = desc.split(/\s+/);
+                                        const matchCount = words.filter(w => w.length > 3 && cSkills.includes(w)).length;
+                                        return { ...c, score: Math.min(95, 40 + matchCount * 15 + Math.floor(Math.random() * 20)) };
+                                    }).sort((a, b) => b.score - a.score).slice(0, 5);
+                                    setMatchResults(scores);
+
+                                    // Save match to backend
+                                    for (const m of scores.slice(0, 3)) {
+                                        await createMatch({
+                                            client_id: userData?.firebase_uid,
+                                            creator_id: m.user_id,
+                                            match_score: m.score,
+                                            project_description: matchDesc,
+                                            reasons: [`Skill match: ${m.skills || 'General'}`.slice(0, 80)],
+                                            status: 'suggested',
+                                        }).catch(() => {});
+                                    }
+                                } catch { setOrderMsg('Matching failed.'); setOrderMsgType('error'); }
+                                setMatching(false);
+                            }}>
+                                <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1rem' }}>Describe your project and we'll find the best creators for you.</p>
+                                <textarea
+                                    value={matchDesc}
+                                    onChange={e => setMatchDesc(e.target.value)}
+                                    placeholder="e.g. I need a modern logo design for my coffee shop brand with minimalist style..."
+                                    required
+                                    style={{ width: '100%', minHeight: 100, padding: '0.75rem', borderRadius: 10, background: 'var(--bg-input, #18181b)', border: '1px solid var(--border, #27272a)', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', marginBottom: '1rem' }}
+                                />
+                                <div className="confirm-modal__actions">
+                                    <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setMatchModal(false)}>Cancel</button>
+                                    <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" style={{ background: '#a855f7' }} disabled={matching}>
+                                        {matching ? 'Finding matches...' : 'Find Creators'}
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div>
+                                <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: '0 0 1rem' }}>Top matches for: <em>"{matchDesc.slice(0, 60)}..."</em></p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 320, overflowY: 'auto' }}>
+                                    {matchResults.map((m, i) => {
+                                        const user = m.user || {};
+                                        return (
+                                            <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}
+                                                onClick={() => { setMatchModal(false); setMatchResults([]); navigate(`/creator-profile?uid=${m.user_id}`); }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: '50%', background: getAvatarColor(user.display_name), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
+                                                    {getInitial(user.display_name)}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{user.display_name || 'Creator'}</p>
+                                                    <p style={{ color: '#71717a', fontSize: '0.8rem', margin: 0 }}>{(m.skills || '').slice(0, 50)}</p>
+                                                </div>
+                                                <div style={{ background: `rgba(168,85,247,${m.score > 70 ? 0.2 : 0.1})`, color: '#c084fc', padding: '4px 10px', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem' }}>
+                                                    {m.score}%
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <button onClick={() => setMatchResults([])} style={{ marginTop: '1rem', padding: '0.5rem 1rem', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#a1a1aa', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>Try Different Description</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {viewMode === 'creators' && (
                 <>
                 {/* Top Creators Section */}
                 {(() => {
                     const topCreators = filteredCreators
-                        .map(c => ({ ...c, _rating: parseFloat(getAvgRating(c.user_id)) || 0 }))
+                        .map(c => ({ ...c, _uid: getCreatorUid(c), _name: getCreatorName(c), _rating: parseFloat(getAvgRating(getCreatorUid(c))) || 0 }))
                         .sort((a, b) => b._rating - a._rating)
                         .slice(0, 3)
                         .filter(c => c._rating > 0);
@@ -368,21 +481,23 @@ const ClientDashboardPage = () => {
                             <h3 className="cm-section-heading">Top Creators</h3>
                             <div className="cm-creators-grid">
                                 {topCreators.map(c => {
-                                    const revCount = getCreatorReviews(c.user_id).length;
+                                    const creatorUid = c._uid;
+                                    const creatorName = c._name;
+                                    const revCount = getCreatorReviews(creatorUid).length;
                                     const skills = parseSkills(c.skills);
-                                    const user = c.user || {};
+                                    const user = getCreatorUser(c);
                                     return (
-                                        <div key={`top-${c.user_id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                        <div key={`top-${creatorUid || c.id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/creator-profile?uid=${creatorUid}`)}>
                                             <div className="cm-creator-header">
                                                 {user.avatar_url ? (
-                                                    <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                                    <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={creatorName} style={{ objectFit: 'cover' }} />
                                                 ) : (
-                                                    <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
-                                                        {getInitial(user.display_name)}
+                                                    <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(creatorName) }}>
+                                                        {getInitial(creatorName)}
                                                     </div>
                                                 )}
                                                 <div className="cm-creator-meta">
-                                                    <h4>{user.display_name || 'Creator'}</h4>
+                                                    <h4>{creatorName}</h4>
                                                     <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
                                                 </div>
                                                 <div className="cm-creator-rating">
@@ -400,9 +515,9 @@ const ClientDashboardPage = () => {
                                             <div className="cm-creator-footer">
                                                 <div>
                                                     <span className="cm-creator-rate-label">HOURLY RATE</span>
-                                                    <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                                    <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
                                                 </div>
-                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
                                             </div>
                                         </div>
                                     );
@@ -419,22 +534,24 @@ const ClientDashboardPage = () => {
                         Array.from({ length: 6 }).map((_, i) => <CreatorSkeleton key={i} />)
                     ) : filteredCreators.length > 0 ? (
                         filteredCreators.map(c => {
-                            const rating = getAvgRating(c.user_id);
-                            const revCount = getCreatorReviews(c.user_id).length;
+                            const creatorUid = getCreatorUid(c);
+                            const creatorName = getCreatorName(c);
+                            const rating = getAvgRating(creatorUid);
+                            const revCount = getCreatorReviews(creatorUid).length;
                             const skills = parseSkills(c.skills);
-                            const user = c.user || {};
+                            const user = getCreatorUser(c);
                             return (
-                                <div key={c.user_id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/creator-profile?uid=${c.user_id}`)}>
+                                <div key={creatorUid || c.id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/creator-profile?uid=${creatorUid}`)}>
                                     <div className="cm-creator-header">
                                         {user.avatar_url ? (
-                                            <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={user.display_name || 'Avatar'} style={{ objectFit: 'cover' }} />
+                                            <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={creatorName} style={{ objectFit: 'cover' }} />
                                         ) : (
-                                            <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(user.display_name) }}>
-                                                {getInitial(user.display_name)}
+                                            <div className="cm-creator-avatar-lg" style={{ background: getAvatarColor(creatorName) }}>
+                                                {getInitial(creatorName)}
                                             </div>
                                         )}
                                         <div className="cm-creator-meta">
-                                            <h4>{user.display_name || 'Creator'}</h4>
+                                            <h4>{creatorName}</h4>
                                             <span className="cm-creator-location"><MapPin size={12} /> Remote</span>
                                         </div>
                                         <div className="cm-creator-rating">
@@ -452,9 +569,9 @@ const ClientDashboardPage = () => {
                                     <div className="cm-creator-footer">
                                         <div>
                                             <span className="cm-creator-rate-label">HOURLY RATE</span>
-                                            <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                            <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
                                         </div>
-                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
+                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
                                     </div>
                                 </div>
                             );

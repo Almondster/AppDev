@@ -1,28 +1,179 @@
-import { useProjectForm } from '../context/hooks/useProjectForm';
-import Card from '../components/Card';
+import { useEffect, useMemo, useState } from 'react';
+import { ImagePlus, Plus, Search, X } from 'lucide-react';
+import { createService, deleteService, fetchMyServices, getUserData, updateService } from '../api';
 import Button from '../components/Button';
 import '../styles/ProjectsPage.css';
 
-const MyGigsPage = ({ userRole = 'creator' }) => {
-  const {
-    projects,
-    formData,
-    showForm,
-    editingId,
-    searchTerm,
-    sortBy,
-    notification,
-    filtered,
-    handleChange,
-    handleSubmit,
-    handleEdit,
-    handleDelete,
-    handleCancel,
-    toggleForm,
-    setSearchTerm,
-    setSortBy,
-    showNotification,
-  } = useProjectForm('gig');
+const EMPTY_FORM = {
+  title: '',
+  category: 'Design & Creative',
+  description: '',
+  price: '',
+  image_url: '',
+};
+
+const MyGigsPage = () => {
+  const [services, setServices] = useState([]);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('recent');
+
+  const userData = getUserData();
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const loadServices = async () => {
+    setLoading(true);
+    try {
+      const { ok, data } = await fetchMyServices();
+      if (ok) setServices(data.results || data || []);
+      else showNotification(data?.detail || 'Failed to load services.', 'info');
+    } catch {
+      showNotification('Cannot connect to server.', 'info');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadServices();
+  }, []);
+
+  const visibleServices = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const filteredServices = query
+      ? services.filter((service) => [
+        service.title,
+        service.category,
+        service.description,
+        String(service.price || ''),
+      ].some((value) => String(value || '').toLowerCase().includes(query)))
+      : services;
+
+    return [...filteredServices].sort((a, b) => {
+      if (sortBy === 'title') {
+        return String(a.title || '').localeCompare(String(b.title || ''));
+      }
+      if (sortBy === 'price-low') {
+        return Number(a.price || 0) - Number(b.price || 0);
+      }
+      if (sortBy === 'price-high') {
+        return Number(b.price || 0) - Number(a.price || 0);
+      }
+      if (sortBy === 'category') {
+        return String(a.category || '').localeCompare(String(b.category || ''));
+      }
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+  }, [services, searchTerm, sortBy]);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showNotification('Please select an image file.', 'info');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData((prev) => ({ ...prev, image_url: String(reader.result || '') }));
+    };
+    reader.onerror = () => showNotification('Failed to read image file.', 'info');
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    const payload = {
+      creator_id: Number(userData?.firebase_uid || userData?.id || 0),
+      title: formData.title.trim(),
+      category: formData.category,
+      description: formData.description.trim(),
+      price: Number(formData.price || 0),
+      image_url: formData.image_url.trim() || null,
+      is_public: true,
+    };
+
+    try {
+      const { ok, data } = editingId
+        ? await updateService(editingId, payload)
+        : await createService(payload);
+
+      if (ok) {
+        setServices((prev) => editingId
+          ? prev.map((svc) => (svc.id === editingId ? data : svc))
+          : [data, ...prev]);
+        setFormData(EMPTY_FORM);
+        setEditingId(null);
+        setShowForm(false);
+        showNotification(editingId ? 'Service updated.' : 'Service created.');
+      } else {
+        showNotification(data?.detail || 'Failed to save service.', 'info');
+      }
+    } catch {
+      showNotification('Failed to save service.', 'info');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (service) => {
+    setFormData({
+      title: service.title || '',
+      category: service.category || 'Design & Creative',
+      description: service.description || '',
+      price: String(service.price || ''),
+      image_url: service.image_url || '',
+    });
+    setEditingId(service.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (service) => {
+    if (!window.confirm(`Delete "${service.title}"?`)) return;
+    try {
+      const { ok, data } = await deleteService(service.id);
+      if (ok) {
+        setServices((prev) => prev.filter((svc) => svc.id !== service.id));
+        showNotification('Service deleted.', 'info');
+      } else {
+        showNotification(data?.detail || 'Failed to delete service.', 'info');
+      }
+    } catch {
+      showNotification('Failed to delete service.', 'info');
+    }
+  };
+
+  const handleCancel = () => {
+    setFormData(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const toggleForm = () => {
+    if (showForm) {
+      handleCancel();
+    } else {
+      setFormData(EMPTY_FORM);
+      setEditingId(null);
+      setShowForm(true);
+    }
+  };
 
   return (
     <section className="section page-fade">
@@ -33,36 +184,76 @@ const MyGigsPage = ({ userRole = 'creator' }) => {
       )}
 
       <header className="section__header">
-        <h2 className="section__title">My Services ({projects.length})</h2>
-        <Button variant="primary" onClick={toggleForm}>
-          {showForm ? 'Close' : '+ Create New Service'}
-        </Button>
+        <div>
+          <h2 className="section__title">My Gigs ({services.length})</h2>
+          <p style={{ color: '#71717a', margin: '0.35rem 0 0' }}>Create, update, and manage the services clients can order.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Button
+            variant={showForm ? 'danger' : 'primary'}
+            onClick={toggleForm}
+            icon={showForm ? <X size={14} /> : <Plus size={14} />}
+          >
+            {showForm ? 'Close' : 'Create Service'}
+          </Button>
+        </div>
       </header>
 
       {showForm && (
         <form className="form-card page-fade" onSubmit={handleSubmit}>
-          <h3 className="form-card__title">{editingId ? 'Edit Service' : 'Create New Service'}</h3>
+          <h3 className="form-card__title">{editingId ? 'Edit Service' : 'Create Service'}</h3>
           <div className="form-grid">
             <div className="form-group">
               <label className="form-label" htmlFor="title">Service Title *</label>
-              <input className="form-input" type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="e.g., Professional Logo Design, Website Development" required />
+              <input className="form-input" type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="Professional Logo Design" required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="budget">Starting Price (₱)</label>
-              <input className="form-input" type="number" id="budget" name="budget" value={formData.budget} onChange={handleChange} placeholder="0" min="0" />
+              <label className="form-label" htmlFor="price">Starting Price (PHP)</label>
+              <input className="form-input" type="number" id="price" name="price" value={formData.price} onChange={handleChange} placeholder="5000" min="1" required />
             </div>
             <div className="form-group">
-              <label className="form-label" htmlFor="deadline">Delivery Estimate (days)</label>
-              <input className="form-input" type="number" id="deadline" name="deadline" value={formData.deadline} onChange={handleChange} placeholder="e.g., 2, 3, 7" min="1" />
+              <label className="form-label" htmlFor="category">Category</label>
+              <select className="form-input" id="category" name="category" value={formData.category} onChange={handleChange}>
+                <option>Design & Creative</option>
+                <option>Development & IT</option>
+                <option>Digital Marketing</option>
+                <option>Music & Audio</option>
+                <option>Video & Animation</option>
+                <option>Writing & Translation</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="cover_image">Cover Image</label>
+              <label className="gig-upload" htmlFor="cover_image">
+                <span className="gig-upload__icon"><ImagePlus size={18} /></span>
+                <span className="gig-upload__text">Upload cover image</span>
+                <span className="gig-upload__hint">PNG, JPG, or WebP</span>
+              </label>
+              <input className="gig-upload__input" type="file" id="cover_image" accept="image/*" onChange={handleImageUpload} />
             </div>
             <div className="form-group form-group--full">
-              <label className="form-label" htmlFor="description">Service Description</label>
-              <textarea className="form-input form-textarea" id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Describe what you offer to potential clients..." rows="3" />
+              <label className="form-label" htmlFor="description">Description *</label>
+              <textarea className="form-input form-textarea" id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Describe what you offer to clients." rows="4" required />
             </div>
+            {formData.image_url && (
+              <div className="form-group form-group--full">
+                <label className="form-label">Cover Preview</label>
+                <div className="gig-cover-preview">
+                  <img src={formData.image_url} alt="Selected cover" />
+                  <div className="gig-cover-preview__meta">
+                    <span>Cover selected</span>
+                    <button type="button" onClick={() => setFormData((prev) => ({ ...prev, image_url: '' }))}>
+                      <X size={14} />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div className="form-actions">
-            <Button variant="primary" type="submit">{editingId ? 'Update Service' : 'Create Service'}</Button>
-            <Button variant="ghost" type="button" onClick={handleCancel}>Cancel</Button>
+            <button className="btn btn--primary" type="submit" disabled={saving}>{saving ? 'Saving...' : editingId ? 'Update Service' : 'Create Service'}</button>
+            <button className="btn btn--ghost" type="button" onClick={handleCancel}>Cancel</button>
           </div>
         </form>
       )}
@@ -70,41 +261,70 @@ const MyGigsPage = ({ userRole = 'creator' }) => {
       <div className="toolbar">
         <div className="search-wrapper">
           <span className="search-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <Search size={14} />
           </span>
           <label htmlFor="gigsSearch" className="sr-only">Search services</label>
-          <input id="gigsSearch" type="text" className="search-input" placeholder="Search your services..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <input
+            id="gigsSearch"
+            type="text"
+            className="search-input"
+            placeholder="Search your services..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
         <label htmlFor="gigsSort" className="sr-only">Sort services</label>
-        <select id="gigsSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+        <select
+          id="gigsSort"
+          className="form-input sort-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
+          <option value="recent">Sort: Newest</option>
           <option value="title">Sort: Name</option>
-          <option value="budget">Sort: Price</option>
-          <option value="deadline">Sort: Delivery</option>
+          <option value="price-low">Sort: Price low</option>
+          <option value="price-high">Sort: Price high</option>
+          <option value="category">Sort: Category</option>
         </select>
       </div>
 
-      <div className="card-grid">
-        {filtered.length > 0 ? (
-          filtered.map((project) => (
-            <Card key={project.id} title={project.title}>
-              <p><strong>Starting Price:</strong> ₱{project.budget.toLocaleString()}</p>
-
-              {project.deadline && <p><strong>Delivery Estimate:</strong> {project.deadline}</p>}
-              {project.description && <p className="card__desc">{project.description}</p>}
-
-              <div className="card__actions">
-                <button className="card-action-btn card-action-btn--edit" onClick={() => handleEdit(project)}>Edit</button>
-                <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(project.id)}>Delete</button>
-              </div>
-            </Card>
-          ))
-        ) : (
-          <div className="empty-state">
-            <span className="empty-state__icon">🎯</span>
-            <p>No services yet. Create your first service to start earning!</p>
-          </div>
-        )}
-      </div>
+      {loading ? (
+        <div className="empty-state"><p>Loading services...</p></div>
+      ) : (
+        <div className="card-grid my-gigs-grid">
+          {visibleServices.length > 0 ? (
+            visibleServices.map((service) => (
+              <article key={service.id} className="my-gig-card">
+                <div className="my-gig-card__cover">
+                  {service.image_url ? (
+                    <img src={service.image_url} alt={service.title || 'Service cover'} />
+                  ) : (
+                    <div className="my-gig-card__placeholder">
+                      <ImagePlus size={22} />
+                    </div>
+                  )}
+                </div>
+                <div className="my-gig-card__body">
+                  <div className="my-gig-card__top">
+                    <h3>{service.title || 'Untitled service'}</h3>
+                    <span>PHP {Number(service.price || 0).toLocaleString()}</span>
+                  </div>
+                  <p className="my-gig-card__category">{service.category}</p>
+                  {service.description && <p className="my-gig-card__desc">{service.description}</p>}
+                </div>
+                <div className="card__actions my-gig-card__actions">
+                  <button className="card-action-btn card-action-btn--edit" onClick={() => handleEdit(service)}>Edit</button>
+                  <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(service)}>Delete</button>
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="empty-state">
+              <p>{searchTerm ? 'No services match your search.' : 'No services yet. Create your first service to start earning.'}</p>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 };

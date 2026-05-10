@@ -8,6 +8,7 @@ import {
     Users,
     AlertTriangle,
     ShieldCheck,
+    Package,
 } from 'lucide-react';
 import { ROUTES } from './routes';
 
@@ -17,7 +18,8 @@ import { ROUTES } from './routes';
  */
 export const CREATOR_MENU = [
     { to: ROUTES.HOME, label: 'Studio', icon: LayoutGrid },
-    { to: ROUTES.PROJECTS, label: 'My Gigs', icon: Briefcase },
+    { to: ROUTES.MY_GIGS, label: 'My Gigs', icon: Briefcase },
+    { to: ROUTES.ORDERS, label: 'Orders', icon: Package },
     { to: ROUTES.MESSAGES, label: 'Inbox', icon: MessageSquare },
     { to: ROUTES.NOTIFICATIONS, label: 'Notifications', icon: Bell },
     { to: ROUTES.WALLET, label: 'Earnings', icon: Wallet },

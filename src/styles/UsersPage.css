@@ -124,6 +124,9 @@
 .users-table__avatar {
     width: 36px;
     height: 36px;
+    min-width: 36px;
+    flex: 0 0 36px;
+    aspect-ratio: 1 / 1;
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6, #a855f7);
     display: flex;
@@ -132,6 +135,7 @@
     color: #fff;
     font-weight: 600;
     font-size: 0.9rem;
+    line-height: 1;
 }
 
 .users-table__name {

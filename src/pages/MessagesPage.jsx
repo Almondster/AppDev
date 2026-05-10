@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchMyMessages as apiFetchMessages, createMessage, getUserData, fetchUsers } from '../api';
+import { fetchMyMessages as apiFetchMessages, createMessage, getUserData, fetchUser, updateMessage } from '../api';
 import { Search, Paperclip, Send, MoreVertical } from 'lucide-react';
 import './MessagesPage.css';
 
@@ -10,56 +10,118 @@ const MessagesPage = () => {
     const [selectedChat, setSelectedChat] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [newMsg, setNewMsg] = useState('');
+    const [userNames, setUserNames] = useState({});
     const chatEndRef = useRef(null);
+    const userNamesRef = useRef({});
+    const pollingRef = useRef(false);
+    const markingReadRef = useRef(new Set());
     const [searchParams] = useSearchParams();
     const toParam = searchParams.get('to');
 
     const userData = getUserData();
-    const myUid = userData?.firebase_uid;
+    const myUid = String(userData?.firebase_uid || '');
+
+    const getUserName = async (userId) => {
+        if (!userId) return null;
+        const key = String(userId);
+        try {
+            const { ok, data } = await fetchUser(key);
+            return ok ? data?.username : null;
+        } catch {
+            return null;
+        }
+    };
+
+    const hydrateMessages = async (msgs) => {
+        const ids = [...new Set(
+            msgs
+                .flatMap(msg => [
+                    msg.sender_name ? null : msg.sender_id,
+                    msg.receiver_name ? null : msg.receiver_id,
+                ])
+                .filter(Boolean)
+                .map(String)
+        )];
+        const entries = await Promise.all(ids.map(async id => [id, await getUserName(id)]));
+        const names = Object.fromEntries(entries.filter(([, name]) => Boolean(name)));
+        if (Object.keys(names).length) {
+            setUserNames(prev => {
+                const next = { ...prev, ...names };
+                userNamesRef.current = next;
+                return next;
+            });
+        }
+        return msgs.map(msg => ({
+            ...msg,
+            sender_id: String(msg.sender_id),
+            receiver_id: String(msg.receiver_id),
+            sender_name: msg.sender_name || names[String(msg.sender_id)],
+            receiver_name: msg.receiver_name || names[String(msg.receiver_id)],
+        }));
+    };
 
     useEffect(() => {
-        (async () => {
+        let cancelled = false;
+
+        const loadMessages = async (showInitialLoader = false) => {
+            if (pollingRef.current) return;
+            pollingRef.current = true;
+            if (showInitialLoader) setLoading(true);
             try {
                 const { ok, data } = await apiFetchMessages();
                 if (ok) {
-                    const msgs = data.results || data || [];
+                    const msgs = await hydrateMessages(data.results || data || []);
+                    if (cancelled) return;
                     setMessages(msgs);
                     // If ?to= param, auto-select that conversation
                     if (toParam) {
-                        const hasConv = msgs.some(m => m.sender_id === toParam || m.receiver_id === toParam);
-                        if (hasConv) {
-                            setSelectedChat(toParam);
-                        } else {
-                            // Create a placeholder conversation entry
-                            try {
-                                const uRes = await fetchUsers();
-                                if (uRes.ok) {
-                                    const users = uRes.data.results || uRes.data || [];
-                                    const targetUser = users.find(u => u.firebase_uid === toParam);
-                                    if (targetUser) {
-                                        // Set a placeholder so the conversation appears
-                                        setSelectedChat(toParam);
-                                    }
-                                }
-                            } catch { /* ignore */ }
-                            setSelectedChat(toParam);
+                        const targetId = String(toParam);
+                        if (!userNamesRef.current[targetId]) {
+                            const name = await getUserName(targetId);
+                            if (cancelled) return;
+                            if (name) {
+                                setUserNames(prev => {
+                                    const next = { ...prev, [targetId]: name };
+                                    userNamesRef.current = next;
+                                    return next;
+                                });
+                            }
                         }
+                        setSelectedChat(targetId);
                     }
                 }
             } catch (err) {
                 console.error('Failed to load messages:', err);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
+                pollingRef.current = false;
             }
-        })();
+        };
+
+        loadMessages(true);
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                loadMessages(false);
+            }
+        }, 2500);
+        const handleFocus = () => loadMessages(false);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [toParam]);
 
     // Group messages into conversations by the other user
     const conversations = messages.reduce((acc, msg) => {
-        const otherId = msg.sender_id === myUid ? msg.receiver_id : msg.sender_id;
-        const otherName = msg.sender_id === myUid
-            ? (msg.receiver_name || msg.receiver_id)
-            : (msg.sender_name || msg.sender_id);
+        const senderId = String(msg.sender_id);
+        const receiverId = String(msg.receiver_id);
+        const otherId = senderId === myUid ? receiverId : senderId;
+        const otherName = senderId === myUid
+            ? (msg.receiver_name || userNames[receiverId] || 'Loading...')
+            : (msg.sender_name || userNames[senderId] || 'Loading...');
         if (!acc[otherId]) {
             acc[otherId] = { userId: otherId, userName: otherName, messages: [] };
         }
@@ -67,9 +129,14 @@ const MessagesPage = () => {
         return acc;
     }, {});
 
-    const convList = Object.values(conversations).sort((a, b) => {
-        const aTime = a.messages[a.messages.length - 1]?.created_at || '';
-        const bTime = b.messages[b.messages.length - 1]?.created_at || '';
+    const convList = [
+        ...Object.values(conversations),
+        ...(selectedChat && !conversations[selectedChat]
+            ? [{ userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] }]
+            : []),
+    ].sort((a, b) => {
+        const aTime = a.messages[a.messages.length - 1]?.timestamp || '';
+        const bTime = b.messages[b.messages.length - 1]?.timestamp || '';
         return new Date(bTime) - new Date(aTime);
     });
 
@@ -78,24 +145,50 @@ const MessagesPage = () => {
     );
 
     // If toParam set but no conversation exists, create a virtual entry
-    const activeConv = selectedChat ? (conversations[selectedChat] || { userId: selectedChat, userName: selectedChat, messages: [] }) : null;
-    const activeMessages = activeConv?.messages?.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) || [];
+    const activeConv = selectedChat ? (conversations[selectedChat] || { userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] }) : null;
+    const activeMessages = activeConv?.messages?.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) || [];
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [activeMessages.length, selectedChat]);
+
+    useEffect(() => {
+        if (!selectedChat || activeMessages.length === 0) return;
+
+        const unreadIncoming = activeMessages.filter(msg =>
+            msg.id &&
+            !msg.is_read &&
+            String(msg.sender_id) === String(selectedChat) &&
+            String(msg.receiver_id) === myUid &&
+            !markingReadRef.current.has(msg.id)
+        );
+
+        if (unreadIncoming.length === 0) return;
+
+        unreadIncoming.forEach(msg => markingReadRef.current.add(msg.id));
+        setMessages(prev => prev.map(msg =>
+            unreadIncoming.some(unread => unread.id === msg.id)
+                ? { ...msg, is_read: true }
+                : msg
+        ));
+
+        Promise.all(unreadIncoming.map(msg => updateMessage(msg.id, { is_read: true })))
+            .finally(() => {
+                unreadIncoming.forEach(msg => markingReadRef.current.delete(msg.id));
+            });
+    }, [activeMessages, selectedChat, myUid]);
 
     const handleSend = async (e) => {
         e.preventDefault();
         if (!newMsg.trim() || !selectedChat) return;
         try {
             const { ok, data } = await createMessage({
-                sender_id: myUid,
                 receiver_id: selectedChat,
                 content: newMsg.trim(),
             });
             if (ok) {
-                setMessages(prev => [...prev, data]);
+                const hydrated = await hydrateMessages([data]);
+                setMessages(prev => [...prev, hydrated[0]]);
                 setNewMsg('');
             }
         } catch { /* ignore */ }
@@ -151,7 +244,7 @@ const MessagesPage = () => {
                         ) : (
                             filteredConvs.map(conv => {
                                 const lastMsg = conv.messages[conv.messages.length - 1];
-                                const unread = conv.messages.some(m => !m.is_read && m.sender_id !== myUid);
+                                const unread = conv.messages.some(m => !m.is_read && String(m.sender_id) !== myUid);
                                 return (
                                     <div
                                         key={conv.userId}
@@ -164,7 +257,7 @@ const MessagesPage = () => {
                                         <div className="msg-conv-info">
                                             <div className="msg-conv-top">
                                                 <span className="msg-conv-name">{conv.userName}</span>
-                                                <span className="msg-conv-time">{formatTime(lastMsg?.created_at)}</span>
+                                                <span className="msg-conv-time">{formatTime(lastMsg?.timestamp)}</span>
                                             </div>
                                             <p className="msg-conv-preview">{lastMsg?.content?.slice(0, 45) || '...'}{(lastMsg?.content?.length || 0) > 45 ? '...' : ''}</p>
                                         </div>
@@ -194,10 +287,10 @@ const MessagesPage = () => {
                             </div>
                             <div className="msg-chat-body">
                                 {activeMessages.map(msg => (
-                                    <div key={msg.id} className={`msg-bubble-row ${msg.sender_id === myUid ? 'mine' : 'theirs'}`}>
-                                        <div className={`msg-bubble ${msg.sender_id === myUid ? 'msg-bubble--mine' : 'msg-bubble--theirs'}`}>
+                                    <div key={msg.id} className={`msg-bubble-row ${String(msg.sender_id) === myUid ? 'mine' : 'theirs'}`}>
+                                        <div className={`msg-bubble ${String(msg.sender_id) === myUid ? 'msg-bubble--mine' : 'msg-bubble--theirs'}`}>
                                             <p>{msg.content || msg.message || ''}</p>
-                                            <span className="msg-bubble-time">{formatTime(msg.created_at)}</span>
+                                            <span className="msg-bubble-time">{formatTime(msg.timestamp)}</span>
                                         </div>
                                     </div>
                                 ))}
