@@ -7,6 +7,7 @@ export const ROUTES = {
     LOGIN: '/login',
     LANDING: '/landing',
     PROJECTS: '/projects',
+    MY_GIGS: '/my-gigs',
     MESSAGES: '/messages',
     NOTIFICATIONS: '/notifications',
     ORDERS: '/orders',

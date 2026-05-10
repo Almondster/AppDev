@@ -51,7 +51,7 @@ const AdminDashboardPage = () => {
         e.preventDefault();
         setCatLoading(true);
         try {
-            const { ok, data } = await createCategory({ name: catForm.name, description: catForm.description });
+            const { ok, data } = await createCategory({ label: catForm.name, icon: catForm.description });
             if (ok) {
                 setCategories(prev => [...prev, data]);
                 setCatForm({ name: '', description: '' });
@@ -131,9 +131,9 @@ const AdminDashboardPage = () => {
                 </div>
                 <div className="glass-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <input value={catForm.name} onChange={e => setCatForm(p => ({ ...p, name: e.target.value }))} placeholder="Category name" required
+                        <input value={catForm.name} onChange={e => setCatForm(p => ({ ...p, name: e.target.value }))} placeholder="Category label" required
                             style={{ flex: 1, padding: '0.6rem 0.9rem', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem', minWidth: 150 }} />
-                        <input value={catForm.description} onChange={e => setCatForm(p => ({ ...p, description: e.target.value }))} placeholder="Description (optional)"
+                        <input value={catForm.description} onChange={e => setCatForm(p => ({ ...p, description: e.target.value }))} placeholder="Icon (optional)"
                             style={{ flex: 2, padding: '0.6rem 0.9rem', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.9rem', minWidth: 200 }} />
                         <button type="submit" disabled={catLoading} style={{ padding: '0.6rem 1.2rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                             <Plus size={16} /> {catLoading ? 'Adding...' : 'Add'}
@@ -146,8 +146,8 @@ const AdminDashboardPage = () => {
                             {categories.map(c => (
                                 <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div>
-                                        <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.9rem' }}>{c.name}</p>
-                                        {c.description && <p style={{ color: '#71717a', fontSize: '0.8rem', margin: '2px 0 0' }}>{c.description}</p>}
+                                        <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.9rem' }}>{c.label || c.name}</p>
+                                        {(c.icon || c.description) && <p style={{ color: '#71717a', fontSize: '0.8rem', margin: '2px 0 0' }}>{c.icon || c.description}</p>}
                                     </div>
                                     <button onClick={() => setDeleteConfirm({ open: true, id: c.id, name: c.name })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
                                 </div>

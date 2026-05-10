@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchMyCreatorOrders as apiFetchOrders, fetchMyServices as apiFetchServices, fetchReviews, createService, deleteService, getUserData, fetchAnalytics } from '../api';
+import { fetchMyCreatorOrders as apiFetchOrders, fetchMyServices as apiFetchServices, fetchReviews, createService, deleteService, getUserData, fetchAnalytics, fetchCategories } from '../api';
 import { Eye, MousePointerClick, Briefcase, DollarSign, Clock, Star, Plus, X, Upload, Trash2 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './CreatorDashboardPage.css';
@@ -13,7 +13,8 @@ const CreatorDashboardPage = () => {
     const [analytics, setAnalytics] = useState({ views: 0, clicks: 0 });
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
+    const [serviceForm, setServiceForm] = useState({ title: '', price: '', category: '', description: '', image_url: '' });
+    const [categoryOptions, setCategoryOptions] = useState([]);
     const [formMsg, setFormMsg] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, title: '' });
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -24,11 +25,12 @@ const CreatorDashboardPage = () => {
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, sRes, rRes, aRes] = await Promise.all([
+                const [oRes, sRes, rRes, aRes, catRes] = await Promise.all([
                     apiFetchOrders(),
                     apiFetchServices(),
                     fetchReviews(),
                     fetchAnalytics(),
+                    fetchCategories(),
                 ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
                 if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
@@ -43,6 +45,10 @@ const CreatorDashboardPage = () => {
                     const totalViews = entries.reduce((s, a) => s + (a.views || 0), 0);
                     const totalClicks = entries.reduce((s, a) => s + (a.clicks || 0), 0);
                     setAnalytics({ views: totalViews, clicks: totalClicks });
+                }
+                if (catRes.ok) {
+                    const catList = catRes.data.results || catRes.data || [];
+                    setCategoryOptions(catList.map(c => c.name || c.label || 'Other'));
                 }
             } catch (err) {
                 console.error('Failed to load dashboard:', err);
@@ -81,7 +87,7 @@ const CreatorDashboardPage = () => {
             });
             if (ok) {
                 setServices(prev => [...prev, data]);
-                setServiceForm({ title: '', price: '', category: 'Design & Creative', subcategory: 'Logo Design', description: '', image_url: '' });
+                setServiceForm({ title: '', price: '', category: '', description: '', image_url: '' });
                 setShowModal(false);
                 setFormMsg('Service created successfully!');
                 setTimeout(() => setFormMsg(''), 3000);
@@ -419,23 +425,10 @@ const CreatorDashboardPage = () => {
                                 <div className="form-col">
                                     <label className="modal-label">Category</label>
                                     <select value={serviceForm.category} onChange={e => setServiceForm(p => ({ ...p, category: e.target.value }))}>
-                                        <option>Design & Creative</option>
-                                        <option>Development & IT</option>
-                                        <option>Digital Marketing</option>
-                                        <option>Music & Audio</option>
-                                        <option>Video & Animation</option>
-                                        <option>Writing & Translation</option>
-                                    </select>
-                                </div>
-                                <div className="form-col">
-                                    <label className="modal-label">Subcategory</label>
-                                    <select value={serviceForm.subcategory} onChange={e => setServiceForm(p => ({ ...p, subcategory: e.target.value }))}>
-                                        <option>Logo Design</option>
-                                        <option>Brand Identity</option>
-                                        <option>Illustration</option>
-                                        <option>UI/UX Design</option>
-                                        <option>Print Design</option>
-                                        <option>Other</option>
+                                        <option value="">Select a category</option>
+                                        {categoryOptions.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>

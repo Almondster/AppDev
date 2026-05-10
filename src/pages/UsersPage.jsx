@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { BadgeCheck, Search } from 'lucide-react';
+import { BadgeCheck, Search, MoreVertical } from 'lucide-react';
 import { fetchUsers as apiFetchUsers, patchUser } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import RoleBadge from '../components/RoleBadge';
 import '../styles/UsersPage.css';
 
 const UsersPage = () => {

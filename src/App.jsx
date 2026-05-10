@@ -5,6 +5,8 @@ import React from 'react';
 import Sidebar from './components/Sidebar';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
+import MyGigsPage from './pages/MyGigsPage';
+import OrdersPage from './pages/OrdersPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import MessagesPage from './pages/MessagesPage';
@@ -102,6 +104,13 @@ function App() {
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
 
+            {/* Creator-only Routes */}
+            <Route element={<RoleGuard allowedRoles={['creator']} userRole={userRole} />}>
+              <Route path="/my-gigs" element={<MyGigsPage userRole={userRole} />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/creator-profile" element={<CreatorProfilePage />} />
+            </Route>
+
             {/* Admin-only Routes — guarded by role */}
             <Route element={<RoleGuard allowedRoles={['admin']} userRole={userRole} />}>
               <Route path="/users" element={<UsersPage />} />
@@ -114,7 +123,6 @@ function App() {
             <Route path="/services/:id" element={<ServiceDetailPage />} />
             <Route path="/settings" element={<SettingsPage userRole={userRole} onLogout={handleLogout} />} />
             <Route path="/wallet" element={<WalletPage userRole={userRole} />} />
-            <Route path="/creator-profile" element={<CreatorProfilePage />} />
           </Route>
 
           {/* Fallback */}

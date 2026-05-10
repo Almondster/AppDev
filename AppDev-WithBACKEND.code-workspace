@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "../CREATECH-BACKEND-FASTAPI"
+		},
+		{
+			"path": "../createch-web-app"
 		}
 	],
 	"settings": {}

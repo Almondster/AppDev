@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
-import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, fetchMatches, createMatch } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, fetchMatches, createMatch, fetchCategories } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import './ClientDashboardPage.css';
 
@@ -73,6 +73,7 @@ const ClientDashboardPage = () => {
     const [activeCategory, setActiveCategory] = useState('All');
     const [viewMode, setViewMode] = useState('services');
     const [sortBy, setSortBy] = useState('recommended');
+    const [categories, setCategories] = useState([]);
 
     const userData = getUserData();
     const navigate = useNavigate();
@@ -90,11 +91,17 @@ const ClientDashboardPage = () => {
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, sRes, cRes, rRes] = await Promise.all([apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews()]);
+                const [oRes, sRes, cRes, rRes, catRes] = await Promise.all([
+                    apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews(), fetchCategories()
+                ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
                 if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
                 if (cRes.ok) setCreators(cRes.data.results || cRes.data || []);
                 if (rRes.ok) setReviews(rRes.data.results || rRes.data || []);
+                if (catRes.ok) {
+                    const catList = catRes.data.results || catRes.data || [];
+                    setCategories(catList.map(c => c.name || c.label || 'Other'));
+                }
             } catch (err) {
                 console.error('Client dashboard error:', err);
                 setError('Failed to load marketplace data. Please try again.');
@@ -122,8 +129,8 @@ const ClientDashboardPage = () => {
 
     const publicServices = services.filter(s => s.is_public !== false);
 
-    // Canonical service categories
-    const CATEGORIES = ['All', 'Design & Creative', 'Development & IT', 'Digital Marketing', 'Music & Audio', 'Video & Animation', 'Writing & Translation'];
+    // Build category filter list from backend data (with 'All' prepended)
+    const CATEGORIES = ['All', ...categories];
 
     // Map old/missing categories to canonical ones based on label or category value
     const inferCategory = (svc) => {
@@ -328,7 +335,7 @@ const ClientDashboardPage = () => {
                                                 )}
                                             </div>
                                             <div className="cm-service-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                                                <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || '3 days'}</span>
+                                                <span className="cm-service-delivery"><Clock size={12} /> {svc.delivery_time || 'N/A'}</span>
                                                 <span className="cm-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
                                             </div>
                                             <button className="cm-order-btn" style={{ marginTop: 10, padding: '8px 0', borderRadius: 6, background: '#6366f1', color: '#fff', fontWeight: 700, fontSize: 15, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }} onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}>
@@ -489,7 +496,7 @@ const ClientDashboardPage = () => {
                                             <div className="cm-creator-footer">
                                                 <div>
                                                     <span className="cm-creator-rate-label">HOURLY RATE</span>
-                                                    <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                                    <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
                                                 </div>
                                                 <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
                                             </div>
@@ -541,7 +548,7 @@ const ClientDashboardPage = () => {
                                     <div className="cm-creator-footer">
                                         <div>
                                             <span className="cm-creator-rate-label">HOURLY RATE</span>
-                                            <span className="cm-creator-rate">₱{c.starting_price || '500'}/hr</span>
+                                            <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
                                         </div>
                                         <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); navigate(`/creator-profile?uid=${c.user_id}`); }}>View Profile</button>
                                     </div>
