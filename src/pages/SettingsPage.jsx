@@ -44,7 +44,6 @@ import {
 import { Avatar } from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
 import { GlassCard } from '../components/GlassCard';
-import { Toast } from '../components/Toast';
 import './SettingsPage.css';
 
 const Toggle = ({ active, onClick }) => (
@@ -398,7 +397,7 @@ export default function SettingsPage({ userRole, onLogout }) {
 
   return (
     <div className="flex h-full max-h-[calc(100vh-3.5rem)] max-w-6xl mx-auto p-6 gap-8">
-      <Toast message={toast.message} isVisible={toast.visible} type={toast.type} onClose={() => setToast((p) => ({ ...p, visible: false }))} />
+      {toast.visible && <div className={`global-toast ${toast.type === 'error' ? 'global-toast--error' : 'global-toast--success'}`}>{toast.message}</div>}
 
       <div className="w-64 shrink-0 space-y-1">
         <h2 className="text-lg font-medium text-white px-4 mb-4">{isAdmin ? 'Platform Settings' : 'Settings'}</h2>

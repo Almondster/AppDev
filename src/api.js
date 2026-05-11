@@ -63,6 +63,8 @@ export const createCreatorProfile = wrapFetch(raw.createCreatorProfile);
 
 // Categories
 export const fetchCategories = wrapFetch(raw.fetchCategories);
+export const createCategory = wrapFetch(raw.createCategory);
+export const deleteCategory = wrapFetch(raw.deleteCategory);
 
 // Services
 export const fetchServices  = wrapFetch(raw.fetchServices);

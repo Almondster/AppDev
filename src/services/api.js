@@ -272,6 +272,8 @@ export const updateCreator = (id, body) => request(`/creators/${id}/`, { method:
 // ── Categories ─────────────────────────────────────────────────────────────
 
 export const fetchCategories = (params, options) => request('/categories/', { params, ...options });
+export const createCategory = (body) => request('/categories/', { method: 'POST', body });
+export const deleteCategory = (id) => request(`/categories/${id}/`, { method: 'DELETE' });
 
 // ── Services ───────────────────────────────────────────────────────────────
 
