@@ -79,8 +79,6 @@ const CreatorDashboardPage = () => {
                 </div>
             </div>
 
-            {formMsg && <div className="global-toast global-toast--success">{formMsg}</div>}
-
             {/* ─── LOADING SKELETON ─── */}
             {loading && tab === 'overview' && (
                 <div className="studio-overview">
