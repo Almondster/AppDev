@@ -398,42 +398,6 @@
   padding: 0.7rem 0.85rem 0.85rem;
 }
 
-[data-theme="light"] .my-gig-card {
-  background: #fff;
-  border-color: rgba(0,0,0,0.08);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-}
-
-[data-theme="light"] .my-gig-card__cover {
-  background: #f4f4f5;
-  border-bottom-color: rgba(0,0,0,0.06);
-}
-
-[data-theme="light"] .my-gig-card__placeholder {
-  color: #a1a1aa;
-  background: #f4f4f5;
-}
-
-[data-theme="light"] .my-gig-card__top h3 {
-  color: #18181b;
-}
-
-[data-theme="light"] .my-gig-card__top span {
-  color: #4f46e5;
-}
-
-[data-theme="light"] .my-gig-card__category {
-  color: #71717a;
-}
-
-[data-theme="light"] .my-gig-card__desc {
-  color: #3f3f46;
-}
-
-[data-theme="light"] .my-gig-card__actions {
-  border-top-color: rgba(0,0,0,0.06);
-}
-
 @media (max-width: 768px) {
   .toolbar {
     flex-direction: column;

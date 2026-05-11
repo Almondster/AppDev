@@ -47,6 +47,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
 
+    const userData = getUserData();
     const isCreator = userRole === 'creator';
     const navigate = useNavigate();
 
