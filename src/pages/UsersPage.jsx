@@ -71,10 +71,10 @@ const UsersPage = () => {
     };
 
     return (
-        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+        <main className="dashboard-content page-fade role-page">
             {toast && <div className="global-toast global-toast--success">{toast}</div>}
 
-            <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <header className="glass-card hero-gradient" style={{ padding: '2rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Platform Users</h1>
@@ -88,7 +88,7 @@ const UsersPage = () => {
                 </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
                 <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
                     <Search size={18} color="var(--text-muted)" />
                     <label htmlFor="usersSearch" className="sr-only">Search users</label>
@@ -99,8 +99,9 @@ const UsersPage = () => {
 {loading ? (
                 <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading users...</div>
             ) : (
-                <div className="glass-card" style={{ overflow: 'hidden' }}>
-                    <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div className="glass-card" style={{ overflowX: 'auto' }}>
+                    <div style={{ minWidth: 920 }}>
+                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         <span>User</span>
                         <span>Role</span>
                         <span>Status</span>
@@ -109,7 +110,7 @@ const UsersPage = () => {
                         <span style={{ textAlign: 'right' }}>More</span>
                     </div>
                     {filtered.map((user) => (
-                        <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)' }}>
+                        <div key={user.id} className="glass-card--hover" style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
                                     {user.name.charAt(0).toUpperCase()}
@@ -146,6 +147,7 @@ const UsersPage = () => {
                     {filtered.length === 0 && (
                         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No users found.</div>
                     )}
+                    </div>
                 </div>
             )}
 

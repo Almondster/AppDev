@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchCreatorByUid, fetchServices, fetchReviews, fetchFollows, fetchBlocks, getUserData, createFollow, deleteFollow, createBlock, deleteBlock, createReport, createOrder, fetchUsers } from '../api';
+import { fetchCreatorByUid, fetchServices, fetchReviews, fetchFollows, fetchBlocks, getUserData, createFollow, deleteFollow, createBlock, deleteBlock, createReport, createOrder, fetchUsers, updateCreator, patchUser } from '../api';
 import { ArrowLeft, MapPin, Star, MessageSquare, UserPlus, UserMinus, ShieldBan, Flag } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './CreatorProfilePage.css';
@@ -19,6 +19,16 @@ const CreatorProfilePage = () => {
     const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
     const [orderLoading, setOrderLoading] = useState(false);
     const [toast, setToast] = useState('');
+    const [editProfile, setEditProfile] = useState(false);
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [profileForm, setProfileForm] = useState({
+        full_name: '',
+        avatar_url: '',
+        bio: '',
+        skills: '',
+        experience_years: '',
+        portfolio_url: '',
+    });
 
     // Block & Report state
     const [isBlocked, setIsBlocked] = useState(false);
@@ -139,6 +149,56 @@ const CreatorProfilePage = () => {
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
+    useEffect(() => {
+        if (!isOwnProfile) return;
+        setProfileForm({
+            full_name: safeText(creatorUser.display_name || creatorUser.full_name || creatorUser.username, ''),
+            avatar_url: safeText(creatorUser.avatar_url, ''),
+            bio: safeText(creator?.bio, ''),
+            skills: skills.join(', '),
+            experience_years: safeText(creator?.experience_years, ''),
+            portfolio_url: safeText(creator?.portfolio_url, ''),
+        });
+    }, [isOwnProfile, creator?.bio, creator?.experience_years, creator?.portfolio_url, creatorUser.display_name, creatorUser.full_name, creatorUser.username, creatorUser.avatar_url]);
+
+    const handleSaveProfile = async () => {
+        if (!isOwnProfile || !creator?.id) return;
+        setSavingProfile(true);
+        try {
+            const creatorPayload = {
+                bio: profileForm.bio.trim() || null,
+                skills: profileForm.skills.trim() || null,
+                experience_years: profileForm.experience_years ? Number(profileForm.experience_years) : null,
+                portfolio_url: profileForm.portfolio_url.trim() || null,
+            };
+            const userPayload = {
+                username: profileForm.full_name.trim() || creatorUser.username,
+                avatar_url: profileForm.avatar_url.trim() || null,
+            };
+
+            const [creatorRes, userRes] = await Promise.all([
+                updateCreator(creator.id, creatorPayload),
+                patchUser(userData?.firebase_uid, userPayload),
+            ]);
+
+            if (!creatorRes.ok || !userRes.ok) {
+                showToast('Failed to save profile changes.');
+                return;
+            }
+
+            setCreator(creatorRes.data);
+            setUserProfile((prev) => ({ ...(prev || {}), ...userRes.data }));
+            const updatedUser = { ...(getUserData() || {}), full_name: userPayload.username, avatar_url: userPayload.avatar_url };
+            localStorage.setItem('createch_user', JSON.stringify(updatedUser));
+            setEditProfile(false);
+            showToast('Profile updated successfully.');
+        } catch {
+            showToast('Failed to save profile changes.');
+        } finally {
+            setSavingProfile(false);
+        }
+    };
+
     const handleFollow = async () => {
         if (isFollowing && followId) {
             try {
@@ -199,6 +259,9 @@ const CreatorProfilePage = () => {
         try {
             const { ok } = await createOrder({
                 service_id: service.id,
+                creator_id: Number(service.creator_id || profileUid),
+                service_title: service.title || service.label,
+                price: Number(service.price || 0),
             });
             if (ok) {
                 showToast(`Order placed for "${service.title}"!`);
@@ -278,7 +341,9 @@ const CreatorProfilePage = () => {
                 </div>
             )}
             {isOwnProfile && (
-                <button className="cp-cover-btn" style={{ marginTop: 16 }} onClick={() => navigate('/settings')}>Edit Profile</button>
+                <button className="cp-cover-btn" style={{ marginTop: 16 }} onClick={() => setEditProfile(prev => !prev)}>
+                    {editProfile ? 'Close Editor' : 'Edit Creator Profile'}
+                </button>
             )}
         </div>
     );
@@ -395,6 +460,71 @@ const CreatorProfilePage = () => {
 
                         {/* Right Column - Content */}
                         <div className="cp-main">
+                            {isOwnProfile && editProfile && (
+                                <div className="cp-edit-card">
+                                    <h3>Edit Profile</h3>
+                                    <div className="cp-edit-grid">
+                                        <div className="cp-edit-group">
+                                            <label>Display Name</label>
+                                            <input
+                                                value={profileForm.full_name}
+                                                onChange={(e) => setProfileForm(prev => ({ ...prev, full_name: e.target.value }))}
+                                                placeholder="Your display name"
+                                            />
+                                        </div>
+                                        <div className="cp-edit-group">
+                                            <label>Avatar URL</label>
+                                            <input
+                                                value={profileForm.avatar_url}
+                                                onChange={(e) => setProfileForm(prev => ({ ...prev, avatar_url: e.target.value }))}
+                                                placeholder="https://example.com/avatar.jpg"
+                                            />
+                                        </div>
+                                        <div className="cp-edit-group cp-edit-group--full">
+                                            <label>Bio</label>
+                                            <textarea
+                                                rows={4}
+                                                value={profileForm.bio}
+                                                onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
+                                                placeholder="Describe your expertise"
+                                            />
+                                        </div>
+                                        <div className="cp-edit-group cp-edit-group--full">
+                                            <label>Skills (comma-separated)</label>
+                                            <input
+                                                value={profileForm.skills}
+                                                onChange={(e) => setProfileForm(prev => ({ ...prev, skills: e.target.value }))}
+                                                placeholder="Logo Design, Branding, UI/UX"
+                                            />
+                                        </div>
+                                        <div className="cp-edit-group">
+                                            <label>Years of Experience</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={profileForm.experience_years}
+                                                onChange={(e) => setProfileForm(prev => ({ ...prev, experience_years: e.target.value }))}
+                                                placeholder="3"
+                                            />
+                                        </div>
+                                        <div className="cp-edit-group">
+                                            <label>Portfolio URL</label>
+                                            <input
+                                                value={profileForm.portfolio_url}
+                                                onChange={(e) => setProfileForm(prev => ({ ...prev, portfolio_url: e.target.value }))}
+                                                placeholder="https://portfolio.example.com"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="cp-edit-actions">
+                                        <button className="cp-cover-btn" onClick={() => setEditProfile(false)}>Cancel</button>
+                                        <button className="cp-save-btn" onClick={handleSaveProfile} disabled={savingProfile}>
+                                            {savingProfile ? 'Saving...' : 'Save Changes'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="cp-about">
                                 <h3>About</h3>
                                 <p>{creator?.bio || 'No bio provided yet.'}</p>

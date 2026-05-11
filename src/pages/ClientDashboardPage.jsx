@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
-import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, createMatch, fetchCategories } from '../api';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, getUserData, fetchReviews, createMatch, fetchCategories, fetchCreatorApplications, fetchMe } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import { CreatorOnboardingModal } from '../components/CreatorOnboardingModal';
 import './ClientDashboardPage.css';
 
 
@@ -87,12 +88,15 @@ const ClientDashboardPage = () => {
     const [matchDesc, setMatchDesc] = useState('');
     const [matchResults, setMatchResults] = useState([]);
     const [matching, setMatching] = useState(false);
+    const [creatorModalOpen, setCreatorModalOpen] = useState(false);
+    const [creatorApplicationStatus, setCreatorApplicationStatus] = useState(null);
+    const [checkingApproval, setCheckingApproval] = useState(false);
 
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, sRes, cRes, rRes, catRes] = await Promise.all([
-                    apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews(), fetchCategories()
+                const [oRes, sRes, cRes, rRes, catRes, appRes] = await Promise.all([
+                    apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews(), fetchCategories(), fetchCreatorApplications()
                 ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
                 if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
@@ -101,6 +105,11 @@ const ClientDashboardPage = () => {
                 if (catRes.ok) {
                     const catList = catRes.data.results || catRes.data || [];
                     setCategories(catList.map(c => c.name || c.label || 'Other'));
+                }
+                if (appRes.ok) {
+                    const apps = appRes.data.results || appRes.data || [];
+                    const latest = [...apps].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0];
+                    setCreatorApplicationStatus(latest?.status || null);
                 }
             } catch (err) {
                 console.error('Client dashboard error:', err);
@@ -116,9 +125,9 @@ const ClientDashboardPage = () => {
         if (!raw) return [];
         if (Array.isArray(raw)) return raw;
         if (typeof raw === 'string') {
-            try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch {}
+            try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch { /* ignore parse failure */ }
             if (raw.startsWith('[')) {
-                try { const p = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(p)) return p; } catch {}
+                try { const p = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(p)) return p; } catch { /* ignore parse failure */ }
             }
             const trimmed = raw.replace(/^\[|\]$|^\{|\}$/g, '').trim();
             if (!trimmed) return [];
@@ -207,6 +216,18 @@ const ClientDashboardPage = () => {
         return cr.length > 0 ? (cr.reduce((s, r) => s + (r.rating || 0), 0) / cr.length).toFixed(1) : null;
     };
 
+    const getCreatorHourlyRate = (creatorUid, creatorObj) => {
+        const directRate = Number(creatorObj?.starting_price || 0);
+        if (directRate > 0) return `₱${directRate.toLocaleString()}/hr`;
+        const creatorServices = services.filter(s => String(s.creator_id) === String(creatorUid));
+        const priced = creatorServices.map(s => Number(s.price || 0)).filter(v => v > 0);
+        if (priced.length > 0) {
+            const minPrice = Math.min(...priced);
+            return `Starts at ₱${minPrice.toLocaleString()}`;
+        }
+        return 'Rate on request';
+    };
+
     const openOrderConfirm = (service) => {
         setConfirmModal({ open: true, service });
     };
@@ -218,6 +239,9 @@ const ClientDashboardPage = () => {
         try {
             const { ok, data } = await createOrder({
                 service_id: service.id,
+                creator_id: Number(service.creator_id),
+                service_title: service.title || service.label,
+                price: Number(service.price || 0),
             });
             if (ok) {
                 setOrderMsg(`Order placed for "${service.title || service.label}"!`);
@@ -235,6 +259,70 @@ const ClientDashboardPage = () => {
         }
         setOrderLoading(false);
         setConfirmModal({ open: false, service: null });
+    };
+
+    const getCreatorCtaLabel = () => {
+        if (creatorApplicationStatus === 'pending') return 'Application Pending';
+        if (creatorApplicationStatus === 'approved') return 'Application Approved';
+        if (creatorApplicationStatus === 'rejected') return 'Reapply as Creator';
+        return 'Become a Creator';
+    };
+
+    const handleCreatorCta = () => {
+        if (creatorApplicationStatus === 'pending') {
+            setOrderMsg('Your creator application is still pending admin review.');
+            setOrderMsgType('info');
+            setTimeout(() => setOrderMsg(''), 3500);
+            return;
+        }
+        if (creatorApplicationStatus === 'approved') {
+            setOrderMsg('Your application is already approved. Please re-login to refresh your role.');
+            setOrderMsgType('success');
+            setTimeout(() => setOrderMsg(''), 3500);
+            return;
+        }
+        setCreatorModalOpen(true);
+    };
+
+    const handleRefreshRole = async () => {
+        setCheckingApproval(true);
+        try {
+            const { ok, data } = await fetchMe();
+            if (!ok || !data) {
+                setOrderMsg('Unable to refresh your account right now.');
+                setOrderMsgType('error');
+                setTimeout(() => setOrderMsg(''), 3500);
+                return;
+            }
+
+            const current = getUserData() || {};
+            const updatedUser = {
+                ...current,
+                firebase_uid: data.firebase_uid ?? data.id ?? current.firebase_uid,
+                full_name: data.username ?? current.full_name,
+                email: data.email ?? current.email,
+                role: data.role ?? current.role,
+                avatar_url: data.avatar_url ?? current.avatar_url,
+            };
+            localStorage.setItem('createch_user', JSON.stringify(updatedUser));
+
+            if (String(updatedUser.role).toLowerCase() === 'creator') {
+                setOrderMsg('Role updated to creator. Reloading workspace...');
+                setOrderMsgType('success');
+                setTimeout(() => window.location.reload(), 700);
+                return;
+            }
+
+            setOrderMsg('Your application is still being processed.');
+            setOrderMsgType('info');
+            setTimeout(() => setOrderMsg(''), 3500);
+        } catch {
+            setOrderMsg('Unable to refresh your account right now.');
+            setOrderMsgType('error');
+            setTimeout(() => setOrderMsg(''), 3500);
+        } finally {
+            setCheckingApproval(false);
+        }
     };
 
     const getInitial = (name) => safeText(name, 'U').charAt(0).toUpperCase();
@@ -287,7 +375,14 @@ const ClientDashboardPage = () => {
                         <p>Join the marketplace and start selling your services today.</p>
                     </div>
                 </div>
-                <button className="cm-cta-btn" onClick={() => navigate('/settings')}>Become a Creator</button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button className="cm-cta-btn" onClick={handleCreatorCta}>{getCreatorCtaLabel()}</button>
+                    {creatorApplicationStatus === 'approved' && (
+                        <button className="cm-cta-btn" onClick={handleRefreshRole} disabled={checkingApproval}>
+                            {checkingApproval ? 'Refreshing...' : 'Refresh Role'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {viewMode === 'services' && (
@@ -506,7 +601,7 @@ const ClientDashboardPage = () => {
                                                     <span className="cm-creator-rev-count">({revCount} reviews)</span>
                                                 </div>
                                             </div>
-                                            <p className="cm-creator-bio-full">{c.bio || ''}</p>
+                                            <p className="cm-creator-bio-full">{safeText(c.bio, 'No creator bio yet.')}</p>
                                             {skills.length > 0 && (
                                                 <div className="cm-creator-skills">
                                                     {skills.slice(0, 4).map((s, i) => <span key={i} className="cm-skill-chip">{s}</span>)}
@@ -515,7 +610,7 @@ const ClientDashboardPage = () => {
                                             <div className="cm-creator-footer">
                                                 <div>
                                                     <span className="cm-creator-rate-label">HOURLY RATE</span>
-                                                    <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
+                                                    <span className="cm-creator-rate">{getCreatorHourlyRate(creatorUid, c)}</span>
                                                 </div>
                                                 <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
                                             </div>
@@ -556,11 +651,11 @@ const ClientDashboardPage = () => {
                                         </div>
                                         <div className="cm-creator-rating">
                                             <Star size={14} fill="#f59e0b" color="#f59e0b" />
-                                            <span>{rating || '0.0'}</span>
+                                            <span>{rating || 'New'}</span>
                                             <span className="cm-creator-rev-count">({revCount} reviews)</span>
                                         </div>
                                     </div>
-                                    <p className="cm-creator-bio-full">{c.bio || ''}</p>
+                                    <p className="cm-creator-bio-full">{safeText(c.bio, 'No creator bio yet.')}</p>
                                     {skills.length > 0 && (
                                         <div className="cm-creator-skills">
                                             {skills.slice(0, 4).map((s, i) => <span key={i} className="cm-skill-chip">{s}</span>)}
@@ -569,7 +664,7 @@ const ClientDashboardPage = () => {
                                     <div className="cm-creator-footer">
                                         <div>
                                             <span className="cm-creator-rate-label">HOURLY RATE</span>
-                                            <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
+                                            <span className="cm-creator-rate">{getCreatorHourlyRate(creatorUid, c)}</span>
                                         </div>
                                         <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
                                     </div>
@@ -582,6 +677,18 @@ const ClientDashboardPage = () => {
                 </div>
                 </>
             )}
+
+            <CreatorOnboardingModal
+                isOpen={creatorModalOpen}
+                onClose={() => setCreatorModalOpen(false)}
+                onComplete={() => {
+                    setCreatorModalOpen(false);
+                    setCreatorApplicationStatus('pending');
+                    setOrderMsg('Creator application submitted. The admin team will review it.');
+                    setOrderMsgType('success');
+                    setTimeout(() => setOrderMsg(''), 4000);
+                }}
+            />
         </main>
     );
 };

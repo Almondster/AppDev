@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchOrder, updateOrder, fetchTimeline, getUserData, payOrder, rejectOrder, submitFinalOutput, submitPartialOutput } from '../api';
+import { acceptOrder, fetchOrder, updateOrder, fetchTimeline, getUserData, payOrder, rejectOrder, submitFinalOutput, submitPartialOutput, createSupportTicket } from '../api';
 import { ArrowLeft, MessageSquare, Star, XCircle, Play, Lock, CreditCard, Upload, Download } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import ReviewModal from '../components/ReviewModal';
@@ -37,6 +37,9 @@ const OrderDetailPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [partialForm, setPartialForm] = useState({ partial_output_url: '', partial_output_note: '' });
   const [finalForm, setFinalForm] = useState({ final_file_url: '', final_output_note: '' });
+  const [disputeModalOpen, setDisputeModalOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [disputeLoading, setDisputeLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -179,10 +182,12 @@ const OrderDetailPage = () => {
   const handleReviewSubmit = async ({ rating, comment }) => {
     setActionLoading(true);
     try {
+      const reviewerId = Number(userData?.firebase_uid || userData?.id);
+      const revieweeId = Number(isCreator ? order.client_id : order.creator_id);
       const { ok } = await createReview({
-        order: order.id,
-        reviewer_id: userData.firebase_uid,
-        reviewee_id: isCreator ? order.client_id : order.creator_id,
+        order_id: Number(order.id),
+        reviewer_id: reviewerId,
+        reviewee_id: revieweeId,
         rating,
         comment,
       });
@@ -192,6 +197,33 @@ const OrderDetailPage = () => {
       }
     } catch { showToast('Failed to submit review.'); }
     setActionLoading(false);
+  };
+
+  const handleSubmitDispute = async (e) => {
+    e.preventDefault();
+    if (!disputeReason.trim()) return;
+    setDisputeLoading(true);
+    try {
+      const { ok } = await createSupportTicket({
+        ticket_number: `DSP-${Date.now()}`,
+        user_id: userData?.firebase_uid,
+        email: userData?.email || '',
+        category: 'dispute',
+        message: `Order #${order.id} (${order.service_title || 'Untitled service'})\n\n${disputeReason.trim()}`,
+        user_role: userData?.role,
+        status: 'open',
+      });
+      if (ok) {
+        showToast('Dispute submitted. Admin will review this case.');
+        setDisputeModalOpen(false);
+        setDisputeReason('');
+      } else {
+        showToast('Failed to submit dispute.');
+      }
+    } catch {
+      showToast('Failed to submit dispute.');
+    }
+    setDisputeLoading(false);
   };
 
   if (loading) {
@@ -385,6 +417,11 @@ const OrderDetailPage = () => {
         <button className="od-action-btn od-action-btn--outline" onClick={() => navigate(`/messages?to=${isCreator ? order.client_id : order.creator_id}`)}>
           <MessageSquare size={16} /> Message
         </button>
+        {['pending', 'accepted', 'in_progress', 'partial_submitted', 'final_submitted', 'delivered'].includes(order.status) && (
+          <button className="od-action-btn od-action-btn--danger" onClick={() => setDisputeModalOpen(true)}>
+            <XCircle size={16} /> File Dispute
+          </button>
+        )}
       </div>
 
       {/* Timeline */}
@@ -429,6 +466,32 @@ const OrderDetailPage = () => {
         onSubmit={handleReviewSubmit}
         onClose={() => setReviewOpen(false)}
       />
+
+      {disputeModalOpen && (
+        <div className="confirm-overlay" onClick={() => setDisputeModalOpen(false)}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-modal__title">File Dispute</h3>
+            <p className="confirm-modal__message">
+              Explain the issue with this order. Admin will review both sides.
+            </p>
+            <form onSubmit={handleSubmitDispute}>
+              <textarea
+                value={disputeReason}
+                onChange={(e) => setDisputeReason(e.target.value)}
+                placeholder="Describe the dispute and include key details."
+                required
+                style={{ width: '100%', minHeight: 120, padding: '0.75rem', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', marginTop: '0.75rem' }}
+              />
+              <div className="confirm-modal__actions">
+                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setDisputeModalOpen(false)}>Cancel</button>
+                <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" disabled={disputeLoading}>
+                  {disputeLoading ? 'Submitting...' : 'Submit Dispute'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

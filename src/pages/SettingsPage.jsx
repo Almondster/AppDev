@@ -1,606 +1,775 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    User, Shield, Bell, CreditCard, HelpCircle, LogOut, Camera, Users, Heart,
-    ChevronRight, Mail, Phone, Globe, Palette, Save, X, Send, UserPlus, UserMinus, Trash2,
+  AlertTriangle,
+  Bell,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  ExternalLink,
+  FileText,
+  HelpCircle,
+  Lock,
+  LogOut,
+  Search,
+  Shield,
+  Sparkles,
+  Trash2,
+  User as UserIcon,
+  Users,
 } from 'lucide-react';
 import {
-    getUserData, patchUser, fetchMyFollowers, fetchMyFollowing, deleteFollow,
-    fetchMyWallets, createWallet, deleteWallet, fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod,
-    createSupportTicket, fetchSupportTickets,
+  createPaymentMethod,
+  changeEmail,
+  changePassword,
+  createSupportTicket,
+  createWallet,
+  deleteFollow,
+  deletePaymentMethod,
+  deleteWallet,
+  fetchCreatorByUid,
+  fetchMyFollowers,
+  fetchMyFollowing,
+  fetchMyPaymentMethods,
+  fetchMyWallets,
+  fetchReports,
+  fetchSupportTickets,
+  fetchUsers,
+  getUserData,
+  patchUser,
+  updateCreator,
+  updateReport,
 } from '../api';
+import { Avatar } from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
-import { useTheme } from '../context/hooks/useTheme.js';
+import { GlassCard } from '../components/GlassCard';
+import { Toast } from '../components/Toast';
 import './SettingsPage.css';
 
-const TABS = [
-    { key: 'profile', label: 'Profile', icon: <User size={18} /> },
-    { key: 'personalization', label: 'Personalization', icon: <Palette size={18} /> },
-    { key: 'security', label: 'Security', icon: <Shield size={18} /> },
-    { key: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
-    { key: 'followers', label: 'Followers', icon: <Users size={18} /> },
-    { key: 'payout', label: 'Payout Methods', icon: <CreditCard size={18} /> },
-    { key: 'help', label: 'Help & Support', icon: <HelpCircle size={18} /> },
+const Toggle = ({ active, onClick }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={active}
+    onClick={onClick}
+    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${active ? 'bg-blue-600' : 'bg-zinc-700'}`}
+  >
+    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />
+  </button>
+);
+
+const FAQ_DATA = [
+  { category: 'Account', questions: [{ q: 'How do I update my profile?', a: 'Open Personal Info and save your updated details.' }] },
+  { category: 'Orders', questions: [{ q: 'How do I track an order?', a: 'Open Orders and select an order to view full timeline and status updates.' }] },
+  { category: 'Payments', questions: [{ q: 'How do payouts work?', a: 'Creators can manage payout methods in Finance and withdraw from Wallet.' }] },
 ];
 
-const SettingsPage = ({ userRole, onLogout }) => {
-    const [searchParams] = useSearchParams();
-    const initialTab = searchParams.get('tab') || 'profile';
-    const [activeTab, setActiveTab] = useState(initialTab);
-    const userData = getUserData();
-    const [toast, setToast] = useState('');
+export default function SettingsPage({ userRole, onLogout }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const userData = getUserData();
+  const uid = userData?.firebase_uid || userData?.id;
+  const isAdmin = userRole === 'admin';
+  const isCreator = userRole === 'creator';
+  const isClient = userRole === 'client';
+  const isSocialAuth = userData?.auth_provider === 'google';
 
-    // Profile state
-    const [profileForm, setProfileForm] = useState({
-        full_name: userData?.full_name || '',
-        email: userData?.email || '',
-        avatar_url: userData?.avatar_url || '',
-        bio: '',
-    });
-    const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState(searchParams.get('tab') || 'profile');
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-    // Notifications state
-    const [notifSettings, setNotifSettings] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('createch_notif_settings')) || { email: true, orders: true, messages: true, marketing: false }; }
-        catch { return { email: true, orders: true, messages: true, marketing: false }; }
-    });
+  const [profileForm, setProfileForm] = useState({
+    firstName: userData?.full_name?.split(' ')[0] || '',
+    lastName: userData?.full_name?.split(' ').slice(1).join(' ') || '',
+    email: userData?.email || '',
+    phone: userData?.phone || '',
+    address: userData?.address || '',
+    avatar_url: userData?.avatar_url || '',
+  });
 
-    // Followers/Following state
-    const [followers, setFollowers] = useState([]);
-    const [following, setFollowing] = useState([]);
-    const [socialTab, setSocialTab] = useState('followers');
-    const [socialLoading, setSocialLoading] = useState(false);
+  const [creatorForm, setCreatorForm] = useState({
+    id: null,
+    bio: '',
+    skills: '',
+    portfolio_url: '',
+    experience_years: 0,
+    starting_price: 0,
+  });
 
-    // Payout state
-    const [wallets, setWallets] = useState([]);
-    const [paymentMethods, setPaymentMethods] = useState([]);
-    const [payoutForm, setPayoutForm] = useState({ wallet_type: 'GCash', account_name: '', account_number: '' });
-    const [pmForm, setPmForm] = useState({ method_type: '', masked_number: '' });
-    const [payoutLoading, setPayoutLoading] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState({
+    orderUpdates: true,
+    messages: true,
+    reviews: true,
+    promotions: false,
+    moderation: true,
+    disputes: true,
+  });
 
-    // Help state
-    const [ticketForm, setTicketForm] = useState({ category: 'general', message: '' });
-    const [tickets, setTickets] = useState([]);
-    const [ticketLoading, setTicketLoading] = useState(false);
+  const [following, setFollowing] = useState([]);
+  const [followers, setFollowers] = useState([]);
+  const [socialLoading, setSocialLoading] = useState(false);
 
-    // Delete confirm
-    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, type: '', id: null });
-    const [deleting, setDeleting] = useState(false);
+  const [wallets, setWallets] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [payoutForm, setPayoutForm] = useState({ wallet_type: 'GCash', account_name: '', account_number: '' });
+  const [pmForm, setPmForm] = useState({ method_type: '', masked_number: '' });
 
-    const { theme, setTheme } = useTheme();
-    const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
+  const [supportCategory, setSupportCategory] = useState('General');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [tickets, setTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [securityLoading, setSecurityLoading] = useState(false);
+  const [securityForm, setSecurityForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+    new_email: userData?.email || '',
+  });
 
-    useEffect(() => {
-        document.documentElement.style.setProperty('--accent', accentColor);
-        localStorage.setItem('createch_accent', accentColor);
-    }, [accentColor]);
+  const [adminStats, setAdminStats] = useState({ users: 0, openReports: 0, openTickets: 0 });
+  const [adminReports, setAdminReports] = useState([]);
+  const [adminTickets, setAdminTickets] = useState([]);
 
-    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedFaq, setExpandedFaq] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, type: '', id: null });
+  const [deleting, setDeleting] = useState(false);
 
-    // Load tab-specific data
-    useEffect(() => {
-        const loadFollowersAndFollowing = async () => {
-            setSocialLoading(true);
-            try {
-                const [fRes, gRes] = await Promise.all([fetchMyFollowers(), fetchMyFollowing()]);
-                if (fRes.ok) setFollowers(fRes.data.results || fRes.data || []);
-                if (gRes.ok) setFollowing(gRes.data.results || gRes.data || []);
-            } catch (err) {
-                console.error('Failed to load followers:', err);
-            } finally {
-                setSocialLoading(false);
-            }
-        };
+  const sections = useMemo(() => {
+    if (isAdmin) {
+      return [
+        { id: 'profile', label: 'Personal Info', icon: UserIcon },
+        { id: 'platform', label: 'Platform Controls', icon: Sparkles },
+        { id: 'notifications', label: 'Admin Alerts', icon: Bell },
+        { id: 'security', label: 'Security', icon: Lock },
+        { id: 'support', label: 'Platform Support', icon: FileText },
+        { id: 'logout', label: 'Log Out', icon: LogOut },
+      ];
+    }
+    return [
+      { id: 'profile', label: 'Personal Info', icon: UserIcon },
+      ...(isCreator ? [{ id: 'creator', label: 'Creator Profile', icon: Sparkles }] : []),
+      ...(isClient ? [{ id: 'following', label: 'Following', icon: Users }] : []),
+      ...(isCreator ? [{ id: 'followers', label: 'Followers', icon: Users }] : []),
+      { id: 'finance', label: 'Finance', icon: CreditCard },
+      { id: 'notifications', label: 'Notifications', icon: Bell },
+      { id: 'security', label: 'Security', icon: Lock },
+      { id: 'help', label: 'Help Center', icon: HelpCircle },
+      { id: 'support', label: 'Support & Data', icon: FileText },
+      { id: 'logout', label: 'Log Out', icon: LogOut },
+    ];
+  }, [isAdmin, isClient, isCreator]);
 
-        const loadPayoutData = async () => {
-            try {
-                const [wRes, pRes] = await Promise.all([fetchMyWallets(), fetchMyPaymentMethods()]);
-                if (wRes.ok) setWallets(wRes.data.results || wRes.data || []);
-                if (pRes.ok) setPaymentMethods(pRes.data.results || pRes.data || []);
-            } catch (err) {
-                console.error('Failed to load payout data:', err);
-            }
-        };
+  useEffect(() => {
+    if (!sections.some((s) => s.id === activeSection)) setActiveSection('profile');
+  }, [activeSection, sections]);
 
-        const loadHelpTickets = async () => {
-            try {
-                const res = await fetchSupportTickets();
-                if (res.ok) {
-                    const all = res.data.results || res.data || [];
-                    setTickets(all.filter(t => t.user_id === userData?.firebase_uid));
-                }
-            } catch (err) {
-                console.error('Failed to load support tickets:', err);
-            }
-        };
+  useEffect(() => {
+    if (!isCreator || !uid) return;
+    const loadCreator = async () => {
+      const res = await fetchCreatorByUid(uid);
+      if (!res.ok) return;
+      const c = res.data;
+      setCreatorForm({
+        id: c.id,
+        bio: c.bio || '',
+        skills: Array.isArray(c.skills) ? c.skills.join(', ') : (c.skills || ''),
+        portfolio_url: c.portfolio_url || '',
+        experience_years: Number(c.experience_years || 0),
+        starting_price: Number(c.starting_price || 0),
+      });
+    };
+    loadCreator();
+  }, [isCreator, uid]);
 
-        if (activeTab === 'followers') {
-            loadFollowersAndFollowing();
+  useEffect(() => {
+    const loadSocial = async () => {
+      if (!['following', 'followers'].includes(activeSection)) return;
+      setSocialLoading(true);
+      try {
+        const [f1, f2] = await Promise.all([fetchMyFollowing(), fetchMyFollowers()]);
+        if (f1.ok) setFollowing(f1.data?.results || f1.data || []);
+        if (f2.ok) setFollowers(f2.data?.results || f2.data || []);
+      } finally {
+        setSocialLoading(false);
+      }
+    };
+    const loadFinance = async () => {
+      if (activeSection !== 'finance') return;
+      if (isCreator) {
+        const w = await fetchMyWallets();
+        if (w.ok) setWallets(w.data?.results || w.data || []);
+        return;
+      }
+      if (isClient) {
+        const p = await fetchMyPaymentMethods();
+        if (p.ok) setPaymentMethods(p.data?.results || p.data || []);
+      }
+    };
+    const loadSupport = async () => {
+      if (!['support', 'platform'].includes(activeSection)) return;
+      setTicketsLoading(true);
+      try {
+        const tRes = await fetchSupportTickets();
+        const allTickets = tRes.ok ? (tRes.data?.results || tRes.data || []) : [];
+        if (isAdmin) {
+          setAdminTickets(allTickets);
+          setTickets(allTickets);
+        } else {
+          setTickets(allTickets.filter((t) => String(t.user_id) === String(uid)));
         }
-        if (activeTab === 'payout') {
-            loadPayoutData();
+        if (isAdmin) {
+          const [uRes, rRes] = await Promise.all([fetchUsers(), fetchReports()]);
+          const users = uRes.ok ? (uRes.data?.results || uRes.data || []) : [];
+          const reports = rRes.ok ? (rRes.data?.results || rRes.data || []) : [];
+          setAdminReports(reports);
+          const openReports = reports.filter((r) => !['resolved', 'dismissed'].includes((r.status || '').toLowerCase())).length;
+          const openTickets = allTickets.filter((t) => !['resolved', 'closed'].includes((t.status || '').toLowerCase())).length;
+          setAdminStats({ users: users.length, openReports, openTickets });
         }
-        if (activeTab === 'help') {
-            loadHelpTickets();
-        }
-    }, [activeTab, userData?.firebase_uid]);
-
-    // ── PROFILE ──
-    const handleProfileSave = async () => {
-        setSaving(true);
-        try {
-            const { ok } = await patchUser(userData?.firebase_uid, {
-                display_name: profileForm.full_name,
-                avatar_url: profileForm.avatar_url,
-            });
-            if (ok) {
-                // Update local storage
-                const u = getUserData();
-                u.full_name = profileForm.full_name;
-                u.avatar_url = profileForm.avatar_url;
-                localStorage.setItem('createch_user', JSON.stringify(u));
-                showToast('Profile updated!');
-            } else {
-                showToast('Failed to update profile.');
-            }
-        } catch { showToast('Connection error.'); }
-        setSaving(false);
+      } finally {
+        setTicketsLoading(false);
+      }
     };
+    loadSocial();
+    loadFinance();
+    loadSupport();
+  }, [activeSection, isAdmin, isClient, isCreator, uid]);
 
-    // ── NOTIFICATIONS ──
-    const toggleNotif = (key) => {
-        setNotifSettings(prev => {
-            const updated = { ...prev, [key]: !prev[key] };
-            localStorage.setItem('createch_notif_settings', JSON.stringify(updated));
-            return updated;
-        });
-    };
+  const showToast = (message, type = 'success') => setToast({ visible: true, message, type });
 
-    // ── PAYOUT ──
-    const handleAddWallet = async (e) => {
-        e.preventDefault();
-        setPayoutLoading(true);
-        try {
-            const { ok, data } = await createWallet({
-                user_id: userData?.firebase_uid,
-                wallet_type: payoutForm.wallet_type,
-                account_name: payoutForm.account_name,
-                account_number: payoutForm.account_number,
-            });
-            if (ok) {
-                setWallets(prev => [...prev, data]);
-                setPayoutForm({ wallet_type: 'GCash', account_name: '', account_number: '' });
-                showToast('Payout method added!');
-            }
-        } catch { showToast('Failed.'); }
-        setPayoutLoading(false);
-    };
+  const handleSaveProfile = async () => {
+    if (!uid) return;
+    setSaving(true);
+    try {
+      const fullName = `${profileForm.firstName} ${profileForm.lastName}`.trim();
+      const res = await patchUser(uid, {
+        display_name: fullName,
+        avatar_url: profileForm.avatar_url,
+        phone: profileForm.phone,
+        address: profileForm.address,
+      });
+      if (!res.ok) throw new Error('save failed');
+      localStorage.setItem('createch_user', JSON.stringify({ ...userData, full_name: fullName, avatar_url: profileForm.avatar_url }));
+      showToast('Settings updated successfully');
+    } catch {
+      showToast('Failed to save profile', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    const handleAddPayment = async (e) => {
-        e.preventDefault();
-        try {
-            const { ok, data } = await createPaymentMethod({
-                user_id: userData?.firebase_uid,
-                method_type: pmForm.method_type,
-                masked_number: pmForm.masked_number,
-            });
-            if (ok) {
-                setPaymentMethods(prev => [...prev, data]);
-                setPmForm({ method_type: '', masked_number: '' });
-                showToast('Payment method added!');
-            }
-        } catch { showToast('Failed.'); }
-    };
+  const handleSaveCreator = async () => {
+    if (!creatorForm.id) return;
+    setSaving(true);
+    try {
+      const res = await updateCreator(creatorForm.id, {
+        bio: creatorForm.bio,
+        skills: creatorForm.skills.split(',').map((s) => s.trim()).filter(Boolean),
+        portfolio_url: creatorForm.portfolio_url,
+        experience_years: Number(creatorForm.experience_years || 0),
+        starting_price: Number(creatorForm.starting_price || 0),
+      });
+      if (!res.ok) throw new Error('save failed');
+      showToast('Creator profile updated');
+    } catch {
+      showToast('Failed to update creator profile', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    const handleDelete = async () => {
-        setDeleting(true);
-        try {
-            const { type, id } = deleteConfirm;
-            const fn = type === 'wallet' ? deleteWallet : type === 'payment' ? deletePaymentMethod : deleteFollow;
-            const { ok } = await fn(id);
-            if (ok) {
-                if (type === 'wallet') setWallets(prev => prev.filter(w => w.id !== id));
-                if (type === 'payment') setPaymentMethods(prev => prev.filter(p => p.id !== id));
-                if (type === 'follow') setFollowing(prev => prev.filter(f => f.id !== id));
-                showToast('Removed.');
-            }
-        } catch { showToast('Failed to remove.'); }
-        setDeleting(false);
-        setDeleteConfirm({ open: false, type: '', id: null });
-    };
+  const handleAddWallet = async (e) => {
+    e.preventDefault();
+    const res = await createWallet({ ...payoutForm, user_id: uid });
+    if (res.ok) {
+      setWallets((prev) => [res.data, ...prev]);
+      setPayoutForm({ wallet_type: 'GCash', account_name: '', account_number: '' });
+      showToast('Payout method added');
+    } else showToast('Failed to add payout method', 'error');
+  };
 
-    // ── HELP ──
-    const handleSubmitTicket = async (e) => {
-        e.preventDefault();
-        setTicketLoading(true);
-        try {
-            const { ok, data } = await createSupportTicket({
-                ticket_number: `TKT-${Date.now()}`,
-                user_id: userData?.firebase_uid,
-                email: userData?.email || '',
-                category: ticketForm.category,
-                message: ticketForm.message,
-                user_role: userRole,
-                status: 'open',
-            });
-            if (ok) {
-                setTickets(prev => [data, ...prev]);
-                setTicketForm({ category: 'general', message: '' });
-                showToast('Support ticket submitted!');
-            }
-        } catch { showToast('Failed to submit ticket.'); }
-        setTicketLoading(false);
-    };
+  const handleAddPayment = async (e) => {
+    e.preventDefault();
+    const res = await createPaymentMethod({ ...pmForm, user_id: uid });
+    if (res.ok) {
+      setPaymentMethods((prev) => [res.data, ...prev]);
+      setPmForm({ method_type: '', masked_number: '' });
+      showToast('Payment method added');
+    } else showToast('Failed to add payment method', 'error');
+  };
 
-    const inputStyle = {
-        width: '100%', padding: '0.65rem 0.9rem', borderRadius: 10,
-        background: 'var(--bg-input)', border: '1px solid var(--border)',
-        color: 'var(--text-primary)', fontSize: '0.95rem',
-    };
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { type, id } = deleteConfirm;
+      const fn = type === 'wallet' ? deleteWallet : type === 'payment' ? deletePaymentMethod : deleteFollow;
+      const res = await fn(id);
+      if (!res.ok) throw new Error('delete failed');
+      if (type === 'wallet') setWallets((prev) => prev.filter((x) => x.id !== id));
+      if (type === 'payment') setPaymentMethods((prev) => prev.filter((x) => x.id !== id));
+      if (type === 'follow') setFollowing((prev) => prev.filter((x) => x.id !== id));
+      showToast('Removed');
+    } catch {
+      showToast('Failed to remove', 'error');
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm({ open: false, type: '', id: null });
+    }
+  };
 
-    const cardStyle = {
-        background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.5rem',
-        transition: 'background 0.3s, border-color 0.3s',
-    };
+  const handleSubmitSupport = async () => {
+    if (!supportMessage.trim()) return;
+    setLoading(true);
+    try {
+      const res = await createSupportTicket({
+        ticket_number: `TKT-${Date.now()}`,
+        user_id: uid,
+        email: profileForm.email,
+        category: supportCategory,
+        message: supportMessage,
+        user_role: userRole,
+        status: 'open',
+      });
+      if (!res.ok) throw new Error();
+      setSupportMessage('');
+      showToast('Ticket submitted');
+      setTickets((prev) => [res.data, ...prev]);
+    } catch {
+      showToast('Ticket submit failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <main className="settings-page page-fade">
-            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+  const handleModerateReport = async (reportId, status) => {
+    const res = await updateReport(reportId, { status, admin_notes: `Set by admin in settings (${status})` });
+    if (!res.ok) return showToast('Failed to update report', 'error');
+    setAdminReports((prev) => prev.map((r) => (r.id === reportId ? { ...r, status } : r)));
+    showToast(`Report marked ${status}`);
+  };
 
-            <h1 className="settings-title">Settings</h1>
-            <p className="settings-subtitle">Manage your account, preferences, and payment methods.</p>
+  const handleUpdatePassword = async () => {
+    if (isSocialAuth) return;
+    setSecurityLoading(true);
+    try {
+      const res = await changePassword({
+        current_password: securityForm.current_password,
+        new_password: securityForm.new_password,
+        confirm_password: securityForm.confirm_password,
+      });
+      if (!res.ok) throw new Error(res?.data?.detail || 'Failed to update password');
+      setSecurityForm((p) => ({ ...p, current_password: '', new_password: '', confirm_password: '' }));
+      showToast('Password updated successfully');
+    } catch (err) {
+      showToast(err.message || 'Failed to update password', 'error');
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
 
-            <div className="settings-layout">
-                {/* Sidebar */}
-                <nav className="settings-nav">
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.key}
-                            className={`settings-nav-item ${activeTab === tab.key ? 'active' : ''}`}
-                            onClick={() => setActiveTab(tab.key)}
-                        >
-                            {tab.icon} {tab.label}
-                        </button>
-                    ))}
-                    <button className="settings-nav-item settings-nav-item--danger" onClick={onLogout}>
-                        <LogOut size={18} /> Log Out
-                    </button>
-                </nav>
+  const handleUpdateEmail = async () => {
+    if (isSocialAuth) return;
+    setSecurityLoading(true);
+    try {
+      const res = await changeEmail({
+        current_password: securityForm.current_password,
+        new_email: securityForm.new_email,
+      });
+      if (!res.ok) throw new Error(res?.data?.detail || 'Failed to update email');
+      const updatedEmail = res.data?.email || securityForm.new_email;
+      setProfileForm((p) => ({ ...p, email: updatedEmail }));
+      const existing = getUserData() || {};
+      localStorage.setItem('createch_user', JSON.stringify({ ...existing, email: updatedEmail }));
+      showToast('Email updated successfully');
+    } catch (err) {
+      showToast(err.message || 'Failed to update email', 'error');
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
 
-                {/* Content */}
-                <div className="settings-content">
-                    {/* ─── Profile ─── */}
-                    {activeTab === 'profile' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div style={cardStyle}>
-                                <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Profile Information</h3>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.5rem', overflow: 'hidden', flexShrink: 0 }}>
-                                        {profileForm.avatar_url ? <img src={profileForm.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (profileForm.full_name || 'U').charAt(0).toUpperCase()}
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Avatar URL</label>
-                                        <input style={inputStyle} placeholder="https://example.com/photo.jpg" value={profileForm.avatar_url}
-                                            onChange={e => setProfileForm(p => ({ ...p, avatar_url: e.target.value }))} />
-                                    </div>
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Full Name</label>
-                                        <input style={inputStyle} value={profileForm.full_name}
-                                            onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
-                                    </div>
-                                    <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Email</label>
-                                        <input style={{ ...inputStyle, opacity: 0.6 }} value={profileForm.email} disabled />
-                                    </div>
-                                </div>
-                                <button onClick={handleProfileSave} disabled={saving}
-                                    style={{ marginTop: '1.25rem', padding: '0.65rem 1.5rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
+  const filteredFaq = FAQ_DATA.map((cat) => ({
+    ...cat,
+    questions: cat.questions.filter((q) => !searchQuery || q.q.toLowerCase().includes(searchQuery.toLowerCase()) || q.a.toLowerCase().includes(searchQuery.toLowerCase())),
+  })).filter((cat) => cat.questions.length > 0);
 
-                    {/* ─── Personalization ─── */}
-                    {activeTab === 'personalization' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div style={cardStyle}>
-                                <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Appearance</h3>
+  return (
+    <div className="flex h-full max-h-[calc(100vh-3.5rem)] max-w-6xl mx-auto p-6 gap-8">
+      <Toast message={toast.message} isVisible={toast.visible} type={toast.type} onClose={() => setToast((p) => ({ ...p, visible: false }))} />
 
-                                {/* Theme Toggle */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <div>
-                                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>Theme</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '2px 0 0' }}>Switch between light and dark mode</p>
-                                    </div>
-                                    <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                        <button onClick={() => setTheme('light')} style={{
-                                            padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
-                                            background: theme === 'light' ? 'var(--accent)' : 'transparent', color: theme === 'light' ? '#fff' : 'var(--text-muted)',
-                                            transition: 'all 0.2s',
-                                        }}>Light</button>
-                                        <button onClick={() => setTheme('dark')} style={{
-                                            padding: '0.5rem 1rem', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem',
-                                            background: theme === 'dark' ? 'var(--accent)' : 'transparent', color: theme === 'dark' ? '#fff' : 'var(--text-muted)',
-                                            transition: 'all 0.2s',
-                                        }}>Dark</button>
-                                    </div>
-                                </div>
+      <div className="w-64 shrink-0 space-y-1">
+        <h2 className="text-lg font-medium text-white px-4 mb-4">{isAdmin ? 'Platform Settings' : 'Settings'}</h2>
+        {sections.map((section) => (
+          <button
+            key={section.id}
+            onClick={() => (section.id === 'logout' ? onLogout?.() : setActiveSection(section.id))}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all group ${section.id === 'logout'
+              ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10'
+              : activeSection === section.id
+                ? 'bg-white text-black font-medium shadow-[0_0_15px_rgba(255,255,255,0.1)]'
+                : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+          >
+            <section.icon size={18} className={activeSection === section.id && section.id !== 'logout' ? 'text-black' : ''} />
+            {section.label}
+          </button>
+        ))}
+      </div>
 
-                                {/* Accent Color */}
-                                <div style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: '0 0 8px', fontSize: '0.95rem' }}>Accent Color</p>
-                                    <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '0 0 12px' }}>Choose your preferred accent color</p>
-                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                        {[
-                                            { color: '#6366f1', label: 'Indigo' },
-                                            { color: '#8b5cf6', label: 'Purple' },
-                                            { color: '#3b82f6', label: 'Blue' },
-                                            { color: '#10b981', label: 'Green' },
-                                            { color: '#f59e0b', label: 'Amber' },
-                                            { color: '#ef4444', label: 'Red' },
-                                            { color: '#ec4899', label: 'Pink' },
-                                            { color: '#06b6d4', label: 'Cyan' },
-                                        ].map(c => (
-                                            <button key={c.color} title={c.label} onClick={() => setAccentColor(c.color)} style={{
-                                                width: 36, height: 36, borderRadius: '50%', background: c.color, border: accentColor === c.color ? '3px solid #fff' : '3px solid transparent',
-                                                cursor: 'pointer', transition: 'all 0.2s', boxShadow: accentColor === c.color ? `0 0 12px ${c.color}60` : 'none',
-                                            }} />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style={cardStyle}>
-                                <h3 style={{ color: 'var(--text-primary, #fff)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Display</h3>
-                                {[
-                                    { key: 'compact', label: 'Compact Mode', desc: 'Reduce spacing for more content on screen' },
-                                    { key: 'animations', label: 'Animations', desc: 'Enable smooth transitions and micro-animations' },
-                                ].map(item => {
-                                    const storageKey = `createch_display_${item.key}`;
-                                    const val = localStorage.getItem(storageKey) !== 'false';
-                                    return (
-                                        <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div>
-                                                <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
-                                                <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
-                                            </div>
-                                            <button onClick={() => { const newVal = !val; localStorage.setItem(storageKey, newVal); showToast(`${item.label} ${newVal ? 'enabled' : 'disabled'}`); }} style={{
-                                                width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-                                                background: val ? '#6366f1' : 'rgba(255,255,255,0.1)',
-                                                position: 'relative', transition: 'background 0.2s',
-                                            }}>
-                                                <div style={{
-                                                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                                                    position: 'absolute', top: 3,
-                                                    left: val ? 25 : 3,
-                                                    transition: 'left 0.2s',
-                                                }} />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Security ─── */}
-                    {activeTab === 'security' && (
-                        <div style={cardStyle}>
-                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Security</h3>
-                            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                                Your account uses Firebase Authentication. Password changes are managed through your email provider.
-                            </p>
-                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
-                                <p style={{ color: '#818cf8', fontSize: '0.9rem', margin: 0 }}>
-                                    <Shield size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                                    To change your password, use the "Forgot Password" option on the login screen.
-                                </p>
-                            </div>
-                            <div style={{ marginTop: '1.5rem' }}>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Account info:</p>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Role</span><span style={{ color: 'var(--text-primary)', fontWeight: 600, textTransform: 'capitalize' }}>{userRole}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>UID</span><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{userData?.firebase_uid?.substring(0, 16)}...</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Notifications ─── */}
-                    {activeTab === 'notifications' && (
-                        <div style={cardStyle}>
-                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Notification Preferences</h3>
-                            {[
-                                { key: 'email', label: 'Email Notifications', desc: 'Receive updates via email' },
-                                { key: 'orders', label: 'Order Updates', desc: 'Get notified about order status changes' },
-                                { key: 'messages', label: 'New Messages', desc: 'Alert when you receive a new message' },
-                                { key: 'marketing', label: 'Marketing & Promotions', desc: 'Tips, offers, and platform news' },
-                            ].map(item => (
-                                <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <div>
-                                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
-                                    </div>
-                                    <button onClick={() => toggleNotif(item.key)} style={{
-                                        width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-                                        background: notifSettings[item.key] ? '#6366f1' : 'rgba(255,255,255,0.1)',
-                                        position: 'relative', transition: 'background 0.2s',
-                                    }}>
-                                        <div style={{
-                                            width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                                            position: 'absolute', top: 3,
-                                            left: notifSettings[item.key] ? 25 : 3,
-                                            transition: 'left 0.2s',
-                                        }} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* ─── Followers ─── */}
-                    {activeTab === 'followers' && (
-                        <div style={cardStyle}>
-                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
-                                <button onClick={() => setSocialTab('followers')} style={{
-                                    padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                    background: socialTab === 'followers' ? '#6366f1' : 'rgba(255,255,255,0.06)', color: socialTab === 'followers' ? '#fff' : '#a1a1aa', fontWeight: 600,
-                                }}>Followers ({followers.length})</button>
-                                <button onClick={() => setSocialTab('following')} style={{
-                                    padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                    background: socialTab === 'following' ? '#6366f1' : 'rgba(255,255,255,0.06)', color: socialTab === 'following' ? '#fff' : '#a1a1aa', fontWeight: 600,
-                                }}>Following ({following.length})</button>
-                            </div>
-                            {socialLoading ? (
-                                <p style={{ color: '#71717a', textAlign: 'center', padding: '2rem' }}>Loading...</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {(socialTab === 'followers' ? followers : following).map(f => (
-                                        <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}>
-                                                    {(socialTab === 'followers' ? (f.follower_id || '?') : (f.following_id || '?')).charAt(0).toUpperCase()}
-                                                </div>
-                                                <span style={{ color: '#d4d4d8', fontSize: '0.9rem' }}>{socialTab === 'followers' ? f.follower_id : f.following_id}</span>
-                                            </div>
-                                            {socialTab === 'following' && (
-                                                <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })}
-                                                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>
-                                                    Unfollow
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {(socialTab === 'followers' ? followers : following).length === 0 && (
-                                        <p style={{ color: '#52525b', textAlign: 'center', padding: '2rem' }}>
-                                            {socialTab === 'followers' ? 'No followers yet.' : 'Not following anyone.'}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ─── Payout Methods ─── */}
-                    {activeTab === 'payout' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payout Methods (Wallets)</h3>
-                                {wallets.map(w => (
-                                    <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
-                                        <div>
-                                            <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{w.wallet_type}</p>
-                                            <p style={{ color: '#71717a', fontSize: '0.85rem', margin: 0 }}>{w.account_name} • {w.account_number}</p>
-                                        </div>
-                                        <button onClick={() => setDeleteConfirm({ open: true, type: 'wallet', id: w.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                                    </div>
-                                ))}
-                                {wallets.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payout methods.</p>}
-                                <form onSubmit={handleAddWallet} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                                    <select value={payoutForm.wallet_type} onChange={e => setPayoutForm(p => ({ ...p, wallet_type: e.target.value }))} style={{ ...inputStyle, flex: '0 0 120px' }}>
-                                        <option value="GCash">GCash</option>
-                                        <option value="Maya">Maya</option>
-                                        <option value="BankTransfer">Bank Transfer</option>
-                                        <option value="PayPal">PayPal</option>
-                                    </select>
-                                    <input value={payoutForm.account_name} onChange={e => setPayoutForm(p => ({ ...p, account_name: e.target.value }))} placeholder="Account Name" required style={{ ...inputStyle, flex: 1 }} />
-                                    <input value={payoutForm.account_number} onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} placeholder="Account #" required style={{ ...inputStyle, flex: 1 }} />
-                                    <button type="submit" disabled={payoutLoading} style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                        {payoutLoading ? 'Adding...' : 'Add'}
-                                    </button>
-                                </form>
-                            </div>
-
-                            <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payment Methods</h3>
-                                {paymentMethods.map(pm => (
-                                    <div key={pm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
-                                        <span style={{ color: '#d4d4d8' }}>{pm.method_type} •••• {pm.masked_number}</span>
-                                        <button onClick={() => setDeleteConfirm({ open: true, type: 'payment', id: pm.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                                    </div>
-                                ))}
-                                {paymentMethods.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payment methods.</p>}
-                                <form onSubmit={handleAddPayment} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                                    <input value={pmForm.method_type} onChange={e => setPmForm(p => ({ ...p, method_type: e.target.value }))} placeholder="Type (e.g. GCash)" required style={{ ...inputStyle, flex: 1 }} />
-                                    <input value={pmForm.masked_number} onChange={e => setPmForm(p => ({ ...p, masked_number: e.target.value }))} placeholder="Number (e.g. 0917)" required style={{ ...inputStyle, flex: 1 }} />
-                                    <button type="submit" style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>Add</button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Help & Support ─── */}
-                    {activeTab === 'help' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Submit a Support Ticket</h3>
-                                <form onSubmit={handleSubmitTicket} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Category</label>
-                                        <select value={ticketForm.category} onChange={e => setTicketForm(p => ({ ...p, category: e.target.value }))} style={inputStyle}>
-                                            <option value="general">General</option>
-                                            <option value="billing">Billing</option>
-                                            <option value="technical">Technical</option>
-                                            <option value="account">Account</option>
-                                            <option value="dispute">Dispute</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Message</label>
-                                        <textarea value={ticketForm.message} onChange={e => setTicketForm(p => ({ ...p, message: e.target.value }))} placeholder="Describe your issue..." required
-                                            style={{ ...inputStyle, minHeight: 100, resize: 'vertical', fontFamily: 'inherit' }} />
-                                    </div>
-                                    <button type="submit" disabled={ticketLoading} style={{ padding: '0.65rem 1.5rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: 'fit-content' }}>
-                                        <Send size={16} /> {ticketLoading ? 'Submitting...' : 'Submit Ticket'}
-                                    </button>
-                                </form>
-                            </div>
-
-                            {tickets.length > 0 && (
-                                <div style={cardStyle}>
-                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Your Tickets</h3>
-                                    {tickets.map(t => (
-                                        <div key={t.id} style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem' }}>{t.ticket_number}</span>
-                                                <span style={{
-                                                    padding: '2px 8px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600,
-                                                    background: t.status === 'resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(250,204,21,0.1)',
-                                                    color: t.status === 'resolved' ? '#10b981' : '#facc15',
-                                                }}>{t.status}</span>
-                                            </div>
-                                            <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: 0 }}>{t.message?.substring(0, 100)}{t.message?.length > 100 ? '...' : ''}</p>
-                                            {t.admin_response && (
-                                                <div style={{ marginTop: 8, padding: '0.5rem 0.75rem', background: 'rgba(99,102,241,0.1)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)' }}>
-                                                    <p style={{ color: '#818cf8', fontSize: '0.85rem', margin: 0 }}><strong>Admin:</strong> {t.admin_response}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+      <div className="flex-1 overflow-y-auto pr-2 pb-20 animate-in fade-in duration-300">
+        {activeSection === 'profile' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h3 className="text-xl font-medium text-white">{isAdmin ? 'Admin Personal Information' : 'Personal Information'}</h3>
+              <p className="text-sm text-zinc-500">{isAdmin ? 'Manage your platform admin identity and contact details.' : 'Manage your identity and contact details.'}</p>
             </div>
+            <GlassCard className="p-8 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl space-y-6">
+              <div className="flex items-center gap-6">
+                <Avatar src={profileForm.avatar_url} alt={`${profileForm.firstName} ${profileForm.lastName}`} size={96} className="w-24 h-24 border border-white/10" />
+                <div className="flex-1 space-y-2">
+                  <p className="text-white text-sm font-medium">Avatar URL</p>
+                  <input value={profileForm.avatar_url} onChange={(e) => setProfileForm((p) => ({ ...p, avatar_url: e.target.value }))} className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <input value={profileForm.firstName} onChange={(e) => setProfileForm((p) => ({ ...p, firstName: e.target.value }))} placeholder="First Name" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+                <input value={profileForm.lastName} onChange={(e) => setProfileForm((p) => ({ ...p, lastName: e.target.value }))} placeholder="Last Name" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <input value={profileForm.email} disabled className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-zinc-500" />
+                <input value={profileForm.phone} onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))} placeholder="Phone Number" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+              </div>
+              <textarea value={profileForm.address} onChange={(e) => setProfileForm((p) => ({ ...p, address: e.target.value }))} placeholder="Address" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none" rows={2} />
+              <div className="flex justify-end">
+                <button onClick={handleSaveProfile} disabled={saving} className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-zinc-200 disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
+              </div>
+            </GlassCard>
+          </div>
+        )}
 
-            <ConfirmModal
-                open={deleteConfirm.open}
-                title="Remove Item?"
-                message="This action cannot be undone."
-                variant="danger"
-                confirmLabel="Remove"
-                loading={deleting}
-                onConfirm={handleDelete}
-                onCancel={() => setDeleteConfirm({ open: false, type: '', id: null })}
-            />
-        </main>
-    );
-};
+        {activeSection === 'creator' && isCreator && (
+          <div className="space-y-6 max-w-2xl">
+            <div><h3 className="text-xl font-medium text-white">Creator Profile</h3><p className="text-sm text-zinc-500">Manage your professional appearance and rates.</p></div>
+            <GlassCard className="p-8 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl space-y-4">
+              <textarea rows={4} value={creatorForm.bio} onChange={(e) => setCreatorForm((p) => ({ ...p, bio: e.target.value }))} placeholder="Bio" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none" />
+              <input value={creatorForm.skills} onChange={(e) => setCreatorForm((p) => ({ ...p, skills: e.target.value }))} placeholder="Skills (comma separated)" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+              <input value={creatorForm.portfolio_url} onChange={(e) => setCreatorForm((p) => ({ ...p, portfolio_url: e.target.value }))} placeholder="Portfolio URL" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" value={creatorForm.starting_price} onChange={(e) => setCreatorForm((p) => ({ ...p, starting_price: e.target.value }))} placeholder="Hourly Rate" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+                <input type="number" value={creatorForm.experience_years} onChange={(e) => setCreatorForm((p) => ({ ...p, experience_years: e.target.value }))} placeholder="Experience Years" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white" />
+              </div>
+              <div className="flex justify-end">
+                <button onClick={handleSaveCreator} disabled={saving} className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-zinc-200 disabled:opacity-50">{saving ? 'Saving...' : 'Save Profile'}</button>
+              </div>
+            </GlassCard>
+          </div>
+        )}
 
-export default SettingsPage;
+        {activeSection === 'finance' && !isAdmin && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h3 className="text-xl font-medium text-white">{isCreator ? 'Payout Methods' : 'Billing & Payments'}</h3>
+              <p className="text-sm text-zinc-500">
+                {isCreator ? 'Manage how you receive earnings.' : 'Manage your client billing methods and checkout readiness.'}
+              </p>
+            </div>
+            {isCreator ? (
+              <GlassCard className="p-6 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl">
+                <h4 className="text-white text-sm font-medium mb-3">Payout Wallets</h4>
+                {wallets.map((w) => (
+                  <div key={w.id} className="flex items-center justify-between p-3 rounded-lg border border-white/10 mb-2">
+                    <p className="text-sm text-zinc-300">{w.wallet_type} • {w.account_name} • {w.account_number}</p>
+                    <button onClick={() => setDeleteConfirm({ open: true, type: 'wallet', id: w.id })} className="text-red-400"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+                <form onSubmit={handleAddWallet} className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                  <input value={payoutForm.wallet_type} onChange={(e) => setPayoutForm((p) => ({ ...p, wallet_type: e.target.value }))} placeholder="Type" className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+                  <input value={payoutForm.account_name} onChange={(e) => setPayoutForm((p) => ({ ...p, account_name: e.target.value }))} placeholder="Name" className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+                  <input value={payoutForm.account_number} onChange={(e) => setPayoutForm((p) => ({ ...p, account_number: e.target.value }))} placeholder="Number" className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+                  <button className="sm:col-span-3 px-4 py-2 rounded-lg bg-white text-black text-sm font-medium">Add Wallet</button>
+                </form>
+              </GlassCard>
+            ) : (
+              <>
+                <GlassCard className="p-6 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl">
+                  <h4 className="text-white text-sm font-medium mb-1">Billing Profile</h4>
+                  <p className="text-xs text-zinc-500 mb-4">These methods are used when placing orders and booking services.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 rounded-lg border border-white/10">
+                      <p className="text-[11px] text-zinc-500">Billing Email</p>
+                      <p className="text-sm text-zinc-200 mt-1">{profileForm.email || 'No email set'}</p>
+                    </div>
+                    <div className="p-3 rounded-lg border border-white/10">
+                      <p className="text-[11px] text-zinc-500">Status</p>
+                      <p className="text-sm text-emerald-300 mt-1">Ready for checkout</p>
+                    </div>
+                  </div>
+                </GlassCard>
+                <GlassCard className="p-6 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl">
+                  <h4 className="text-white text-sm font-medium mb-3">Saved Payment Methods</h4>
+                  {paymentMethods.map((pm) => (
+                    <div key={pm.id} className="flex items-center justify-between p-3 rounded-lg border border-white/10 mb-2">
+                      <p className="text-sm text-zinc-300">{pm.method_type} •••• {pm.masked_number}</p>
+                      <button onClick={() => setDeleteConfirm({ open: true, type: 'payment', id: pm.id })} className="text-red-400"><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                  {paymentMethods.length === 0 && <p className="text-xs text-zinc-500 mb-2">No payment methods yet.</p>}
+                  <form onSubmit={handleAddPayment} className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                    <input value={pmForm.method_type} onChange={(e) => setPmForm((p) => ({ ...p, method_type: e.target.value }))} placeholder="Method Type (e.g. Card, GCash)" className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+                    <input value={pmForm.masked_number} onChange={(e) => setPmForm((p) => ({ ...p, masked_number: e.target.value }))} placeholder="Last digits / label" className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+                    <button className="sm:col-span-2 px-4 py-2 rounded-lg bg-white text-black text-sm font-medium">Add Payment Method</button>
+                  </form>
+                </GlassCard>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'notifications' && (
+          <div className="space-y-6 max-w-3xl">
+            <div><h3 className="text-xl font-medium text-white">{isAdmin ? 'Admin Alerts' : 'Notifications'}</h3><p className="text-sm text-zinc-500">{isAdmin ? 'Control moderation and platform alerts.' : 'Manage how you receive updates.'}</p></div>
+            <GlassCard className="p-0 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl overflow-hidden">
+              {[
+                { id: isAdmin ? 'moderation' : 'orderUpdates', label: isAdmin ? 'Moderation Queue' : 'Order Updates', desc: isAdmin ? 'Alerts for pending reports and actions' : 'Status changes on your orders' },
+                { id: isAdmin ? 'disputes' : 'messages', label: isAdmin ? 'Dispute Activity' : 'Messages', desc: isAdmin ? 'Disputes requiring admin review' : 'New chat messages' },
+                { id: 'reviews', label: 'Reviews', desc: 'When someone reviews your work' },
+                { id: 'promotions', label: 'Promotions', desc: 'Tips, offers, and platform news' },
+              ].map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-5 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
+                  <div><h4 className="text-sm font-medium text-white">{item.label}</h4><p className="text-[11px] text-zinc-500 mt-0.5">{item.desc}</p></div>
+                  <Toggle active={notifPrefs[item.id]} onClick={() => setNotifPrefs((p) => ({ ...p, [item.id]: !p[item.id] }))} />
+                </div>
+              ))}
+            </GlassCard>
+          </div>
+        )}
+
+        {activeSection === 'security' && (
+          <div className="space-y-6 max-w-2xl">
+            <div><h3 className="text-xl font-medium text-white">Security</h3><p className="text-sm text-zinc-500">{isAdmin ? 'Keep platform access secure.' : 'Keep your account safe.'}</p></div>
+            <GlassCard className="p-6 space-y-4 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl">
+              <div className="flex items-center justify-between"><span className="text-sm text-zinc-400">Role</span><span className="text-sm text-white capitalize">{userRole}</span></div>
+              <div className="flex items-center justify-between"><span className="text-sm text-zinc-400">UID</span><span className="text-xs text-zinc-500">{String(uid || '')}</span></div>
+              <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg text-xs text-emerald-300 flex items-center gap-2"><Check size={14} /> Authentication active</div>
+              {isSocialAuth ? (
+                <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg text-xs text-blue-300 flex items-center gap-2">
+                  <Shield size={14} /> This account uses Google Sign-In. Password/email updates are handled by the provider flow.
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg space-y-3">
+                    <p className="text-xs text-zinc-400">Change Password</p>
+                    <input
+                      type="password"
+                      value={securityForm.current_password}
+                      onChange={(e) => setSecurityForm((p) => ({ ...p, current_password: e.target.value }))}
+                      placeholder="Current password"
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="password"
+                        value={securityForm.new_password}
+                        onChange={(e) => setSecurityForm((p) => ({ ...p, new_password: e.target.value }))}
+                        placeholder="New password"
+                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                      />
+                      <input
+                        type="password"
+                        value={securityForm.confirm_password}
+                        onChange={(e) => setSecurityForm((p) => ({ ...p, confirm_password: e.target.value }))}
+                        placeholder="Confirm new password"
+                        className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleUpdatePassword}
+                        disabled={securityLoading || !securityForm.current_password || !securityForm.new_password || !securityForm.confirm_password}
+                        className="px-3 py-2 rounded-lg bg-white text-black text-xs font-medium disabled:opacity-50"
+                      >
+                        {securityLoading ? 'Updating...' : 'Update Password'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg space-y-3">
+                    <p className="text-xs text-zinc-400">Change Email</p>
+                    <input
+                      type="email"
+                      value={securityForm.new_email}
+                      onChange={(e) => setSecurityForm((p) => ({ ...p, new_email: e.target.value }))}
+                      placeholder="New email address"
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleUpdateEmail}
+                        disabled={securityLoading || !securityForm.current_password || !securityForm.new_email}
+                        className="px-3 py-2 rounded-lg bg-white text-black text-xs font-medium disabled:opacity-50"
+                      >
+                        {securityLoading ? 'Updating...' : 'Update Email'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </GlassCard>
+          </div>
+        )}
+
+        {activeSection === 'following' && isClient && (
+          <div className="space-y-6 max-w-2xl">
+            <div><h3 className="text-xl font-medium text-white">Following</h3><p className="text-sm text-zinc-500">Creators you follow.</p></div>
+            {socialLoading ? <p className="text-zinc-500">Loading...</p> : (
+              <div className="space-y-3">
+                {following.length === 0 && <GlassCard className="p-6 text-zinc-500">You are not following anyone yet.</GlassCard>}
+                {following.map((f) => (
+                  <GlassCard key={f.id} className="p-4 flex items-center justify-between border-white/5 bg-[#0A0A0A]/50">
+                    <div className="flex items-center gap-3"><Avatar alt={String(f.following_id || 'U')} size={40} /><span className="text-sm text-white">{f.following_id}</span></div>
+                    <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })} className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-zinc-300 hover:bg-white/5">Unfollow</button>
+                  </GlassCard>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'followers' && isCreator && (
+          <div className="space-y-6 max-w-2xl">
+            <div><h3 className="text-xl font-medium text-white">Followers</h3><p className="text-sm text-zinc-500">People following your work.</p></div>
+            {socialLoading ? <p className="text-zinc-500">Loading...</p> : (
+              <div className="space-y-3">
+                {followers.length === 0 && <GlassCard className="p-6 text-zinc-500">No followers yet.</GlassCard>}
+                {followers.map((f) => (
+                  <GlassCard key={f.id} className="p-4 flex items-center gap-3 border-white/5 bg-[#0A0A0A]/50">
+                    <Avatar alt={String(f.follower_id || 'U')} size={40} />
+                    <span className="text-sm text-white">{f.follower_id}</span>
+                  </GlassCard>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSection === 'help' && !isAdmin && (
+          <div className="space-y-6 max-w-3xl">
+            <div><h3 className="text-xl font-medium text-white">Help Center</h3><p className="text-sm text-zinc-500">Find answers to common questions.</p></div>
+            <div className="relative"><Search size={16} className="absolute left-3 top-3 text-zinc-500" /><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search FAQs..." className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white" /></div>
+            {filteredFaq.map((cat) => (
+              <GlassCard key={cat.category} className="p-0 border-white/5 bg-[#0A0A0A]/50 overflow-hidden">
+                <div className="p-4 border-b border-white/5 bg-white/[0.02]"><h4 className="text-sm font-medium text-zinc-400">{cat.category}</h4></div>
+                {cat.questions.map((faq, idx) => {
+                  const id = `${cat.category}-${idx}`;
+                  const open = expandedFaq === id;
+                  return (
+                    <div key={id} className="border-b border-white/5 last:border-0">
+                      <button onClick={() => setExpandedFaq(open ? null : id)} className="w-full p-4 flex items-center justify-between hover:bg-white/[0.02] text-left">
+                        <span className="text-sm text-white pr-4">{faq.q}</span>{open ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-500" />}
+                      </button>
+                      {open && <div className="px-4 pb-4 text-sm text-zinc-400">{faq.a}</div>}
+                    </div>
+                  );
+                })}
+              </GlassCard>
+            ))}
+          </div>
+        )}
+
+        {activeSection === 'platform' && isAdmin && (
+          <div className="space-y-6 max-w-3xl">
+            <div><h3 className="text-xl font-medium text-white">Platform Controls</h3><p className="text-sm text-zinc-500">FastAPI-backed operations for moderation and support oversight.</p></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <GlassCard className="p-4 border-white/5 bg-[#0A0A0A]/50"><p className="text-zinc-500 text-xs">Users</p><p className="text-white text-xl font-semibold mt-1">{adminStats.users}</p></GlassCard>
+              <GlassCard className="p-4 border-white/5 bg-[#0A0A0A]/50"><p className="text-zinc-500 text-xs">Open Reports</p><p className="text-white text-xl font-semibold mt-1">{adminStats.openReports}</p></GlassCard>
+              <GlassCard className="p-4 border-white/5 bg-[#0A0A0A]/50"><p className="text-zinc-500 text-xs">Open Tickets</p><p className="text-white text-xl font-semibold mt-1">{adminStats.openTickets}</p></GlassCard>
+            </div>
+            <GlassCard className="p-4 border-white/5 bg-[#0A0A0A]/50">
+              <h4 className="text-white text-sm font-medium mb-3">Quick Navigation</h4>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => navigate('/users')} className="px-3 py-2 rounded-lg border border-white/10 text-xs text-zinc-200 hover:bg-white/5 flex items-center gap-1">User Management <ExternalLink size={12} /></button>
+                <button onClick={() => navigate('/disputes')} className="px-3 py-2 rounded-lg border border-white/10 text-xs text-zinc-200 hover:bg-white/5 flex items-center gap-1">Disputes <ExternalLink size={12} /></button>
+                <button onClick={() => navigate('/projects')} className="px-3 py-2 rounded-lg border border-white/10 text-xs text-zinc-200 hover:bg-white/5 flex items-center gap-1">Orders/Projects <ExternalLink size={12} /></button>
+              </div>
+            </GlassCard>
+            <GlassCard className="p-4 border-white/5 bg-[#0A0A0A]/50">
+              <h4 className="text-white text-sm font-medium mb-3">Report Moderation Queue</h4>
+              {(adminReports || []).slice(0, 8).map((r) => (
+                <div key={r.id} className="p-3 rounded-lg border border-white/10 mb-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-zinc-300">#{r.id} • {r.reason}</p>
+                    <span className="text-[10px] px-2 py-1 rounded bg-white/10 text-zinc-300">{r.status || 'open'}</span>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button onClick={() => handleModerateReport(r.id, 'under_review')} className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px]">Under Review</button>
+                    <button onClick={() => handleModerateReport(r.id, 'resolved')} className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[10px]">Resolve</button>
+                    <button onClick={() => handleModerateReport(r.id, 'dismissed')} className="px-2 py-1 rounded bg-zinc-500/10 border border-zinc-500/20 text-zinc-300 text-[10px]">Dismiss</button>
+                  </div>
+                </div>
+              ))}
+              {adminReports.length === 0 && <p className="text-xs text-zinc-500">No reports found.</p>}
+            </GlassCard>
+          </div>
+        )}
+
+        {activeSection === 'support' && (
+          <div className="space-y-6 max-w-2xl">
+            <div><h3 className="text-xl font-medium text-white">{isAdmin ? 'Platform Support' : 'Support & Data'}</h3><p className="text-sm text-zinc-500">{isAdmin ? 'Coordinate operations and platform issues.' : 'Get help and manage support tickets.'}</p></div>
+            <GlassCard className="p-6 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl">
+              <h4 className="text-white font-medium text-sm mb-4">{isAdmin ? 'Submit Ops Ticket' : 'Submit a Support Ticket'}</h4>
+              <div className="space-y-3">
+                <select value={supportCategory} onChange={(e) => setSupportCategory(e.target.value)} className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white">
+                  <option value="General">General</option>
+                  <option value="Billing">Billing</option>
+                  <option value="Technical">Technical</option>
+                  <option value="Dispute">Dispute</option>
+                  {isAdmin && <option value="Platform Operations">Platform Operations</option>}
+                </select>
+                <textarea rows={4} value={supportMessage} onChange={(e) => setSupportMessage(e.target.value)} className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none" placeholder="Describe your issue in detail..." />
+                <button onClick={handleSubmitSupport} disabled={loading || !supportMessage.trim()} className="w-full px-4 py-2.5 rounded-lg bg-white text-black text-sm font-medium disabled:opacity-50">{loading ? 'Submitting...' : 'Submit Ticket'}</button>
+              </div>
+            </GlassCard>
+            <GlassCard className="p-6 border-white/5 bg-[#0A0A0A]/50 backdrop-blur-xl">
+              <h4 className="text-white font-medium text-sm mb-3">{isAdmin ? 'Recent Platform Tickets' : 'Your Tickets'}</h4>
+              {ticketsLoading ? <p className="text-zinc-500 text-sm">Loading...</p> : (
+                <>
+                  {(isAdmin ? adminTickets : tickets).slice(0, 12).map((t) => (
+                    <div key={t.id} className="p-3 rounded-lg border border-white/10 mb-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-zinc-300">{t.ticket_number || `Ticket #${t.id}`}</p>
+                        <span className={`text-[10px] px-2 py-1 rounded ${String(t.status).toLowerCase() === 'resolved' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300'}`}>{t.status || 'open'}</span>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1">{(t.message || '').slice(0, 120)}</p>
+                    </div>
+                  ))}
+                  {(isAdmin ? adminTickets : tickets).length === 0 && <p className="text-xs text-zinc-500">No tickets yet.</p>}
+                </>
+              )}
+              {!isAdmin && (
+                <div className="mt-4 p-3 bg-red-500/5 border border-red-500/10 rounded-lg flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-red-300 font-medium flex items-center gap-1"><AlertTriangle size={14} /> Danger Zone</p>
+                    <p className="text-xs text-zinc-500 mt-1">Need account deletion? Contact support for a verified deletion request.</p>
+                  </div>
+                  <button onClick={() => setSupportMessage('Please assist with account deletion request.')} className="px-2 py-1 rounded border border-red-500/20 text-[10px] text-red-300">Request</button>
+                </div>
+              )}
+            </GlassCard>
+          </div>
+        )}
+      </div>
+
+      <ConfirmModal
+        open={deleteConfirm.open}
+        title="Remove Item?"
+        message="This action cannot be undone."
+        variant="danger"
+        confirmLabel="Remove"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ open: false, type: '', id: null })}
+      />
+    </div>
+  );
+}

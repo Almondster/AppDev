@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, rejectOrder, updateOrder } from '../api';
+import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, rejectOrder, updateOrder, getUserData } from '../api';
 import { Eye, CheckCircle, XCircle } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './ProjectsPage.css';
@@ -49,6 +49,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
 
     const userData = getUserData();
     const isCreator = userRole === 'creator';
+    const isAdmin = userRole === 'admin';
     const navigate = useNavigate();
 
     // Confirm modal state
@@ -156,9 +157,11 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
         <main className="gigs-page">
             {/* Breadcrumb */}
             <div className="gigs-breadcrumb">
-                <span className="gigs-bc-muted">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
+                <span className="gigs-bc-muted">
+                    {isAdmin ? 'Admin Workspace' : isCreator ? 'Creator Workspace' : 'Client Workspace'}
+                </span>
                 <span className="gigs-bc-sep">/</span>
-                <span className="gigs-bc-active">Orders</span>
+                <span className="gigs-bc-active">{isAdmin ? 'Order Management' : 'Orders'}</span>
             </div>
 
             {toast && <div className="global-toast global-toast--success">{toast}</div>}
@@ -166,8 +169,14 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
             {/* Header */}
             <div className="gigs-header">
                 <div>
-                    <h1 className="gigs-title">{isCreator ? 'Project Management' : 'My Orders'}</h1>
-                    <p className="gigs-subtitle">{isCreator ? 'Manage your gig pipeline.' : 'Track your active orders and history.'}</p>
+                    <h1 className="gigs-title">{isAdmin ? 'Order Management' : isCreator ? 'Project Management' : 'My Orders'}</h1>
+                    <p className="gigs-subtitle">
+                        {isAdmin
+                            ? 'Review and manage platform-wide orders.'
+                            : isCreator
+                                ? 'Manage your gig pipeline.'
+                                : 'Track your active orders and history.'}
+                    </p>
                 </div>
             </div>
 

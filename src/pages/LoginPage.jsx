@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Star } from 'lucide-react';
-import { login, register } from '../api';
+import { googleLoginAPI, login, register } from '../api';
+import { signInWithGooglePopup } from '../lib/firebase';
 import './LoginPage.css';
 
 const GoogleIcon = () => (
@@ -178,6 +179,32 @@ const LoginPage = ({ onLogin }) => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setApiError('');
+    setApiSuccess('');
+    try {
+      const role = searchParams.get('role') || 'client';
+      const result = await signInWithGooglePopup();
+      const idToken = await result.user.getIdToken();
+      await googleLoginAPI(idToken, role);
+      setApiSuccess('Google sign-in successful. Opening your workspace...');
+      setTimeout(() => {
+        onLogin();
+        navigate('/');
+      }, 450);
+    } catch (err) {
+      const msg = err?.message || '';
+      if (msg.includes('Not Found') || msg.includes('(404)') || msg.includes('404')) {
+        setApiError('Google login endpoint is not deployed yet on FastAPI (`/api/auth/google/`).');
+      } else {
+        setApiError(msg || 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const switchMode = () => {
     const nextSignUp = !isSignUp;
     setSearchParams(nextSignUp ? { mode: 'signup' } : {});
@@ -204,7 +231,7 @@ const LoginPage = ({ onLogin }) => {
             <p>{isSignUp ? 'Enter your details to get started.' : 'Please enter your details to sign in.'}</p>
           </div>
 
-          <button type="button" className="auth-google">
+          <button type="button" className="auth-google" onClick={handleGoogleSignIn} disabled={loading}>
             <GoogleIcon />
             {isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
           </button>

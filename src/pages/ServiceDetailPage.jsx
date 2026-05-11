@@ -59,6 +59,7 @@ const ServiceDetailPage = () => {
     setOrdering(true);
     try {
       const { ok } = await createOrder({
+        service_id: Number(service.id),
         client_id: userData?.firebase_uid,
         creator_id: service.creator_id,
         service_title: service.title || service.label,

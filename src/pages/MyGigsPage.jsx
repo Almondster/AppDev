@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ImagePlus, Plus, Search, X } from 'lucide-react';
 import { createService, deleteService, fetchMyServices, getUserData, updateService } from '../api';
-import Button from '../components/Button';
+import { Button } from '../components/Button';
 import '../styles/ProjectsPage.css';
 
 const EMPTY_FORM = {

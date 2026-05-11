@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     fetchDeadlines as apiFetchDeadlines, fetchMyMessages, fetchMyOrders, fetchMyCreatorOrders,
@@ -30,19 +30,21 @@ const NotificationsPage = () => {
     const userData = getUserData();
     const uid = userData?.firebase_uid;
     const isCreator = userData?.role === 'creator';
+    const ordersSeenKey = `createch_orders_last_seen_${uid}`;
+    const followsSeenKey = `createch_follows_last_seen_${uid}`;
 
     // Persist read IDs in localStorage
     const STORAGE_KEY = `createch_read_notifs_${uid}`;
-    const getReadIds = () => {
+    const getReadIds = useCallback(() => {
         try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
         catch { return new Set(); }
-    };
-    const saveReadIds = (ids) => {
+    }, [STORAGE_KEY]);
+    const saveReadIds = useCallback((ids) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
-    };
+    }, [STORAGE_KEY]);
 
     useEffect(() => {
-        (async () => {
+        const fetchNotifications = async () => {
             try {
                 const readIds = getReadIds();
                 const ordersFetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
@@ -54,8 +56,8 @@ const NotificationsPage = () => {
                 ]);
 
                 const notifs = [];
-                const ordersLastSeen = userData?.orders_last_seen_at ? new Date(userData.orders_last_seen_at) : new Date(0);
-                const followsLastSeen = userData?.follows_last_seen_at ? new Date(userData.follows_last_seen_at) : new Date(0);
+                const ordersLastSeen = new Date(localStorage.getItem(ordersSeenKey) || userData?.orders_last_seen_at || 0);
+                const followsLastSeen = new Date(localStorage.getItem(followsSeenKey) || userData?.follows_last_seen_at || 0);
 
                 // Deadline notifications
                 if (dRes.ok) {
@@ -177,17 +179,24 @@ const NotificationsPage = () => {
             } finally {
                 setLoading(false);
             }
-        })();
-    }, []);
+        };
+
+        fetchNotifications();
+        const timer = setInterval(fetchNotifications, 5000);
+        return () => clearInterval(timer);
+    }, [isCreator, uid, ordersSeenKey, followsSeenKey, userData?.orders_last_seen_at, userData?.follows_last_seen_at, getReadIds]);
 
     const markAllRead = () => {
         const readIds = getReadIds();
         notifications.forEach(n => readIds.add(n.id));
         saveReadIds(readIds);
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        const now = new Date().toISOString();
+        localStorage.setItem(ordersSeenKey, now);
+        localStorage.setItem(followsSeenKey, now);
         patchUser(uid, {
-            orders_last_seen_at: new Date().toISOString(),
-            follows_last_seen_at: new Date().toISOString(),
+            orders_last_seen_at: now,
+            follows_last_seen_at: now,
         }).catch(() => {});
     };
 
@@ -200,6 +209,16 @@ const NotificationsPage = () => {
 
     const handleClick = (notif) => {
         markOneRead(notif.id);
+        if (notif.type === 'orders') {
+            const now = new Date().toISOString();
+            localStorage.setItem(ordersSeenKey, now);
+            patchUser(uid, { orders_last_seen_at: now }).catch(() => {});
+        }
+        if (notif.type === 'social') {
+            const now = new Date().toISOString();
+            localStorage.setItem(followsSeenKey, now);
+            patchUser(uid, { follows_last_seen_at: now }).catch(() => {});
+        }
         if (notif.link) {
             navigate(notif.link);
         }

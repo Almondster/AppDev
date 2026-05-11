@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-const Button = memo(({ children, variant = 'primary', onClick, icon, disabled = false }) => {
+export const Button = memo(({ children, variant = 'primary', onClick, icon, disabled = false }) => {
   return (
     <button
       className={`btn btn--${variant}`}

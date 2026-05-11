@@ -67,6 +67,8 @@ const OrdersPage = () => {
 
     const [statusUpdating, setStatusUpdating] = useState(null);
     const [statusError, setStatusError] = useState('');
+    const userRole = (getUserData()?.role || 'client').toLowerCase();
+    const isCreator = userRole === 'creator';
 
     const handleStatusUpdate = async (id, newStatus) => {
         setStatusUpdating(id);
@@ -85,24 +87,31 @@ const OrdersPage = () => {
     return (
         <section className="section page-fade">
             <header className="section__header">
-                <h2 className="section__title">My Orders ({orders.length})</h2>
-                <div className="filter-group">
-                    {['All', 'Pending', 'In_progress', 'Completed', 'Cancelled'].map(f => (
-                        <button
-                            key={f}
-                            className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`}
-                            onClick={() => setFilter(f)}
-                        >
-                            {f.replace('_', ' ')}
-                        </button>
-                    ))}
+                <div>
+                    <h2 className="section__title">{isCreator ? 'Incoming Orders' : 'My Orders'} ({orders.length})</h2>
+                    <p className="section__subtitle">
+                        {isCreator ? 'Manage client requests and keep delivery statuses up to date.' : 'Track the status of your purchases and deliveries.'}
+                    </p>
                 </div>
-                <label htmlFor="orderSort" className="sr-only">Sort orders</label>
-                <select id="orderSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                    <option value="recent">Sort: Recent</option>
-                    <option value="amount">Sort: Amount</option>
-                    <option value="client">Sort: Client</option>
-                </select>
+                <div className="section__controls">
+                    <div className="filter-group">
+                        {['All', 'Pending', 'In_progress', 'Completed', 'Cancelled'].map(f => (
+                            <button
+                                key={f}
+                                className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`}
+                                onClick={() => setFilter(f)}
+                            >
+                                {f.replace('_', ' ')}
+                            </button>
+                        ))}
+                    </div>
+                    <label htmlFor="orderSort" className="sr-only">Sort orders</label>
+                    <select id="orderSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                        <option value="recent">Sort: Recent</option>
+                        <option value="amount">Sort: Amount</option>
+                        <option value="client">Sort: Client</option>
+                    </select>
+                </div>
             </header>
 
             {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
