@@ -23,6 +23,8 @@ const TABS = [
     { key: 'help', label: 'Help & Support', icon: <HelpCircle size={18} /> },
 ];
 
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
 const SettingsPage = ({ userRole, onLogout }) => {
     const [searchParams] = useSearchParams();
     const initialTab = searchParams.get('tab') || 'profile';
@@ -126,11 +128,34 @@ const SettingsPage = ({ userRole, onLogout }) => {
     }, [activeTab, userData?.firebase_uid]);
 
     // ── PROFILE ──
+    const handlePhotoUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            showToast('Please select an image file.');
+            e.target.value = '';
+            return;
+        }
+        if (file.size > MAX_AVATAR_BYTES) {
+            showToast('Profile photo must be 2 MB or smaller.');
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setProfileForm(p => ({ ...p, avatar_url: String(reader.result || '') }));
+            e.target.value = '';
+        };
+        reader.onerror = () => showToast('Failed to read image file.');
+        reader.readAsDataURL(file);
+    };
+
     const handleProfileSave = async () => {
         setSaving(true);
         try {
             const { ok } = await patchUser(userData?.firebase_uid, {
-                display_name: profileForm.full_name,
+                username: profileForm.full_name,
                 avatar_url: profileForm.avatar_url,
             });
             if (ok) {
@@ -279,9 +304,18 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                         {profileForm.avatar_url ? <img src={profileForm.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (profileForm.full_name || 'U').charAt(0).toUpperCase()}
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Avatar URL</label>
-                                        <input style={inputStyle} placeholder="https://example.com/photo.jpg" value={profileForm.avatar_url}
-                                            onChange={e => setProfileForm(p => ({ ...p, avatar_url: e.target.value }))} />
+                                        <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: 8 }}>Profile Photo</label>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                            <label htmlFor="profile-photo-upload" style={{ padding: '0.58rem 0.9rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.88rem' }}>
+                                                <Camera size={15} /> Upload Photo
+                                            </label>
+                                            <input id="profile-photo-upload" type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                                            {profileForm.avatar_url && (
+                                                <button type="button" onClick={() => setProfileForm(p => ({ ...p, avatar_url: '' }))} style={{ padding: '0.58rem 0.8rem', borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 600, border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.88rem' }}>
+                                                    <X size={15} /> Remove
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
