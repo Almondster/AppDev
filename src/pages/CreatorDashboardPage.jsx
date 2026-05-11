@@ -1,21 +1,42 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchMyCreatorOrders as apiFetchOrders, fetchReviews, getUserData } from '../api';
+import { fetchMyCreatorOrders as apiFetchOrders, fetchReviews, getUserData, fetchUsers } from '../api';
 import { Eye, Briefcase, DollarSign, Star } from 'lucide-react';
 
 const CreatorDashboardPage = () => {
+    const userData = getUserData();
     const [tab, setTab] = useState('overview');
     const [orders, setOrders] = useState([]);
     const [reviews, setReviews] = useState([]);
+    const [reviewerUsers, setReviewerUsers] = useState({}); // Map of reviewer_id -> user data
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
         (async () => {
             try {
-                const [oRes, rRes] = await Promise.all([apiFetchOrders(), fetchReviews()]);
+                const userId = userData?.id || userData?.firebase_uid;
+                const [oRes, rRes, uRes] = await Promise.all([
+                    apiFetchOrders(), 
+                    fetchReviews({ reviewee_id: userId }),
+                    fetchUsers()
+                ]);
                 if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
-                if (rRes.ok) setReviews(rRes.data.results || rRes.data || []);
+                
+                if (rRes.ok) {
+                    const reviewsData = rRes.data.results || rRes.data || [];
+                    setReviews(reviewsData);
+                    
+                    // Build reviewer user map
+                    if (uRes.ok && reviewsData.length > 0) {
+                        const allUsers = uRes.data.results || uRes.data || [];
+                        const userMap = {};
+                        allUsers.forEach(u => {
+                            userMap[u.id] = u;
+                        });
+                        setReviewerUsers(userMap);
+                    }
+                }
             } catch (err) {
                 console.error('Creator dashboard error:', err);
             } finally {
@@ -165,31 +186,35 @@ const CreatorDashboardPage = () => {
                 {tab === 'reviews' && (
                     <div className="space-y-6">
                         {reviews.length > 0 ? (
-                            reviews.map(r => (
-                                <div key={r.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-6">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
-                                            {(r.reviewer_name || 'U').charAt(0)}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="text-white font-semibold">{r.reviewer_name || 'Anonymous'}</h4>
-                                                <div className="flex items-center gap-1">
-                                                    {Array.from({ length: 5 }).map((_, i) => (
-                                                        <Star
-                                                            key={i}
-                                                            size={14}
-                                                            className={i < r.rating ? 'text-yellow-500 fill-yellow-500' : 'text-zinc-600'}
-                                                        />
-                                                    ))}
-                                                </div>
+                            reviews.map(r => {
+                                const reviewer = reviewerUsers[r.reviewer_id];
+                                const reviewerName = reviewer?.username || reviewer?.full_name || reviewer?.email || r.reviewer_name || 'Anonymous';
+                                return (
+                                    <div key={r.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-6">
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                                                {String(reviewerName).charAt(0)}
                                             </div>
-                                            <p className="text-zinc-400 text-sm">{r.comment || 'No comment provided.'}</p>
-                                            <p className="text-xs text-zinc-600 mt-2">{new Date(r.created_at).toLocaleDateString()}</p>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h4 className="text-white font-semibold">{reviewerName}</h4>
+                                                    <div className="flex items-center gap-1">
+                                                        {Array.from({ length: 5 }).map((_, i) => (
+                                                            <Star
+                                                                key={i}
+                                                                size={14}
+                                                                className={i < r.rating ? 'text-yellow-500 fill-yellow-500' : 'text-zinc-600'}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <p className="text-zinc-400 text-sm">{r.comment || 'No comment provided.'}</p>
+                                                <p className="text-xs text-zinc-600 mt-2">{new Date(r.created_at).toLocaleDateString()}</p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         ) : (
                             <div className="text-center py-20 text-zinc-500">
                                 No reviews yet

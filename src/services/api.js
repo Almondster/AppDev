@@ -288,13 +288,55 @@ export const deleteService = (id) => request(`/services/${id}/`, { method: 'DELE
 export const fetchOrders = (params, options) => request('/orders/', { params, ...options });
 export const fetchOrder = (id) => request(`/orders/${id}/`);
 export const createOrder = (body) => request('/orders/', { method: 'POST', body });
-export const updateOrder = (id, body) => request(`/orders/${id}/`, { method: 'PATCH', body });
+export const updateOrder = async (id, body) => {
+  try {
+    const data = await request(`/orders/${id}/`, { method: 'PATCH', body });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to update order' } };
+  }
+};
 export const updateOrderStatus = (id, status) => request(`/orders/${id}/update_status/`, { method: 'POST', body: { status } });
-export const acceptOrder = (id) => updateOrderStatus(id, 'accepted');
-export const rejectOrder = (id, reason) => request(`/orders/${id}/update_status/`, { method: 'POST', body: { status: 'rejected', reason } });
-export const payOrder = (id) => updateOrderStatus(id, 'completed'); // Mock payment unlocks final output
-export const submitPartialOutput = (id, body) => request(`/orders/${id}/`, { method: 'PATCH', body: { ...body, status: 'partial_submitted' } });
-export const submitFinalOutput = (id, body) => request(`/orders/${id}/`, { method: 'PATCH', body: { ...body, status: 'final_submitted' } });
+export const acceptOrder = async (id) => {
+  try {
+    const data = await updateOrderStatus(id, 'accepted');
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to accept order' } };
+  }
+};
+export const rejectOrder = async (id, reason) => {
+  try {
+    const data = await request(`/orders/${id}/update_status/`, { method: 'POST', body: { status: 'rejected', reason } });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to reject order' } };
+  }
+};
+export const payOrder = async (id) => {
+  try {
+    const data = await request(`/orders/${id}/pay/`, { method: 'POST' });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Payment failed' } };
+  }
+};
+export const submitPartialOutput = async (id, body) => {
+  try {
+    const data = await request(`/orders/${id}/partial-output/`, { method: 'POST', body });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to submit partial output' } };
+  }
+};
+export const submitFinalOutput = async (id, body) => {
+  try {
+    const data = await request(`/orders/${id}/final-output/`, { method: 'POST', body });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to submit final output' } };
+  }
+};
 
 // ── Order Timeline ─────────────────────────────────────────────────────────
 
@@ -304,6 +346,7 @@ export const fetchOrderTimeline = (params, options) => request('/order-timeline/
 
 export const fetchReviews = (params, options) => request('/reviews/', { params, ...options });
 export const createReview = (body) => request('/reviews/', { method: 'POST', body });
+export const updateReview = (id, body) => request(`/reviews/${id}/`, { method: 'PATCH', body });
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
@@ -406,6 +449,28 @@ export const fetchCreatorApplication = (id) =>
 export const reviewCreatorApplication = (id, data) =>
   requestCreatorApplicationsWithFallback({ method: 'PATCH', id, action: 'review', body: data });
 
+// ── Disputes ──────────────────────────────────────────────────────────────
+
+export const fetchDisputes = (params, options) => request('/disputes/', { params, ...options });
+export const fetchDispute = (id) => request(`/disputes/${id}/`);
+export const createDispute = (body) => request('/disputes/', { method: 'POST', body });
+export const resolveDispute = (id, body) => request(`/disputes/${id}/resolve`, { method: 'PATCH', body });
+export const escalateDispute = (id) => request(`/disputes/${id}/escalate`, { method: 'POST' });
+export const deleteDispute = (id) => request(`/disputes/${id}/`, { method: 'DELETE' });
+
+// ── Refunds ────────────────────────────────────────────────────────────────
+
+export const refundOrder = (id, body) => request(`/orders/${id}/refund/`, { method: 'POST', body });
+
+// ── Order Notifications ────────────────────────────────────────────────────
+
+export const fetchOrderNotifications = (params, options) => request('/order-notifications/', { params, skipCache: true, ...options });
+export const getUnreadNotificationCount = (options) => request('/order-notifications/unread-count', { skipCache: true, ...options });
+export const markNotificationRead = (id) => request(`/order-notifications/${id}/mark-read`, { method: 'POST' });
+export const markAllNotificationsRead = () => request('/order-notifications/mark-all-read', { method: 'POST' });
+export const deleteNotification = (id) => request(`/order-notifications/${id}/`, { method: 'DELETE' });
+export const clearAllNotifications = () => request('/order-notifications/clear-all', { method: 'DELETE' });
+
 // ── Convenience: getUserData (stored user from localStorage) ───────────────
 
 export const getUserData = () => getStoredUser();
@@ -441,7 +506,10 @@ export const fetchMyCreatorOrders = (options = {}) => {
   const userId = getStoredUser()?.firebase_uid || getStoredUser()?.id;
   return request('/orders/', { params: { creator_id: userId }, ...options });
 };
-export const fetchMyServices = (options) => request('/services/', options);
+export const fetchMyServices = (options) => {
+  const userId = getStoredUser()?.id || getStoredUser()?.firebase_uid;
+  return request('/services/', { params: { creator_id: userId }, ...options });
+};
 export const fetchMyMessages = (options) => request('/messages/', options);
 export const fetchMyPaymentMethods = (options) => request('/payment-methods/', options);
 export const fetchMyWallets = (options) => request('/wallets/', options);

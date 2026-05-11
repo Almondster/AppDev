@@ -97,6 +97,7 @@ export const logOrderEvent      = raw.logOrderEvent; // already has its own try/
 // Reviews
 export const fetchReviews  = wrapFetch(raw.fetchReviews);
 export const createReview  = wrapFetch(raw.createReview);
+export const updateReview  = wrapFetch(raw.updateReview);
 export const fetchMyReviews = wrapFetch(raw.fetchMyReviews);
 
 // Messages
@@ -176,3 +177,22 @@ export const uploadFinalFiles  = raw.uploadFinalFiles;
 
 // Auth helpers
 export const fetchMe = wrapFetch(raw.fetchMe);
+
+// Disputes
+export const fetchDisputes = wrapFetch(raw.fetchDisputes);
+export const fetchDispute = wrapFetch(raw.fetchDispute);
+export const createDispute = wrapFetch(raw.createDispute);
+export const resolveDispute = wrapFetch(raw.resolveDispute);
+export const escalateDispute = wrapFetch(raw.escalateDispute);
+export const deleteDispute = wrapFetch(raw.deleteDispute);
+
+// Refunds
+export const refundOrder = wrapFetch(raw.refundOrder);
+
+// Order Notifications
+export const fetchOrderNotifications = wrapFetch(raw.fetchOrderNotifications);
+export const getUnreadNotificationCount = wrapFetch(raw.getUnreadNotificationCount);
+export const markNotificationRead = wrapFetch(raw.markNotificationRead);
+export const markAllNotificationsRead = wrapFetch(raw.markAllNotificationsRead);
+export const deleteNotification = wrapFetch(raw.deleteNotification);
+export const clearAllNotifications = wrapFetch(raw.clearAllNotifications);

@@ -197,6 +197,66 @@ function App() {
     setIsLoggedIn(true);
   };
 
+  // Check for role changes on mount and when window gains focus
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const checkRoleUpdate = async () => {
+      try {
+        const token = getToken();
+        if (!token) return;
+
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/me/`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const freshUser = await response.json();
+          const currentUser = getUserData();
+          
+          // If user is suspended, log them out
+          if (freshUser.is_active === false) {
+            handleLogout();
+            alert('Your account has been suspended. Please contact support.');
+            return;
+          }
+          
+          // If role has changed, update localStorage and state
+          if (freshUser.role !== currentUser?.role) {
+            const updatedUser = {
+              ...currentUser,
+              role: freshUser.role,
+              is_active: freshUser.is_active
+            };
+            localStorage.setItem('createch_user', JSON.stringify(updatedUser));
+            setUserRole(freshUser.role);
+            setUserData(updatedUser);
+            
+            // Force reload to apply new role-based routing
+            window.location.href = '/';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check role update:', err);
+      }
+    };
+
+    // Check on mount
+    checkRoleUpdate();
+
+    // Check when window gains focus (user switches back to tab)
+    const handleFocus = () => checkRoleUpdate();
+    window.addEventListener('focus', handleFocus);
+
+    // Check periodically every 30 seconds
+    const interval = setInterval(checkRoleUpdate, 30000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [isLoggedIn]);
+
   return (
       <div className="app bg-[#0A0A0A] min-h-screen">
         <Routes>

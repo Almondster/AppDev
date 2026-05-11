@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     fetchDeadlines as apiFetchDeadlines, fetchMyMessages, fetchMyOrders, fetchMyCreatorOrders,
-    fetchFollows, getUserData, patchUser,
+    fetchFollows, getUserData, patchUser, fetchOrderNotifications, markNotificationRead,
+    markAllNotificationsRead,
 } from '../api';
 import { MessageSquare, ShoppingBag, Users, CheckCheck, Clock, Bell, UserPlus, Package, AlertCircle } from 'lucide-react';
 
@@ -47,16 +48,34 @@ const NotificationsPage = () => {
             try {
                 const readIds = getReadIds();
                 const ordersFetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
-                const [dRes, mRes, oRes, fRes] = await Promise.all([
+                const [dRes, mRes, oRes, fRes, onRes] = await Promise.all([
                     apiFetchDeadlines(),
                     fetchMyMessages(),
                     ordersFetcher(),
                     fetchFollows(),
+                    fetchOrderNotifications({ limit: 50 }), // Fetch order notifications from backend
                 ]);
 
                 const notifs = [];
                 const ordersLastSeen = new Date(localStorage.getItem(ordersSeenKey) || userData?.orders_last_seen_at || 0);
                 const followsLastSeen = new Date(localStorage.getItem(followsSeenKey) || userData?.follows_last_seen_at || 0);
+
+                // Order notifications from backend (NEW - priority display)
+                if (onRes.ok && onRes.data) {
+                    (onRes.data || []).forEach(n => {
+                        const nid = `on-${n.id}`;
+                        notifs.push({
+                            id: nid,
+                            type: 'orders',
+                            title: n.title,
+                            subtitle: n.message,
+                            date: n.created_at,
+                            read: n.is_read || readIds.has(nid),
+                            link: n.action_url || `/orders/${n.order_id}`,
+                            backendId: n.id, // Store backend ID for marking as read
+                        });
+                    });
+                }
 
                 // Deadline notifications
                 if (dRes.ok) {
@@ -103,7 +122,7 @@ const NotificationsPage = () => {
                     });
                 }
 
-                // Order notifications — status changes
+                // Order notifications — status changes (LEGACY - keep for backward compatibility)
                 if (oRes.ok) {
                     const orders = (oRes.data.results || oRes.data || []);
                     // Role-specific labels
@@ -191,7 +210,7 @@ const NotificationsPage = () => {
         return () => clearInterval(timer);
     }, [isCreator, uid, ordersSeenKey, followsSeenKey, userData?.orders_last_seen_at, userData?.follows_last_seen_at, getReadIds]);
 
-    const markAllRead = () => {
+    const markAllRead = async () => {
         const readIds = getReadIds();
         notifications.forEach(n => readIds.add(n.id));
         saveReadIds(readIds);
@@ -203,17 +222,25 @@ const NotificationsPage = () => {
             orders_last_seen_at: now,
             follows_last_seen_at: now,
         }).catch(() => {});
+        
+        // Mark all backend order notifications as read
+        markAllNotificationsRead().catch(() => {});
     };
 
-    const markOneRead = (id) => {
+    const markOneRead = async (notif) => {
         const readIds = getReadIds();
-        readIds.add(id);
+        readIds.add(notif.id);
         saveReadIds(readIds);
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+        
+        // If this is a backend order notification, mark it as read on the backend
+        if (notif.backendId) {
+            markNotificationRead(notif.backendId).catch(() => {});
+        }
     };
 
     const handleClick = (notif) => {
-        markOneRead(notif.id);
+        markOneRead(notif);
         if (notif.type === 'orders') {
             const now = new Date().toISOString();
             localStorage.setItem(ordersSeenKey, now);

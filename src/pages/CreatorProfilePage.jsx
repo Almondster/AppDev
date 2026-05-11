@@ -10,6 +10,7 @@ const CreatorProfilePage = () => {
     const [userProfile, setUserProfile] = useState(null);
     const [services, setServices] = useState([]);
     const [reviews, setReviews] = useState([]);
+    const [reviewerUsers, setReviewerUsers] = useState({}); // Map of reviewer_id -> user data
     const [followers, setFollowers] = useState(0);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followId, setFollowId] = useState(null);
@@ -72,17 +73,30 @@ const CreatorProfilePage = () => {
                 }
 
                 // Fetch services
-                const sRes = await fetchServices();
+                const sRes = await fetchServices({ creator_id: profileUid });
                 if (sRes.ok) {
                     const allServices = sRes.data.results || sRes.data || [];
-                    setServices(allServices.filter(s => sameId(s.creator_id, profileUid)));
+                    setServices(Array.isArray(allServices) ? allServices : []);
                 }
 
                 // Fetch reviews
-                const rRes = await fetchReviews();
+                const rRes = await fetchReviews({ reviewee_id: profileUid });
                 if (rRes.ok) {
                     const allReviews = rRes.data.results || rRes.data || [];
-                    setReviews(allReviews.filter(r => sameId(r.reviewee_id, profileUid)));
+                    setReviews(Array.isArray(allReviews) ? allReviews : []);
+                    
+                    // Fetch reviewer user data
+                    if (allReviews.length > 0) {
+                        const uRes = await fetchUsers();
+                        if (uRes.ok) {
+                            const allUsers = uRes.data.results || uRes.data || [];
+                            const userMap = {};
+                            allUsers.forEach(u => {
+                                userMap[u.id] = u;
+                            });
+                            setReviewerUsers(userMap);
+                        }
+                    }
                 }
 
                 // Fetch follows
@@ -427,12 +441,17 @@ const CreatorProfilePage = () => {
                                         {reviews.map(r => (
                                             <div key={r.id} className="flex gap-4 p-4 bg-white/5 rounded-xl">
                                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                                                    {(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}
+                                                    {String(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start mb-2 gap-4">
                                                         <div className="min-w-0">
-                                                            <h4 className="text-white font-medium text-sm truncate">{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
+                                                            <h4 className="text-white font-medium text-sm truncate">
+                                                                {(() => {
+                                                                    const reviewer = reviewerUsers[r.reviewer_id];
+                                                                    return reviewer?.username || reviewer?.full_name || reviewer?.email || r.reviewer_name || 'Anonymous';
+                                                                })()}
+                                                            </h4>
                                                             <div className="flex gap-0.5 mt-1">{renderStars(r.rating || 0)}</div>
                                                         </div>
                                                         <span className="text-zinc-500 text-xs whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
@@ -611,12 +630,17 @@ const CreatorProfilePage = () => {
                                             {reviews.map(r => (
                                                 <div key={r.id} className="flex gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
                                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                                                        {(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}
+                                                        {String(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex justify-between items-start mb-2 gap-4">
                                                             <div className="min-w-0">
-                                                                <h4 className="text-white font-medium text-sm truncate">{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
+                                                                <h4 className="text-white font-medium text-sm truncate">
+                                                                    {(() => {
+                                                                        const reviewer = reviewerUsers[r.reviewer_id];
+                                                                        return reviewer?.username || reviewer?.full_name || reviewer?.email || r.reviewer_name || 'Anonymous';
+                                                                    })()}
+                                                                </h4>
                                                                 <div className="flex gap-0.5 mt-1">{renderStars(r.rating || 0)}</div>
                                                             </div>
                                                             <span className="text-zinc-500 text-xs whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>

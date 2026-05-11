@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, X } from 'lucide-react';
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
@@ -12,11 +12,31 @@ const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
  *  - loading (bool)
  *  - onSubmit({ rating, comment })
  *  - onClose()
+ *  - initialRating (number) - for edit mode
+ *  - initialComment (string) - for edit mode
+ *  - isEdit (bool) - whether this is edit mode
  */
-const ReviewModal = ({ open, revieweeName = 'this creator', loading = false, onSubmit, onClose }) => {
-  const [rating, setRating] = useState(0);
+const ReviewModal = ({ 
+  open, 
+  revieweeName = 'this creator', 
+  loading = false, 
+  onSubmit, 
+  onClose,
+  initialRating = 0,
+  initialComment = '',
+  isEdit = false
+}) => {
+  const [rating, setRating] = useState(initialRating);
   const [hover, setHover] = useState(0);
-  const [comment, setComment] = useState('');
+  const [comment, setComment] = useState(initialComment);
+
+  // Update state when initial values change (for edit mode)
+  useEffect(() => {
+    if (open) {
+      setRating(initialRating);
+      setComment(initialComment);
+    }
+  }, [open, initialRating, initialComment]);
 
   if (!open) return null;
 
@@ -27,9 +47,11 @@ const ReviewModal = ({ open, revieweeName = 'this creator', loading = false, onS
   };
 
   const handleClose = () => {
-    setRating(0);
-    setHover(0);
-    setComment('');
+    if (!isEdit) {
+      setRating(0);
+      setHover(0);
+      setComment('');
+    }
     onClose();
   };
 
@@ -37,7 +59,7 @@ const ReviewModal = ({ open, revieweeName = 'this creator', loading = false, onS
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleClose}>
       <div className="bg-[#18181b] border border-white/10 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-white">Review {revieweeName}</h3>
+          <h3 className="text-xl font-bold text-white">{isEdit ? 'Edit Review' : `Review ${revieweeName}`}</h3>
           <button className="text-zinc-400 hover:text-white transition-colors" onClick={handleClose}><X size={20} /></button>
         </div>
 
@@ -88,7 +110,7 @@ const ReviewModal = ({ open, revieweeName = 'this creator', loading = false, onS
               className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50" 
               disabled={loading || rating === 0}
             >
-              {loading ? 'Submitting...' : 'Submit Review'}
+              {loading ? 'Saving...' : isEdit ? 'Update Review' : 'Submit Review'}
             </button>
           </div>
         </form>

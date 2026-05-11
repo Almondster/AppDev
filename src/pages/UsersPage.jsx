@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { BadgeCheck, Search, MoreVertical } from 'lucide-react';
-import { fetchUsers as apiFetchUsers, patchUser } from '../api';
+import { useState, useEffect } from 'react';
+import { Users as UsersIcon, Search, MoreVertical, Shield, Ban, CheckCircle } from 'lucide-react';
+import { fetchUsers as apiFetchUsers, patchUser, suspendUser, activateUser } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
-import RoleBadge from '../components/RoleBadge';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [toast, setToast] = useState('');
+    const [filterRole, setFilterRole] = useState('all');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [toast, setToast] = useState(null);
+    const [openMenuId, setOpenMenuId] = useState(null);
 
     // Confirm modal
     const [confirmModal, setConfirmModal] = useState({ open: false, id: null, action: '', userName: '' });
@@ -16,6 +18,12 @@ const UsersPage = () => {
 
     useEffect(() => {
         loadUsers();
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = () => setOpenMenuId(null);
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
     const loadUsers = async () => {
@@ -27,143 +35,360 @@ const UsersPage = () => {
                 setUsers(list.map(u => ({
                     id: u.id,
                     firebase_uid: u.firebase_uid,
-                    name: u.display_name || u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
-                    role: capitalize(u.role || 'client'),
-                    status: u.is_active !== false ? 'Active' : 'Suspended',
-                    joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+                    username: u.username || u.email,
+                    email: u.email,
+                    role: u.role || 'client',
+                    is_active: u.is_active !== false,
+                    created_at: u.created_at,
                 })));
             }
         } catch (err) {
             console.error('Failed to load users:', err);
+            showToast('Failed to load users', 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const filtered = users.filter(u =>
-        u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.role.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = users.filter(u => {
+        const matchSearch = u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          u.email.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchRole = filterRole === 'all' || u.role === filterRole;
+        const matchStatus = filterStatus === 'all' || 
+                          (filterStatus === 'active' && u.is_active) ||
+                          (filterStatus === 'suspended' && !u.is_active);
+        return matchSearch && matchRole && matchStatus;
+    });
 
-    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+    const showToast = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 4000);
+    };
+
+    const handleMenuClick = (e, userId) => {
+        e.stopPropagation();
+        setOpenMenuId(openMenuId === userId ? null : userId);
+    };
+
+    const handleAction = (action, user) => {
+        setOpenMenuId(null);
+        setConfirmModal({ 
+            open: true, 
+            id: user.id, 
+            action, 
+            userName: user.username 
+        });
+    };
 
     const handleConfirmAction = async () => {
         const { id, action, userName } = confirmModal;
         setActionLoading(true);
         try {
-            const newActive = action !== 'suspend';
-            const { ok } = await patchUser(id, { is_active: newActive });
-            if (ok) {
-                // Update local state
-                setUsers(prev => prev.map(u =>
-                    u.id === id ? { ...u, status: newActive ? 'Active' : 'Suspended' } : u
-                ));
-                showToast(`${userName} has been ${action === 'suspend' ? 'suspended' : 'activated'}.`);
-            } else {
-                showToast(`Failed to ${action} user.`);
+            let ok = false;
+            
+            if (action === 'suspend') {
+                const result = await suspendUser(id);
+                ok = result.ok;
+            } else if (action === 'activate') {
+                const result = await activateUser(id);
+                ok = result.ok;
+            } else if (action === 'delete') {
+                // For now, we'll just suspend the user
+                const result = await suspendUser(id);
+                ok = result.ok;
+            } else if (action === 'make_admin') {
+                const result = await patchUser(id, { role: 'admin' });
+                ok = result.ok;
+            } else if (action === 'make_creator') {
+                const result = await patchUser(id, { role: 'creator' });
+                ok = result.ok;
+            } else if (action === 'make_client') {
+                const result = await patchUser(id, { role: 'client' });
+                ok = result.ok;
             }
-        } catch {
-            showToast(`Failed to ${action} user.`);
+
+            if (ok) {
+                await loadUsers();
+                showToast(`${userName} has been ${getActionMessage(action)}.`, 'success');
+            } else {
+                showToast(`Failed to ${action} user.`, 'error');
+            }
+        } catch (err) {
+            console.error('Action failed:', err);
+            showToast(`Failed to ${action} user.`, 'error');
         }
         setActionLoading(false);
         setConfirmModal({ open: false, id: null, action: '', userName: '' });
     };
 
+    const getActionMessage = (action) => {
+        const messages = {
+            suspend: 'suspended',
+            activate: 'activated',
+            delete: 'deleted',
+            make_admin: 'promoted to admin',
+            make_creator: 'changed to creator',
+            make_client: 'changed to client',
+        };
+        return messages[action] || action;
+    };
+
+    const getRoleBadgeColor = (role) => {
+        const colors = {
+            admin: { bg: 'rgba(239, 68, 68, 0.1)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' },
+            creator: { bg: 'rgba(168, 85, 247, 0.1)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.3)' },
+            client: { bg: 'rgba(59, 130, 246, 0.1)', text: '#60a5fa', border: 'rgba(59, 130, 246, 0.3)' },
+        };
+        return colors[role] || colors.client;
+    };
+
+    const stats = {
+        total: users.length,
+        active: users.filter(u => u.is_active).length,
+        suspended: users.filter(u => !u.is_active).length,
+        admins: users.filter(u => u.role === 'admin').length,
+        creators: users.filter(u => u.role === 'creator').length,
+        clients: users.filter(u => u.role === 'client').length,
+    };
+
     return (
-        <main className="dashboard-content page-fade role-page">
-            {toast && <div className="global-toast global-toast--success">{toast}</div>}
-
-            <header className="glass-card hero-gradient" style={{ padding: '2rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Platform Users</h1>
-                        <BadgeCheck size={28} color="#3b82f6" />
-                    </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>Manage accounts, verify creators, and handle suspensions.</p>
-                </div>
-                <div style={{ background: 'var(--bg-secondary)', padding: '1rem 2rem', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Total Users</p>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>{users.length}</h2>
-                </div>
-            </header>
-
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
-                <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                    <Search size={18} color="var(--text-muted)" />
-                    <label htmlFor="usersSearch" className="sr-only">Search users</label>
-                    <input id="usersSearch" type="text" placeholder="Search users..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none' }} />
-                </div>
-            </div>
-
-{loading ? (
-                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading users...</div>
-            ) : (
-                <div className="glass-card" style={{ overflowX: 'auto' }}>
-                    <div style={{ minWidth: 920 }}>
-                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        <span>User</span>
-                        <span>Role</span>
-                        <span>Status</span>
-                        <span>Joined</span>
-                        <span>Action</span>
-                        <span style={{ textAlign: 'right' }}>More</span>
-                    </div>
-                    {filtered.map((user) => (
-                        <div key={user.id} className="glass-card--hover" style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.5fr', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '600', fontSize: '0.9rem' }}>
-                                    {user.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{user.name}</span>
-                            </div>
-                            <RoleBadge role={user.role} />
-                            <div>
-                                <span style={{
-                                    padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600',
-                                    backgroundColor: user.status === 'Active' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                    color: user.status === 'Active' ? '#4ade80' : '#f87171'
-                                }}>{user.status}</span>
-                                {user.status === 'Active' ? (
-                                    <button style={{ marginLeft: 12, padding: '2px 10px', fontSize: '0.8rem', background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', cursor: 'pointer' }}
-                                        onClick={() => setConfirmModal({ open: true, id: user.id, action: 'suspend', userName: user.name })}>
-                                        Suspend
-                                    </button>
-                                ) : (
-                                    <button style={{ marginLeft: 12, padding: '2px 10px', fontSize: '0.8rem', background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', cursor: 'pointer' }}
-                                        onClick={() => setConfirmModal({ open: true, id: user.id, action: 'activate', userName: user.name })}>
-                                        Activate
-                                    </button>
-                                )}
-                            </div>
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{user.joined}</span>
-                            <div style={{ textAlign: 'right' }}>
-                                <button style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                    <MoreVertical size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                    {filtered.length === 0 && (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No users found.</div>
-                    )}
-                    </div>
+        <div className="p-6 md:p-8 space-y-6 overflow-y-auto h-full pb-20">
+            {/* Toast */}
+            {toast && (
+                <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-lg backdrop-blur-md shadow-lg ${
+                    toast.type === 'success' 
+                        ? 'bg-green-500/10 border border-green-500/30 text-green-400' 
+                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                }`}>
+                    <p className="text-sm">{toast.msg}</p>
                 </div>
             )}
 
+            {/* Header with Admin Theme */}
+            <div className="rounded-2xl p-6 md:p-8" style={{ 
+                background: 'linear-gradient(135deg, rgba(244,63,94,0.08), rgba(168,85,247,0.08))',
+                border: '1px solid rgba(255,255,255,0.05)'
+            }}>
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{
+                        background: 'rgba(244,63,94,0.1)',
+                        border: '1px solid rgba(244,63,94,0.2)'
+                    }}>
+                        <UsersIcon size={22} className="text-rose-400" />
+                    </div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-white">Platform Users</h1>
+                </div>
+                <p className="text-zinc-400 text-sm">Manage accounts, roles, and user permissions.</p>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Total</p>
+                    <p className="text-2xl font-bold text-white">{stats.total}</p>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Active</p>
+                    <p className="text-2xl font-bold text-green-400">{stats.active}</p>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Suspended</p>
+                    <p className="text-2xl font-bold text-red-400">{stats.suspended}</p>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Admins</p>
+                    <p className="text-2xl font-bold text-red-400">{stats.admins}</p>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Creators</p>
+                    <p className="text-2xl font-bold text-purple-400">{stats.creators}</p>
+                </div>
+                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Clients</p>
+                    <p className="text-2xl font-bold text-blue-400">{stats.clients}</p>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <input
+                        type="text"
+                        placeholder="Search by username or email..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-lg pl-11 pr-4 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-white/20"
+                    />
+                </div>
+                <select
+                    value={filterRole}
+                    onChange={e => setFilterRole(e.target.value)}
+                    className="px-4 py-2.5 bg-white/5 border border-white/10 text-white rounded-lg focus:outline-none focus:border-white/20"
+                >
+                    <option value="all">All Roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="creator">Creator</option>
+                    <option value="client">Client</option>
+                </select>
+                <select
+                    value={filterStatus}
+                    onChange={e => setFilterStatus(e.target.value)}
+                    className="px-4 py-2.5 bg-white/5 border border-white/10 text-white rounded-lg focus:outline-none focus:border-white/20"
+                >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                </select>
+            </div>
+
+            {/* Users Table */}
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
+                {loading ? (
+                    <div className="p-12 text-center text-zinc-500">Loading users...</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-white/5">
+                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">User</th>
+                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Email</th>
+                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Role</th>
+                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
+                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Joined</th>
+                                    <th className="text-right p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {filtered.map((user) => {
+                                    const roleColor = getRoleBadgeColor(user.role);
+                                    return (
+                                        <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
+                                                        {user.username.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span className="text-white font-medium">{user.username}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-zinc-400 text-sm">{user.email}</td>
+                                            <td className="p-4">
+                                                <span 
+                                                    className="px-3 py-1 rounded-full text-xs font-semibold uppercase"
+                                                    style={{ 
+                                                        background: roleColor.bg, 
+                                                        color: roleColor.text,
+                                                        border: `1px solid ${roleColor.border}`
+                                                    }}
+                                                >
+                                                    {user.role}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                                    user.is_active 
+                                                        ? 'bg-green-500/10 text-green-400 border border-green-500/30' 
+                                                        : 'bg-red-500/10 text-red-400 border border-red-500/30'
+                                                }`}>
+                                                    {user.is_active ? 'Active' : 'Suspended'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-zinc-400 text-sm">
+                                                {user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="relative inline-block">
+                                                    <button
+                                                        onClick={(e) => handleMenuClick(e, user.id)}
+                                                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                                                    >
+                                                        <MoreVertical size={18} />
+                                                    </button>
+                                                    
+                                                    {openMenuId === user.id && (
+                                                        <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 py-1">
+                                                            {/* Change Role */}
+                                                            <div className="px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/5">
+                                                                Change Role
+                                                            </div>
+                                                            {user.role !== 'admin' && (
+                                                                <button
+                                                                    onClick={() => handleAction('make_admin', user)}
+                                                                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2"
+                                                                >
+                                                                    <Shield size={14} className="text-red-400" />
+                                                                    Make Admin
+                                                                </button>
+                                                            )}
+                                                            {user.role !== 'creator' && (
+                                                                <button
+                                                                    onClick={() => handleAction('make_creator', user)}
+                                                                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2"
+                                                                >
+                                                                    <CheckCircle size={14} className="text-purple-400" />
+                                                                    Make Creator
+                                                                </button>
+                                                            )}
+                                                            {user.role !== 'client' && (
+                                                                <button
+                                                                    onClick={() => handleAction('make_client', user)}
+                                                                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2"
+                                                                >
+                                                                    <CheckCircle size={14} className="text-blue-400" />
+                                                                    Make Client
+                                                                </button>
+                                                            )}
+                                                            
+                                                            <div className="border-t border-white/5 my-1" />
+                                                            
+                                                            {/* Status Actions */}
+                                                            {user.is_active ? (
+                                                                <button
+                                                                    onClick={() => handleAction('suspend', user)}
+                                                                    className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                                                                >
+                                                                    <Ban size={14} />
+                                                                    Suspend User
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleAction('activate', user)}
+                                                                    className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-2"
+                                                                >
+                                                                    <CheckCircle size={14} />
+                                                                    Activate User
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        {filtered.length === 0 && (
+                            <div className="p-12 text-center text-zinc-500">No users found.</div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Confirm Modal */}
             <ConfirmModal
                 open={confirmModal.open}
-                title={confirmModal.action === 'suspend' ? 'Suspend User?' : 'Activate User?'}
-                message={<>Are you sure you want to {confirmModal.action} <strong>{confirmModal.userName}</strong>?</>}
-                variant={confirmModal.action === 'suspend' ? 'danger' : 'success'}
-                confirmLabel={confirmModal.action === 'suspend' ? 'Suspend' : 'Activate'}
+                title={`${confirmModal.action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} User?`}
+                message={<>Are you sure you want to {getActionMessage(confirmModal.action)} <strong className="text-white">{confirmModal.userName}</strong>?</>}
+                variant={confirmModal.action === 'suspend' || confirmModal.action === 'delete' ? 'danger' : 'info'}
+                confirmLabel={confirmModal.action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                 loading={actionLoading}
                 onConfirm={handleConfirmAction}
                 onCancel={() => setConfirmModal({ open: false, id: null, action: '', userName: '' })}
             />
-        </main>
+        </div>
     );
 };
-
-function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
 export default UsersPage;

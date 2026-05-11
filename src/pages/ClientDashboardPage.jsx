@@ -213,57 +213,97 @@ const ClientDashboardPage = () => {
                                 Array.from({ length: 8 }).map((_, i) => (
                                     <div key={i} className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden animate-pulse">
                                         <div className="h-48 bg-white/5" />
-                                        <div className="p-4 space-y-3">
+                                        <div className="p-5 space-y-3">
                                             <div className="h-4 bg-white/5 rounded w-3/4" />
                                             <div className="h-3 bg-white/5 rounded w-1/2" />
                                         </div>
                                     </div>
                                 ))
                             ) : sortedServices.length > 0 ? (
-                                sortedServices.map(svc => (
-                                    <div
-                                        key={svc.id}
-                                        onClick={() => navigate(`/services/${svc.id}`)}
-                                        className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden hover:border-white/20 transition-all cursor-pointer group"
-                                    >
-                                        <div className="h-48 bg-gradient-to-br from-purple-600/20 to-blue-600/20 relative overflow-hidden">
-                                            {svc.image_url ? (
-                                                <img src={svc.image_url} alt={svc.title} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-zinc-600 text-4xl font-bold">
-                                                    {(svc.title || 'S').charAt(0)}
-                                                </div>
-                                            )}
-                                            <span className="absolute top-3 left-3 px-3 py-1 bg-black/50 backdrop-blur-md text-white text-xs font-medium rounded-full">
-                                                {svc.category || 'Design'}
-                                            </span>
-                                        </div>
-                                        <div className="p-4 space-y-3">
-                                            <h4 className="text-white font-semibold text-lg line-clamp-2">{svc.title || 'Untitled Service'}</h4>
-                                            <div className="flex items-center gap-2 text-sm">
-                                                <Star size={14} className="text-yellow-500 fill-yellow-500" />
-                                                <span className="text-white font-medium">5.0</span>
-                                                <span className="text-zinc-500">(0)</span>
+                                sortedServices.map(svc => {
+                                    // Get reviews for this service's creator
+                                    const serviceReviews = reviews.filter(r => 
+                                        String(r.reviewee_id) === String(svc.creator_id)
+                                    );
+                                    const avgRating = serviceReviews.length > 0
+                                        ? (serviceReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / serviceReviews.length).toFixed(1)
+                                        : null;
+
+                                    return (
+                                        <div
+                                            key={svc.id}
+                                            onClick={() => navigate(`/services/${svc.id}`)}
+                                            className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden hover:bg-white/[0.03] hover:border-white/20 transition-all cursor-pointer group"
+                                        >
+                                            <div className="h-48 bg-gradient-to-br from-purple-600/20 to-blue-600/20 relative overflow-hidden">
+                                                {svc.image_url ? (
+                                                    <img 
+                                                        src={svc.image_url} 
+                                                        alt={svc.title} 
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-zinc-700 text-5xl font-bold">
+                                                        {(svc.title || 'S').charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <span className="absolute top-3 left-3 px-3 py-1.5 bg-black/60 backdrop-blur-md border border-white/10 text-white text-xs font-medium rounded-lg">
+                                                    {svc.category || 'Design'}
+                                                </span>
                                             </div>
-                                            <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                                                <div className="flex items-center gap-1 text-zinc-400 text-sm">
-                                                    <Clock size={12} />
-                                                    <span>{svc.delivery_time || '3 days'}</span>
+                                            <div className="p-5 space-y-3">
+                                                <h4 className="text-white font-semibold text-base line-clamp-2 min-h-[3rem] group-hover:text-purple-400 transition-colors">
+                                                    {svc.title || 'Untitled Service'}
+                                                </h4>
+                                                
+                                                {svc.description && (
+                                                    <p className="text-sm text-zinc-500 line-clamp-2 min-h-[2.5rem]">
+                                                        {svc.description}
+                                                    </p>
+                                                )}
+                                                
+                                                <div className="flex items-center gap-2 text-sm pt-2 border-t border-white/5">
+                                                    <Star size={14} className="text-yellow-400 fill-yellow-400" />
+                                                    <span className="text-white font-medium">
+                                                        {avgRating || 'New'}
+                                                    </span>
+                                                    <span className="text-zinc-600">•</span>
+                                                    <span className="text-zinc-500">
+                                                        {serviceReviews.length} {serviceReviews.length === 1 ? 'review' : 'reviews'}
+                                                    </span>
                                                 </div>
-                                                <span className="text-white font-bold">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
+                                                
+                                                <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                                                    <div className="flex items-center gap-1.5 text-zinc-400 text-sm">
+                                                        <Clock size={14} />
+                                                        <span>{svc.delivery_time || '3 days'}</span>
+                                                    </div>
+                                                    <span className="text-lg font-bold text-purple-400">
+                                                        ₱{parseFloat(svc.price || 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}
+                                                    className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold text-sm transition-colors mt-3"
+                                                >
+                                                    Order Now
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); openOrderConfirm(svc); }}
-                                                className="w-full py-2 bg-white text-black rounded-lg font-semibold text-sm hover:bg-zinc-200 transition-colors"
-                                            >
-                                                Order Now
-                                            </button>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             ) : (
-                                <div className="col-span-full text-center py-20 text-zinc-500">
-                                    {searchTerm ? 'No services match your search.' : 'No services available yet.'}
+                                <div className="col-span-full text-center py-20">
+                                    <div className="w-16 h-16 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                                        <Search size={32} className="text-purple-400" />
+                                    </div>
+                                    <p className="text-zinc-400 text-lg mb-2">
+                                        {searchTerm ? 'No services match your search' : 'No services available yet'}
+                                    </p>
+                                    <p className="text-zinc-600 text-sm">
+                                        {searchTerm ? 'Try a different search term or category' : 'Check back soon for new services'}
+                                    </p>
                                 </div>
                             )}
                         </div>

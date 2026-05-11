@@ -24,6 +24,7 @@ const AdminDashboardPage = () => {
     const [reviewModal, setReviewModal] = useState({ open: false, id: null, status: null });
     const [reviewNotes, setReviewNotes] = useState('');
     const [reviewing, setReviewing] = useState(false);
+    const [successMessage, setSuccessMessage] = useState(null);
 
     useEffect(() => {
         loadDashboardData();
@@ -100,6 +101,17 @@ const AdminDashboardPage = () => {
                 setReviewModal({ open: false, id: null, status: null });
                 setReviewNotes('');
                 setSelectedApplication(null);
+                
+                // Show success message
+                if (reviewModal.status === 'approved') {
+                    setSuccessMessage('Application approved! The user has been converted to a creator. They need to log out and log back in to see the changes.');
+                } else {
+                    setSuccessMessage('Application rejected successfully.');
+                }
+                setTimeout(() => setSuccessMessage(null), 5000);
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                setError(`Failed to review application: ${errorData.detail || response.statusText}`);
             }
         } catch (err) {
             console.error('Failed to review application:', err);
@@ -169,6 +181,13 @@ const AdminDashboardPage = () => {
 
     return (
         <div className="p-6 md:p-8 space-y-6 overflow-y-auto h-full pb-20">
+            {/* Success Message Toast */}
+            {successMessage && (
+                <div className="fixed top-6 right-6 z-50 bg-green-500/10 border border-green-500/30 text-green-400 px-6 py-4 rounded-lg backdrop-blur-md shadow-lg max-w-md">
+                    <p className="text-sm">{successMessage}</p>
+                </div>
+            )}
+
             {/* Header */}
             <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 md:p-8" style={{ background: 'linear-gradient(135deg, rgba(244,63,94,0.08), rgba(168,85,247,0.08))' }}>
                 <div className="flex items-center gap-3 mb-2">
@@ -387,19 +406,43 @@ const AdminDashboardPage = () => {
                                     {selectedApplication.id_front_url && (
                                         <div>
                                             <p className="text-xs text-zinc-500 mb-2">Front of ID</p>
-                                            <img src={selectedApplication.id_front_url} alt="ID Front" className="w-full rounded-lg border border-white/10" />
+                                            <img 
+                                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${selectedApplication.id_front_url}`} 
+                                                alt="ID Front" 
+                                                className="w-full rounded-lg border border-white/10"
+                                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                            />
+                                            <div className="hidden w-full aspect-video bg-white/5 rounded-lg border border-white/10 items-center justify-center">
+                                                <p className="text-xs text-zinc-500">Image not available</p>
+                                            </div>
                                         </div>
                                     )}
                                     {selectedApplication.id_back_url && (
                                         <div>
                                             <p className="text-xs text-zinc-500 mb-2">Back of ID</p>
-                                            <img src={selectedApplication.id_back_url} alt="ID Back" className="w-full rounded-lg border border-white/10" />
+                                            <img 
+                                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${selectedApplication.id_back_url}`} 
+                                                alt="ID Back" 
+                                                className="w-full rounded-lg border border-white/10"
+                                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                            />
+                                            <div className="hidden w-full aspect-video bg-white/5 rounded-lg border border-white/10 items-center justify-center">
+                                                <p className="text-xs text-zinc-500">Image not available</p>
+                                            </div>
                                         </div>
                                     )}
                                     {selectedApplication.id_selfie_url && (
                                         <div>
                                             <p className="text-xs text-zinc-500 mb-2">Selfie with ID</p>
-                                            <img src={selectedApplication.id_selfie_url} alt="Selfie" className="w-full rounded-lg border border-white/10" />
+                                            <img 
+                                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${selectedApplication.id_selfie_url}`} 
+                                                alt="Selfie" 
+                                                className="w-full rounded-lg border border-white/10"
+                                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                            />
+                                            <div className="hidden w-full aspect-video bg-white/5 rounded-lg border border-white/10 items-center justify-center">
+                                                <p className="text-xs text-zinc-500">Image not available</p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

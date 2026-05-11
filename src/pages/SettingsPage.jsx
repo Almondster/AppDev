@@ -108,6 +108,8 @@ export default function SettingsPage({ userRole, onLogout }) {
 
   const [following, setFollowing] = useState([]);
   const [followers, setFollowers] = useState([]);
+  const [followingUsers, setFollowingUsers] = useState({});  // Map of user_id -> user data
+  const [followerUsers, setFollowerUsers] = useState({});    // Map of user_id -> user data
   const [socialLoading, setSocialLoading] = useState(false);
 
   const [wallets, setWallets] = useState([]);
@@ -188,9 +190,68 @@ export default function SettingsPage({ userRole, onLogout }) {
       if (!['following', 'followers'].includes(activeSection)) return;
       setSocialLoading(true);
       try {
-        const [f1, f2] = await Promise.all([fetchMyFollowing(), fetchMyFollowers()]);
-        if (f1.ok) setFollowing(f1.data?.results || f1.data || []);
-        if (f2.ok) setFollowers(f2.data?.results || f2.data || []);
+        const [f1, f2, usersRes] = await Promise.all([
+          fetchMyFollowing(), 
+          fetchMyFollowers(),
+          fetchUsers()
+        ]);
+        
+        // Get all users for name lookup
+        const allUsers = usersRes.ok ? (usersRes.data?.results || usersRes.data || []) : [];
+        const userMap = {};
+        allUsers.forEach(u => {
+          userMap[u.id] = u;
+        });
+        
+        // Process following - remove duplicates by following_id
+        if (f1.ok) {
+          const followingData = f1.data?.results || f1.data || [];
+          const uniqueFollowing = [];
+          const seenIds = new Set();
+          
+          followingData.forEach(f => {
+            if (!seenIds.has(f.following_id)) {
+              seenIds.add(f.following_id);
+              uniqueFollowing.push(f);
+            }
+          });
+          
+          setFollowing(uniqueFollowing);
+          
+          // Build user map for following
+          const followingUserMap = {};
+          uniqueFollowing.forEach(f => {
+            if (userMap[f.following_id]) {
+              followingUserMap[f.following_id] = userMap[f.following_id];
+            }
+          });
+          setFollowingUsers(followingUserMap);
+        }
+        
+        // Process followers - remove duplicates by follower_id
+        if (f2.ok) {
+          const followersData = f2.data?.results || f2.data || [];
+          const uniqueFollowers = [];
+          const seenIds = new Set();
+          
+          followersData.forEach(f => {
+            if (!seenIds.has(f.follower_id)) {
+              seenIds.add(f.follower_id);
+              uniqueFollowers.push(f);
+            }
+          });
+          
+          setFollowers(uniqueFollowers);
+          
+          // Build user map for followers
+          const followerUserMap = {};
+          uniqueFollowers.forEach(f => {
+            if (userMap[f.follower_id]) {
+              followerUserMap[f.follower_id] = userMap[f.follower_id];
+            }
+          });
+          setFollowerUsers(followerUserMap);
+        }
       } finally {
         setSocialLoading(false);
       }
@@ -624,12 +685,22 @@ export default function SettingsPage({ userRole, onLogout }) {
             {socialLoading ? <p className="text-zinc-500">Loading...</p> : (
               <div className="space-y-3">
                 {following.length === 0 && <GlassCard className="p-6 text-zinc-500">You are not following anyone yet.</GlassCard>}
-                {following.map((f) => (
-                  <GlassCard key={f.id} className="p-4 flex items-center justify-between border-white/5 bg-[#0A0A0A]/50">
-                    <div className="flex items-center gap-3"><Avatar alt={String(f.following_id || 'U')} size={40} /><span className="text-sm text-white">{f.following_id}</span></div>
-                    <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })} className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-zinc-300 hover:bg-white/5">Unfollow</button>
-                  </GlassCard>
-                ))}
+                {following.map((f) => {
+                  const user = followingUsers[f.following_id];
+                  const displayName = user?.username || user?.full_name || user?.email || `User ${f.following_id}`;
+                  return (
+                    <GlassCard key={f.id} className="p-4 flex items-center justify-between border-white/5 bg-[#0A0A0A]/50">
+                      <div className="flex items-center gap-3">
+                        <Avatar src={user?.avatar_url} alt={displayName} size={40} />
+                        <div>
+                          <span className="text-sm text-white block">{displayName}</span>
+                          {user?.role && <span className="text-xs text-zinc-500 capitalize">{user.role}</span>}
+                        </div>
+                      </div>
+                      <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })} className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-zinc-300 hover:bg-white/5">Unfollow</button>
+                    </GlassCard>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -641,12 +712,19 @@ export default function SettingsPage({ userRole, onLogout }) {
             {socialLoading ? <p className="text-zinc-500">Loading...</p> : (
               <div className="space-y-3">
                 {followers.length === 0 && <GlassCard className="p-6 text-zinc-500">No followers yet.</GlassCard>}
-                {followers.map((f) => (
-                  <GlassCard key={f.id} className="p-4 flex items-center gap-3 border-white/5 bg-[#0A0A0A]/50">
-                    <Avatar alt={String(f.follower_id || 'U')} size={40} />
-                    <span className="text-sm text-white">{f.follower_id}</span>
-                  </GlassCard>
-                ))}
+                {followers.map((f) => {
+                  const user = followerUsers[f.follower_id];
+                  const displayName = user?.username || user?.full_name || user?.email || `User ${f.follower_id}`;
+                  return (
+                    <GlassCard key={f.id} className="p-4 flex items-center gap-3 border-white/5 bg-[#0A0A0A]/50">
+                      <Avatar src={user?.avatar_url} alt={displayName} size={40} />
+                      <div>
+                        <span className="text-sm text-white block">{displayName}</span>
+                        {user?.role && <span className="text-xs text-zinc-500 capitalize">{user.role}</span>}
+                      </div>
+                    </GlassCard>
+                  );
+                })}
               </div>
             )}
           </div>
