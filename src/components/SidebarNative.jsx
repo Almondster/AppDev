@@ -22,7 +22,7 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
         { to: '/my-gigs', label: 'My Gigs', icon: <Briefcase size={18} /> },
         { to: '/orders', label: 'Orders', icon: <Package size={18} /> },
         { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
-        { to: '/notifications', label: 'Notifications', icon: <Bell size={18} /> },
+        { to: '/notifications', label: 'Notifications', icon: <Bell size={18} />, badge: unreadCount },
         { to: '/wallet', label: 'Earnings', icon: <Wallet size={18} /> },
     ];
 
@@ -39,16 +39,19 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
     else if (userRole === 'admin') currentMenu = adminMenu;
 
     return (
-        <div className={`h-screen border-r border-white/5 flex flex-col glass-panel rounded-none transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+        <div className={`h-screen border-r border-white/5 flex flex-col bg-[#0A0A0A]/80 backdrop-blur-xl rounded-none transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+            {/* Brand & Toggle */}
             <div className={`p-4 ${isCollapsed ? 'flex flex-col items-center gap-3' : ''}`}>
                 {isCollapsed ? (
                     <>
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                             <img src={splashIcon} alt="Createch" className="w-full h-full object-contain" />
                         </div>
-                        <button onClick={onToggleCollapse} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white">
-                            <ChevronRight size={18} />
-                        </button>
+                        {onToggleCollapse && (
+                            <button onClick={onToggleCollapse} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white" title="Expand sidebar">
+                                <ChevronRight size={18} />
+                            </button>
+                        )}
                     </>
                 ) : (
                     <div className="flex items-center justify-between px-2">
@@ -58,13 +61,37 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                             </div>
                             <span className="font-semibold text-white tracking-tight">CREATECH</span>
                         </div>
-                        <button onClick={onToggleCollapse} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white">
-                            <ChevronLeft size={18} />
-                        </button>
+                        {onToggleCollapse && (
+                            <button onClick={onToggleCollapse} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white" title="Collapse sidebar">
+                                <ChevronLeft size={18} />
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
 
+            {/* User Profile */}
+            {userData && (
+                <div className={`px-4 mb-4 ${isCollapsed ? 'flex justify-center' : ''}`}>
+                    <div className={`flex items-center gap-3 ${isCollapsed ? '' : 'px-2'} opacity-80 hover:opacity-100 transition-opacity cursor-pointer`}>
+                        <div className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0 border-white/10 relative">
+                            {userData?.avatar_url ? (
+                                <img src={userData.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                            ) : (
+                                <span className="text-xs font-semibold text-white/70">{(userData?.full_name || 'U').charAt(0)}</span>
+                            )}
+                        </div>
+                        {!isCollapsed && (
+                            <div className="flex flex-col">
+                                <span className="text-xs font-medium text-white">{userData?.full_name || userData?.email}</span>
+                                <span className="text-xs text-zinc-500 capitalize">{userRole}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Nav */}
             <nav className="flex-1 px-4 space-y-1">
                 {currentMenu.map((item) => (
                     <NavLink
@@ -72,9 +99,11 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                         to={item.to}
                         end={item.to === '/'}
                         className={({ isActive }) => `
-                            flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-sm font-medium transition-all group
-                            ${isActive ? 'bg-white/10 border-white/10 text-white' : 'border-transparent text-zinc-400 hover:text-white hover:bg-white/5'}
-                            border
+                            w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} px-3 py-2 rounded-lg text-sm transition-all duration-200 group relative
+                            ${isActive
+                                ? 'bg-white text-black font-medium shadow-[0_0_10px_rgba(255,255,255,0.1)]'
+                                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                            }
                         `}
                         title={isCollapsed ? item.label : undefined}
                     >
@@ -83,16 +112,12 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                             {item.badge != null && item.badge > 0 && isCollapsed && (
                                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
                             )}
+                            {!isCollapsed && item.label}
                         </div>
-                        {!isCollapsed && (
-                            <div className="flex flex-1 items-center justify-between">
-                                <span>{item.label}</span>
-                                {item.badge != null && item.badge > 0 && (
-                                    <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-500 text-white rounded-full min-w-[18px] text-center">
-                                        {item.badge > 99 ? '99+' : item.badge}
-                                    </span>
-                                )}
-                            </div>
+                        {!isCollapsed && item.badge != null && item.badge > 0 && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-500 text-white rounded-full min-w-[18px] text-center">
+                                {item.badge > 99 ? '99+' : item.badge}
+                            </span>
                         )}
                     </NavLink>
                 ))}
@@ -103,7 +128,7 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                     <NavLink
                         to="/settings"
                         className={({ isActive }) => `
-                            w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                            w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-lg text-sm transition-colors mb-1
                             ${isActive ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}
                         `}
                         title={isCollapsed ? 'Settings' : undefined}
@@ -118,29 +143,9 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                     title={isCollapsed ? 'Logout' : undefined}
                 >
                     <LogOut size={18} />
-                    {!isCollapsed && <span>Logout</span>}
+                    {!isCollapsed && <span>Log Out</span>}
                 </button>
             </div>
-            {userData && (
-                <div className={`px-4 mb-4 ${isCollapsed ? 'flex justify-center' : ''}`}>
-                    <div className={`flex items-center gap-3 ${isCollapsed ? '' : 'px-2'} opacity-80 hover:opacity-100 transition-opacity cursor-pointer`}>
-                        <div className="w-8 h-8 rounded-full border flex items-center justify-center shrink-0 border-white/10 relative">
-                            {userData?.avatar_url ? (
-                                <img src={userData.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                            ) : (
-                                <span className="text-xs font-semibold text-white/70">{(userData?.full_name || 'U').charAt(0)}</span>
-                            )}
-                            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#0A0A0A]"></div>
-                        </div>
-                        {!isCollapsed && (
-                            <div className="flex flex-col">
-                                <span className="text-xs font-medium text-white">{userData?.full_name || userData?.email}</span>
-                                <span className="text-xs text-zinc-500 capitalize">{userRole}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

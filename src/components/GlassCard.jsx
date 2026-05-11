@@ -1,12 +1,18 @@
 import React from 'react';
 
-export const GlassCard = ({ children, className = '', onClick }) => (
-  <div
-    onClick={onClick}
-    className={`rounded-xl border border-white/10 bg-[#0A0A0A]/50 backdrop-blur-xl ${className}`}
-  >
-    {children}
-  </div>
-);
+export const GlassCard = ({ children, className = '' }) => {
+  return (
+    <div
+      className={`
+        rounded-xl border transition-all duration-300
+        backdrop-blur-md bg-white/[0.05] border-white/[0.08]
+        hover:bg-white/[0.08] hover:border-white/[0.12]
+        ${className}
+      `}
+    >
+      {children}
+    </div>
+  );
+};
 
 export default GlassCard;

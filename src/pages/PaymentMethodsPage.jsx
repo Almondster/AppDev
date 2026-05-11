@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod, getUserData } from '../api';
 import { CreditCard, Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
@@ -18,20 +18,18 @@ export default function PaymentMethodsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
   const [deleting, setDeleting] = useState(false);
 
-  const loadMethods = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetchMyPaymentMethods();
-      if (res.ok) setMethods(res.data.results || res.data || []);
-    } catch (err) {
-      console.error('Error fetching payment methods:', err);
-    }
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    loadMethods();
-  }, [loadMethods]);
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetchMyPaymentMethods();
+        if (res.ok) setMethods(res.data.results || res.data || []);
+      } catch (err) {
+        console.error('Error fetching payment methods:', err);
+      }
+      setLoading(false);
+    })();
+  }, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 

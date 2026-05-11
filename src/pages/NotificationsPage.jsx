@@ -5,7 +5,6 @@ import {
     fetchFollows, getUserData, patchUser,
 } from '../api';
 import { MessageSquare, ShoppingBag, Users, CheckCheck, Clock, Bell, UserPlus, Package, AlertCircle } from 'lucide-react';
-import './NotificationsPage.css';
 
 const FILTERS = ['all', 'unread', 'messages', 'orders', 'social'];
 
@@ -75,24 +74,30 @@ const NotificationsPage = () => {
                     });
                 }
 
-                // Message notifications (incoming only)
+                // Message notifications (incoming only - where current user is the RECEIVER)
                 if (mRes.ok) {
                     const msgs = (mRes.data.results || mRes.data || [])
-                        .filter(m => m.sender_id !== uid)
-                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                        .filter(m => 
+                            String(m.receiver_id) === String(uid) && // I am the receiver
+                            !m.is_read // Message is unread
+                            // Note: FastAPI backend doesn't have is_deleted field
+                        )
+                        .sort((a, b) => new Date(b.created_at || b.timestamp) - new Date(a.created_at || a.timestamp));
 
+                    // Group by sender to avoid spam (show one notification per sender)
                     const bySender = {};
                     msgs.forEach(m => {
                         if (!bySender[m.sender_id]) bySender[m.sender_id] = m;
                     });
+                    
                     Object.values(bySender).forEach(m => {
                         const nid = `m-${m.id}`;
                         notifs.push({
                             id: nid, type: 'messages',
                             title: `New message from ${m.sender_name || 'User'}`,
                             subtitle: m.content?.slice(0, 80) || '(attachment)',
-                            date: m.created_at,
-                            read: m.is_read || readIds.has(nid),
+                            date: m.created_at || m.timestamp, // FastAPI uses 'timestamp' field
+                            read: false, // These are all unread messages (already filtered above)
                             link: '/messages',
                         });
                     });
@@ -182,7 +187,7 @@ const NotificationsPage = () => {
         };
 
         fetchNotifications();
-        const timer = setInterval(fetchNotifications, 5000);
+        const timer = setInterval(fetchNotifications, 2500); // Poll every 2.5 seconds for near real-time updates
         return () => clearInterval(timer);
     }, [isCreator, uid, ordersSeenKey, followsSeenKey, userData?.orders_last_seen_at, userData?.follows_last_seen_at, getReadIds]);
 
@@ -249,53 +254,55 @@ const NotificationsPage = () => {
     };
 
     return (
-        <main className="notif-page">
-            <div className="notif-breadcrumb">
-                <span className="notif-bc-muted">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
-                <span className="notif-bc-sep">/</span>
-                <span className="notif-bc-active">Notifications</span>
+        <main className="p-8 max-w-5xl mx-auto space-y-6">
+            <div className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-500">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
+                <span className="text-zinc-600">/</span>
+                <span className="text-white font-medium">Notifications</span>
             </div>
 
-            <div className="notif-header">
-                <div className="notif-title-row">
-                    <h1>Notifications</h1>
-                    {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
+            <div className="flex items-start justify-between">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <h1 className="text-3xl font-bold text-white">Notifications</h1>
+                        {unreadCount > 0 && <span className="px-2.5 py-1 rounded-full bg-blue-600 text-white text-xs font-medium">{unreadCount}</span>}
+                    </div>
+                    <p className="text-sm text-zinc-400">Stay updated with your orders, messages, and activity.</p>
                 </div>
-                <p className="notif-subtitle">Stay updated with your orders, messages, and activity.</p>
                 {unreadCount > 0 && (
-                    <button className="notif-mark-btn" onClick={markAllRead}>
+                    <button className="px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-white text-sm font-medium flex items-center gap-2 transition-colors" onClick={markAllRead}>
                         <CheckCheck size={14} /> Mark all read
                     </button>
                 )}
             </div>
 
-            <div className="notif-filters">
+            <div className="flex gap-2 overflow-x-auto pb-2">
                 {FILTERS.map(f => (
-                    <button key={f} className={`notif-filter ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+                    <button key={f} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${filter === f ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`} onClick={() => setFilter(f)}>
                         {f.charAt(0).toUpperCase() + f.slice(1)}
-                        {f === 'unread' && unreadCount > 0 && <span className="notif-filter-count">{unreadCount}</span>}
+                        {f === 'unread' && unreadCount > 0 && <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-xs">{unreadCount}</span>}
                     </button>
                 ))}
             </div>
 
-            <div className="notif-list">
+            <div className="space-y-2">
                 {loading ? (
                     Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="notif-item" style={{ pointerEvents: 'none' }}>
-                            <div className="skeleton" style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0 }}></div>
-                            <div className="notif-content" style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <div className="skeleton" style={{ width: `${120 + (i%3)*30}px`, height: 18 }}></div>
-                                    <div className="skeleton" style={{ width: 60, height: 14 }}></div>
+                        <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-4 pointer-events-none">
+                            <div className="w-11 h-11 rounded-xl bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer shrink-0"></div>
+                            <div className="flex-1 space-y-2">
+                                <div className="flex justify-between items-start">
+                                    <div className={`h-4 rounded bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer`} style={{ width: `${120 + (i%3)*30}px` }}></div>
+                                    <div className="h-3 w-16 rounded bg-white/5"></div>
                                 </div>
-                                <div className="skeleton" style={{ width: `${70 + (i%4)*8}%`, height: 16 }}></div>
+                                <div className="h-4 rounded bg-white/5" style={{ width: `${70 + (i%4)*8}%` }}></div>
                             </div>
                         </div>
                     ))
                 ) : filtered.length === 0 ? (
-                    <div className="notif-empty-state">
-                        <Bell size={48} color="#3f3f46" />
-                        <p>No notifications{filter !== 'all' ? ` in "${filter}"` : ''}.</p>
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <Bell size={48} className="text-zinc-700 mb-4" />
+                        <p className="text-zinc-500">No notifications{filter !== 'all' ? ` in "${filter}"` : ''}.</p>
                     </div>
                 ) : (
                     filtered.map(n => {
@@ -303,17 +310,17 @@ const NotificationsPage = () => {
                         return (
                             <div
                                 key={n.id}
-                                className={`notif-item ${!n.read ? 'unread' : ''}`}
+                                className={`p-4 rounded-xl border cursor-pointer transition-all hover:bg-white/[0.03] flex items-start gap-4 ${!n.read ? 'bg-white/[0.02] border-white/10' : 'bg-transparent border-white/5'}`}
                                 onClick={() => handleClick(n)}
                             >
-                                <div className="notif-icon" style={{ background: ic.bg, color: ic.color }}>{getIcon(n.type)}</div>
-                                <div className="notif-content">
-                                    <h4>{n.title}</h4>
-                                    {n.subtitle && <p>{n.subtitle}</p>}
+                                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: ic.bg, color: ic.color }}>{getIcon(n.type)}</div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-medium text-white mb-1">{n.title}</h4>
+                                    {n.subtitle && <p className="text-xs text-zinc-400 line-clamp-2">{n.subtitle}</p>}
                                 </div>
-                                <div className="notif-meta">
-                                    <span className="notif-time">{timeAgo(n.date)}</span>
-                                    {!n.read && <span className="notif-dot"></span>}
+                                <div className="flex flex-col items-end gap-2 shrink-0">
+                                    <span className="text-xs text-zinc-500">{timeAgo(n.date)}</span>
+                                    {!n.read && <span className="w-2 h-2 bg-blue-500 rounded-full"></span>}
                                 </div>
                             </div>
                         );

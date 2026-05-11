@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, rejectOrder, updateOrder, getUserData } from '../api';
+import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, rejectOrder, updateOrder } from '../api';
 import { Eye, CheckCircle, XCircle } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
-import './ProjectsPage.css';
 
 const STATUS_FILTERS = ['all', 'pending', 'active', 'completed', 'refunded', 'cancelled'];
 
@@ -47,7 +46,6 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
 
-    const userData = getUserData();
     const isCreator = userRole === 'creator';
     const isAdmin = userRole === 'admin';
     const navigate = useNavigate();
@@ -154,100 +152,102 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     };
 
     return (
-        <main className="gigs-page">
+        <main className="p-8 max-w-7xl mx-auto space-y-6">
             {/* Breadcrumb */}
-            <div className="gigs-breadcrumb">
-                <span className="gigs-bc-muted">
+            <div className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-500">
                     {isAdmin ? 'Admin Workspace' : isCreator ? 'Creator Workspace' : 'Client Workspace'}
                 </span>
-                <span className="gigs-bc-sep">/</span>
-                <span className="gigs-bc-active">{isAdmin ? 'Order Management' : 'Orders'}</span>
+                <span className="text-zinc-600">/</span>
+                <span className="text-white font-medium">{isAdmin ? 'Order Management' : 'Orders'}</span>
             </div>
 
-            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+            {toast && (
+                <div className="fixed top-4 right-4 z-50 bg-emerald-500/90 text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                    {toast}
+                </div>
+            )}
 
             {/* Header */}
-            <div className="gigs-header">
-                <div>
-                    <h1 className="gigs-title">{isAdmin ? 'Order Management' : isCreator ? 'Project Management' : 'My Orders'}</h1>
-                    <p className="gigs-subtitle">
-                        {isAdmin
-                            ? 'Review and manage platform-wide orders.'
-                            : isCreator
-                                ? 'Manage your gig pipeline.'
-                                : 'Track your active orders and history.'}
-                    </p>
-                </div>
+            <div>
+                <h1 className="text-3xl font-bold text-white mb-2">{isAdmin ? 'Order Management' : isCreator ? 'Project Management' : 'My Orders'}</h1>
+                <p className="text-sm text-zinc-400">
+                    {isAdmin
+                        ? 'Review and manage platform-wide orders.'
+                        : isCreator
+                            ? 'Manage your gig pipeline.'
+                            : 'Track your active orders and history.'}
+                </p>
             </div>
 
             {/* Filter Tabs */}
-            <div className="gigs-filters">
+            <div className="flex gap-2 overflow-x-auto pb-2">
                 {STATUS_FILTERS.map(s => (
-                    <button key={s} className={`gigs-filter-btn ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
+                    <button key={s} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${filter === s ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`} onClick={() => setFilter(s)}>
                         {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-                        <span className="gigs-filter-count">{statusCounts[s]}</span>
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs ${filter === s ? 'bg-black/10 text-black' : 'bg-white/10 text-zinc-400'}`}>{statusCounts[s]}</span>
                     </button>
                 ))}
             </div>
 
-            <div className="gigs-table-wrapper">
-                    <table className="gigs-table">
+            <div className="overflow-x-auto rounded-xl border border-white/5 bg-white/[0.02]">
+                    <table className="w-full">
                         <thead>
-                            <tr>
-                                <th>Service</th>
-                                <th>{isCreator ? 'Client' : 'Creator'}</th>
-                                <th>Status</th>
-                                <th>Deadline</th>
-                                <th>Amount</th>
-                                <th>Action</th>
+                            <tr className="border-b border-white/5">
+                                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Service</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">{isCreator ? 'Client' : 'Creator'}</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Status</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Deadline</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Amount</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-white/5">
                             {loading ? (
                                 Array.from({ length: 8 }).map((_, i) => (
-                                    <tr key={i} style={{ opacity: 1 - (i * 0.06) }}>
-                                        <td><div className="skeleton" style={{ width: `${55 + (i%4)*12}%`, height: 16 }}></div></td>
-                                        <td><div className="skeleton" style={{ width: `${50 + (i%3)*15}%`, height: 16 }}></div></td>
-                                        <td><div className="skeleton" style={{ width: 65, height: 24, borderRadius: 6 }}></div></td>
-                                        <td><div className="skeleton" style={{ width: 75, height: 16 }}></div></td>
-                                        <td><div className="skeleton" style={{ width: 60, height: 18 }}></div></td>
-                                        <td><div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8 }}></div></td>
+                                    <tr key={i} className="hover:bg-white/[0.02] transition-colors" style={{ opacity: 1 - (i * 0.06) }}>
+                                        <td className="px-4 py-4"><div className="h-4 rounded bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer" style={{ width: `${55 + (i%4)*12}%` }}></div></td>
+                                        <td className="px-4 py-4"><div className="h-4 rounded bg-white/5" style={{ width: `${50 + (i%3)*15}%` }}></div></td>
+                                        <td className="px-4 py-4"><div className="h-6 w-20 rounded-full bg-white/5"></div></td>
+                                        <td className="px-4 py-4"><div className="h-4 w-20 rounded bg-white/5"></div></td>
+                                        <td className="px-4 py-4"><div className="h-4 w-16 rounded bg-white/5"></div></td>
+                                        <td className="px-4 py-4"><div className="h-8 w-8 rounded-lg bg-white/5"></div></td>
                                     </tr>
                                 ))
                             ) : filtered.length > 0 ? (
                                 filtered.map(order => (
-                                    <tr key={order.id}>
-                                        <td className="gigs-cell-service">{order.service_title || 'Untitled service'}</td>
-                                        <td className="gigs-cell-user">{isCreator ? (order.client_display_name || order.client_name || 'Unknown client') : (order.creator_display_name || order.creator_name || 'Unknown creator')}</td>
-                                        <td>{getStatusBadge(order.status)}</td>
-                                        <td className="gigs-cell-date">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</td>
-                                        <td className="gigs-cell-amount">₱{parseFloat(order.price || 0).toLocaleString()}</td>
-                                        <td>
-                                            <div className="gigs-action-group">
+                                    <tr key={order.id} className="hover:bg-white/[0.02] transition-colors">
+                                        <td className="px-4 py-4 text-sm text-white font-medium">{order.service_title || 'Untitled service'}</td>
+                                        <td className="px-4 py-4 text-sm text-zinc-400">{isCreator ? (order.client_display_name || order.client_name || 'Unknown client') : (order.creator_display_name || order.creator_name || 'Unknown creator')}</td>
+                                        <td className="px-4 py-4">{getStatusBadge(order.status)}</td>
+                                        <td className="px-4 py-4 text-sm text-zinc-400">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</td>
+                                        <td className="px-4 py-4 text-sm text-white font-medium">₱{parseFloat(order.price || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-4">
+                                            <div className="flex items-center gap-2">
                                                 {isCreator && order.status === 'pending' && (
                                                     <>
-                                                        <button className="gigs-action-btn gigs-action-btn--accept" title="Accept order" onClick={() => confirmWorkflowAction(order.id, 'Accept Order?', 'This order will move to Accepted.', () => acceptOrder(order.id), 'success')}>Accept</button>
-                                                        <button className="gigs-action-btn gigs-action-btn--cancel" title="Reject order" onClick={() => confirmWorkflowAction(order.id, 'Reject Order?', 'This will decline the client order.', () => rejectOrder(order.id, 'Rejected by creator.'), 'danger')}>Reject</button>
+                                                        <button className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors" title="Accept order" onClick={() => confirmWorkflowAction(order.id, 'Accept Order?', 'This order will move to Accepted.', () => acceptOrder(order.id), 'success')}>Accept</button>
+                                                        <button className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors" title="Reject order" onClick={() => confirmWorkflowAction(order.id, 'Reject Order?', 'This will decline the client order.', () => rejectOrder(order.id, 'Rejected by creator.'), 'danger')}>Reject</button>
                                                     </>
                                                 )}
                                                 {isCreator && ['accepted', 'partial_submitted', 'final_submitted'].includes(order.status) && (
-                                                    <button className="gigs-action-btn gigs-action-btn--deliver" title="Submit output" onClick={() => navigate(`/orders/${order.id}`)}>Submit output</button>
+                                                    <button className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors" title="Submit output" onClick={() => navigate(`/orders/${order.id}`)}>Submit output</button>
                                                 )}
                                                 {!isCreator && order.status === 'final_submitted' && (
-                                                    <button className="gigs-action-btn gigs-action-btn--accept" title="Pay and unlock final output" onClick={() => navigate(`/orders/${order.id}`)}><CheckCircle size={14} /> Pay</button>
+                                                    <button className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors flex items-center gap-1" title="Pay and unlock final output" onClick={() => navigate(`/orders/${order.id}`)}><CheckCircle size={14} /> Pay</button>
                                                 )}
                                                 {!['completed','cancelled','refunded','rejected','final_submitted'].includes(order.status) && (
-                                                    <button className="gigs-action-btn gigs-action-btn--cancel" title="Cancel order" onClick={() => confirmStatusChange(order.id, 'cancelled', 'Cancel Order?', 'This action cannot be undone.', 'danger')} style={{ color: '#f87171', fontSize: '0.75rem' }}><XCircle size={14} /></button>
+                                                    <button className="w-8 h-8 rounded-lg hover:bg-red-500/10 flex items-center justify-center text-red-400 transition-colors" title="Cancel order" onClick={() => confirmStatusChange(order.id, 'cancelled', 'Cancel Order?', 'This action cannot be undone.', 'danger')}><XCircle size={14} /></button>
                                                 )}
                                                 {!(isCreator && ['accepted', 'partial_submitted', 'final_submitted'].includes(order.status)) && (
-                                                    <button className="gigs-action-btn" title="View details" onClick={() => navigate(`/orders/${order.id}`)}><Eye size={16} /></button>
+                                                    <button className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-colors" title="View details" onClick={() => navigate(`/orders/${order.id}`)}><Eye size={16} /></button>
                                                 )}
                                             </div>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan="6" className="gigs-empty">No orders found.</td></tr>
+                                <tr><td colSpan="6" className="px-4 py-16 text-center text-zinc-500">No orders found.</td></tr>
                             )}
                         </tbody>
                     </table>

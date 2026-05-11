@@ -5,7 +5,6 @@ import { ArrowLeft, MessageSquare, Star, XCircle, Play, Lock, CreditCard, Upload
 import ConfirmModal from '../components/ConfirmModal';
 import ReviewModal from '../components/ReviewModal';
 import { createReview } from '../api';
-import './OrderDetailPage.css';
 
 const STATUS_STYLES = {
   pending:     { bg: 'rgba(250,204,21,0.1)', color: '#facc15' },
@@ -75,7 +74,7 @@ const OrderDetailPage = () => {
     if (!url) return null;
     return (
       <a
-        className="od-download-link"
+        className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors"
         href={url}
         target={isDataUrl(url) ? undefined : '_blank'}
         rel={isDataUrl(url) ? undefined : 'noreferrer'}
@@ -228,17 +227,17 @@ const OrderDetailPage = () => {
 
   if (loading) {
     return (
-      <main className="order-detail">
-        <div className="od-breadcrumb">
-          <span>Orders</span><span className="od-bc-sep">/</span>
-          <span className="od-bc-active">Loading...</span>
+      <main className="p-6 max-w-7xl mx-auto">
+        <div className="flex items-center gap-2 text-sm mb-6">
+          <span className="text-zinc-400">Orders</span><span className="text-zinc-600">/</span>
+          <span className="text-white">Loading...</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div className="skeleton" style={{ width: 120, height: 36, borderRadius: 10 }}></div>
-          <div className="skeleton" style={{ width: '60%', height: 32 }}></div>
-          <div className="od-grid">
-            <div className="od-card"><div className="skeleton" style={{ height: 160 }}></div></div>
-            <div className="od-card"><div className="skeleton" style={{ height: 160 }}></div></div>
+        <div className="flex flex-col gap-4">
+          <div className="h-9 w-30 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-xl"></div>
+          <div className="h-8 w-3/5 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-xl"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6"><div className="h-40 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-xl"></div></div>
+            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6"><div className="h-40 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-xl"></div></div>
           </div>
         </div>
       </main>
@@ -247,9 +246,9 @@ const OrderDetailPage = () => {
 
   if (!order) {
     return (
-      <main className="order-detail">
-        <button className="od-back" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button>
-        <p style={{ color: '#71717a', textAlign: 'center', marginTop: '3rem' }}>Order not found.</p>
+      <main className="p-6 max-w-7xl mx-auto">
+        <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-colors mb-6" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button>
+        <p className="text-zinc-500 text-center mt-12">Order not found.</p>
       </main>
     );
   }
@@ -257,191 +256,195 @@ const OrderDetailPage = () => {
   const st = STATUS_STYLES[order.status] || STATUS_STYLES.pending;
 
   return (
-    <main className="order-detail">
-      <div className="od-breadcrumb">
-        <span className="od-bc-muted">Orders</span>
-        <span className="od-bc-sep">/</span>
-        <span className="od-bc-active">{order.service_title || 'Untitled service'}</span>
+    <main className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center gap-2 text-sm mb-6">
+        <span className="text-zinc-400">Orders</span>
+        <span className="text-zinc-600">/</span>
+        <span className="text-white">{order.service_title || 'Untitled service'}</span>
       </div>
 
-      <button className="od-back" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button>
+      <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-colors mb-6" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button>
 
-      {toast && <div className="global-toast global-toast--success">{toast}</div>}
+      {toast && <div className="fixed top-4 right-4 bg-green-500/20 border border-green-500/30 text-green-400 px-6 py-3 rounded-xl z-50">{toast}</div>}
 
       {/* Header */}
-      <div className="od-header">
+      <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
         <div>
-          <h1 className="od-title">{order.service_title || 'Untitled service'}</h1>
-          <p className="od-subtitle">Created {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{order.service_title || 'Untitled service'}</h1>
+          <p className="text-zinc-400">Created {order.created_at ? new Date(order.created_at).toLocaleDateString() : '—'}</p>
         </div>
-        <span className="od-status-badge" style={{ background: st.bg, color: st.color }}>
+        <span className="px-4 py-2 rounded-full text-sm font-semibold" style={{ background: st.bg, color: st.color }}>
           {(order.status || 'pending').replace('_', ' ')}
         </span>
       </div>
 
       {/* Info Grid */}
-      <div className="od-grid od-grid--single">
-        <div className="od-card">
-          <h4>Order Details</h4>
-          <div className="od-info-row">
-            <span className="od-info-label">Service</span>
-            <span className="od-info-value">{order.service_title || '—'}</span>
+      <div className="grid grid-cols-1 gap-6 mb-6">
+        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+          <h4 className="text-white font-semibold mb-4">Order Details</h4>
+          <div className="flex justify-between items-center py-3 border-b border-white/5">
+            <span className="text-zinc-400">Service</span>
+            <span className="text-white font-medium">{order.service_title || '—'}</span>
           </div>
-          <div className="od-info-row">
-            <span className="od-info-label">Amount</span>
-            <span className="od-info-value">₱{parseFloat(order.price || 0).toLocaleString()}</span>
+          <div className="flex justify-between items-center py-3 border-b border-white/5">
+            <span className="text-zinc-400">Amount</span>
+            <span className="text-white font-medium">₱{parseFloat(order.price || 0).toLocaleString()}</span>
           </div>
-          <div className="od-info-row">
-            <span className="od-info-label">Due Date</span>
-            <span className="od-info-value">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</span>
+          <div className="flex justify-between items-center py-3 border-b border-white/5">
+            <span className="text-zinc-400">Due Date</span>
+            <span className="text-white font-medium">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</span>
           </div>
-          <div className="od-info-row">
-            <span className="od-info-label">Status</span>
-            <span className="od-info-value" style={{ color: st.color, textTransform: 'capitalize' }}>
+          <div className="flex justify-between items-center py-3">
+            <span className="text-zinc-400">Status</span>
+            <span className="font-medium capitalize" style={{ color: st.color }}>
               {(order.status || 'pending').replace('_', ' ')}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="od-grid">
-        <div className="od-card">
-          <h4>Partial Output</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+          <h4 className="text-white font-semibold mb-4">Partial Output</h4>
           {order.partial_output_url || order.partial_output_note ? (
-            <div className="od-delivery-box">
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4">
               {renderOutputLink(order.partial_output_url, 'Download partial output', `order-${order.id}-partial-output`)}
-              {order.partial_output_note && <p>{order.partial_output_note}</p>}
+              {order.partial_output_note && <p className="text-zinc-400 mt-2">{order.partial_output_note}</p>}
             </div>
           ) : (
-            <p className="od-muted">No partial output submitted yet.</p>
+            <p className="text-zinc-500 text-sm">No partial output submitted yet.</p>
           )}
 
           {isCreator && ['accepted', 'partial_submitted'].includes(order.status) && (
-            <form className="od-delivery-form" onSubmit={handleSubmitPartial}>
+            <form className="flex flex-col gap-3 mt-4" onSubmit={handleSubmitPartial}>
               <input
                 value={isDataUrl(partialForm.partial_output_url) ? '' : partialForm.partial_output_url}
                 onChange={e => setPartialForm(prev => ({ ...prev, partial_output_url: e.target.value }))}
                 placeholder={isDataUrl(partialForm.partial_output_url) ? 'Attached file selected' : 'Partial output link'}
+                className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-white/20"
               />
-              <label className="od-file-upload">
+              <label className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white cursor-pointer transition-colors">
                 <Upload size={15} />
                 Attach partial file
-                <input type="file" onChange={(e) => handleOutputFileUpload('partial', e)} />
+                <input type="file" onChange={(e) => handleOutputFileUpload('partial', e)} className="hidden" />
               </label>
               <textarea
                 value={partialForm.partial_output_note}
                 onChange={e => setPartialForm(prev => ({ ...prev, partial_output_note: e.target.value }))}
                 placeholder="Partial output notes"
                 rows={3}
+                className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-white/20 resize-none"
               />
-              <button className="od-action-btn od-action-btn--primary" disabled={actionLoading}>Submit Partial</button>
+              <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50" disabled={actionLoading}>Submit Partial</button>
             </form>
           )}
         </div>
 
-        <div className="od-card">
-          <h4>Final Output</h4>
+        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+          <h4 className="text-white font-semibold mb-4">Final Output</h4>
           {order.payment_status === 'paid' || isCreator ? (
             order.final_file_url || order.final_output_note ? (
-              <div className="od-delivery-box">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4">
                 {renderOutputLink(order.final_file_url, 'Download final output', `order-${order.id}-final-output`)}
-                {order.final_output_note && <p>{order.final_output_note}</p>}
+                {order.final_output_note && <p className="text-zinc-400 mt-2">{order.final_output_note}</p>}
               </div>
             ) : (
-              <p className="od-muted">No final output submitted yet.</p>
+              <p className="text-zinc-500 text-sm">No final output submitted yet.</p>
             )
           ) : (
-            <div className="od-locked-output"><Lock size={16} /> Final output unlocks after dummy payment.</div>
+            <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-4 py-3 rounded-xl"><Lock size={16} /> Final output unlocks after dummy payment.</div>
           )}
 
           {isCreator && ['partial_submitted', 'final_submitted'].includes(order.status) && (
-            <form className="od-delivery-form" onSubmit={handleSubmitFinal}>
+            <form className="flex flex-col gap-3 mt-4" onSubmit={handleSubmitFinal}>
               <input
                 value={isDataUrl(finalForm.final_file_url) ? '' : finalForm.final_file_url}
                 onChange={e => setFinalForm(prev => ({ ...prev, final_file_url: e.target.value }))}
                 placeholder={isDataUrl(finalForm.final_file_url) ? 'Attached file selected' : 'Final output link'}
+                className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-white/20"
               />
-              <label className="od-file-upload">
+              <label className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white cursor-pointer transition-colors">
                 <Upload size={15} />
                 Attach downloadable final file
-                <input type="file" onChange={(e) => handleOutputFileUpload('final', e)} />
+                <input type="file" onChange={(e) => handleOutputFileUpload('final', e)} className="hidden" />
               </label>
               <textarea
                 value={finalForm.final_output_note}
                 onChange={e => setFinalForm(prev => ({ ...prev, final_output_note: e.target.value }))}
                 placeholder="Final output notes"
                 rows={3}
+                className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-white/20 resize-none"
               />
-              <button className="od-action-btn od-action-btn--warning" disabled={actionLoading}>Save Final</button>
+              <button className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50" disabled={actionLoading}>Save Final</button>
             </form>
           )}
         </div>
       </div>
 
       {/* Actions */}
-      <div className="od-actions">
+      <div className="flex flex-wrap gap-3 mb-6">
         {/* Creator actions */}
         {isCreator && order.status === 'pending' && (
-          <button className="od-action-btn od-action-btn--primary" onClick={() => confirmOrderAction('Accept Order?', 'This order will move to Accepted.', 'success', () => acceptOrder(id), 'Order accepted.')}>
+          <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors" onClick={() => confirmOrderAction('Accept Order?', 'This order will move to Accepted.', 'success', () => acceptOrder(id), 'Order accepted.')}>
             <Play size={16} /> Accept
           </button>
         )}
         {isCreator && order.status === 'pending' && (
-          <button className="od-action-btn od-action-btn--danger" onClick={() => confirmOrderAction('Reject Order?', 'This will decline the client order.', 'danger', () => rejectOrder(id, 'Rejected by creator.'), 'Order rejected.')}>
+          <button className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors" onClick={() => confirmOrderAction('Reject Order?', 'This will decline the client order.', 'danger', () => rejectOrder(id, 'Rejected by creator.'), 'Order rejected.')}>
             <XCircle size={16} /> Reject
           </button>
         )}
 
         {/* Client actions */}
         {!isCreator && order.status === 'final_submitted' && order.payment_status !== 'paid' && (
-          <button className="od-action-btn od-action-btn--success" onClick={() => confirmOrderAction('Send Dummy Payment?', 'This unlocks the final output and completes the order.', 'success', () => payOrder(id), 'Dummy payment sent. Final output unlocked.')}>
+          <button className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors" onClick={() => confirmOrderAction('Send Dummy Payment?', 'This unlocks the final output and completes the order.', 'success', () => payOrder(id), 'Dummy payment sent. Final output unlocked.')}>
             <CreditCard size={16} /> Pay and Unlock Final
           </button>
         )}
 
         {/* Cancel (both roles, only if not completed) */}
         {!['completed', 'cancelled', 'refunded', 'rejected', 'final_submitted'].includes(order.status) && (
-          <button className="od-action-btn od-action-btn--danger" onClick={() => handleStatusChange('cancelled', 'Cancel Order?', 'Are you sure you want to cancel this order? This action cannot be undone.', 'danger')}>
+          <button className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors" onClick={() => handleStatusChange('cancelled', 'Cancel Order?', 'Are you sure you want to cancel this order? This action cannot be undone.', 'danger')}>
             <XCircle size={16} /> Cancel
           </button>
         )}
 
         {/* Review (completed orders only) */}
         {order.status === 'completed' && (
-          <button className="od-action-btn od-action-btn--outline" onClick={() => setReviewOpen(true)}>
+          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-semibold transition-colors" onClick={() => setReviewOpen(true)}>
             <Star size={16} /> Leave Review
           </button>
         )}
 
         {/* Message */}
-        <button className="od-action-btn od-action-btn--outline" onClick={() => navigate(`/messages?to=${isCreator ? order.client_id : order.creator_id}`)}>
+        <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-semibold transition-colors" onClick={() => navigate(`/messages?to=${isCreator ? order.client_id : order.creator_id}`)}>
           <MessageSquare size={16} /> Message
         </button>
         {['pending', 'accepted', 'in_progress', 'partial_submitted', 'final_submitted', 'delivered'].includes(order.status) && (
-          <button className="od-action-btn od-action-btn--danger" onClick={() => setDisputeModalOpen(true)}>
+          <button className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors" onClick={() => setDisputeModalOpen(true)}>
             <XCircle size={16} /> File Dispute
           </button>
         )}
       </div>
 
       {/* Timeline */}
-      <div className="od-card" style={{ gridColumn: '1 / -1' }}>
-        <h4>Order Timeline</h4>
-        <div className="od-timeline">
+      <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+        <h4 className="text-white font-semibold mb-4">Order Timeline</h4>
+        <div className="flex flex-col gap-4">
           {timeline.length > 0 ? timeline.map(t => (
-            <div key={t.id} className="od-timeline-item">
-              <div className="od-timeline-dot"></div>
-              <div className="od-timeline-content">
-                <h5>{t.event_type?.replace('_', ' ') || 'Event'}</h5>
-                <p>{t.message || '—'} • {t.timestamp ? new Date(t.timestamp).toLocaleString() : ''}</p>
+            <div key={t.id} className="flex gap-4">
+              <div className="w-3 h-3 rounded-full bg-indigo-500 mt-1 flex-shrink-0"></div>
+              <div className="flex-1">
+                <h5 className="text-white font-medium capitalize">{t.event_type?.replace('_', ' ') || 'Event'}</h5>
+                <p className="text-zinc-400 text-sm">{t.message || '—'} • {t.timestamp ? new Date(t.timestamp).toLocaleString() : ''}</p>
               </div>
             </div>
           )) : (
-            <div className="od-timeline-item">
-              <div className="od-timeline-dot" style={{ background: '#10b981' }}></div>
-              <div className="od-timeline-content">
-                <h5>Order Created</h5>
-                <p>{order.created_at ? new Date(order.created_at).toLocaleString() : 'Just now'}</p>
+            <div className="flex gap-4">
+              <div className="w-3 h-3 rounded-full bg-green-500 mt-1 flex-shrink-0"></div>
+              <div className="flex-1">
+                <h5 className="text-white font-medium">Order Created</h5>
+                <p className="text-zinc-400 text-sm">{order.created_at ? new Date(order.created_at).toLocaleString() : 'Just now'}</p>
               </div>
             </div>
           )}

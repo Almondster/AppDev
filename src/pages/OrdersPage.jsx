@@ -85,20 +85,20 @@ const OrdersPage = () => {
     };
 
     return (
-        <section className="section page-fade">
-            <header className="section__header">
+        <section className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+            <header className="space-y-4">
                 <div>
-                    <h2 className="section__title">{isCreator ? 'Incoming Orders' : 'My Orders'} ({orders.length})</h2>
-                    <p className="section__subtitle">
+                    <h2 className="text-3xl font-bold text-white mb-2">{isCreator ? 'Incoming Orders' : 'My Orders'} ({orders.length})</h2>
+                    <p className="text-sm text-zinc-400">
                         {isCreator ? 'Manage client requests and keep delivery statuses up to date.' : 'Track the status of your purchases and deliveries.'}
                     </p>
                 </div>
-                <div className="section__controls">
-                    <div className="filter-group">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                    <div className="flex gap-2 flex-wrap">
                         {['All', 'Pending', 'In_progress', 'Completed', 'Cancelled'].map(f => (
                             <button
                                 key={f}
-                                className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
                                 onClick={() => setFilter(f)}
                             >
                                 {f.replace('_', ' ')}
@@ -106,7 +106,7 @@ const OrdersPage = () => {
                         ))}
                     </div>
                     <label htmlFor="orderSort" className="sr-only">Sort orders</label>
-                    <select id="orderSort" className="form-input sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                    <select id="orderSort" className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                         <option value="recent">Sort: Recent</option>
                         <option value="amount">Sort: Amount</option>
                         <option value="client">Sort: Client</option>
@@ -114,44 +114,52 @@ const OrdersPage = () => {
                 </div>
             </header>
 
-            {error && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
-            {success && <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{success}</div>}
-            {statusError && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.5rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{statusError}</div>}
+            {error && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>}
+            {success && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">{success}</div>}
+            {statusError && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{statusError}</div>}
 
             {loading ? (
-                <div className="empty-state"><p>Loading orders...</p></div>
+                <div className="flex items-center justify-center py-16">
+                    <p className="text-zinc-500">Loading orders...</p>
+                </div>
             ) : (
-                <div className="card-grid">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {sortedOrders.length > 0 ? sortedOrders.map(order => (
-                        <div key={order.id} className="card card--clickable">
-                            <div className="card__header">
-                                <h3 className="card__title">{order.service}</h3>
-                                <span className={`badge badge--${order.status.toLowerCase().replace(' ', '-')}`}>{order.status}</span>
+                        <div key={order.id} className="p-6 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.03] transition-colors space-y-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <h3 className="text-base font-medium text-white flex-1">{order.service}</h3>
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize whitespace-nowrap ${
+                                    order.status.toLowerCase() === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                                    order.status.toLowerCase() === 'in progress' ? 'bg-blue-500/10 text-blue-400' :
+                                    order.status.toLowerCase() === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
+                                    order.status.toLowerCase() === 'cancelled' ? 'bg-red-500/10 text-red-400' :
+                                    'bg-zinc-500/10 text-zinc-400'
+                                }`}>{order.status}</span>
                             </div>
-                            <div className="card__body">
-                                <p><strong>Order ID:</strong> {order.id}</p>
-                                <p><strong>Amount:</strong> {order.amount}</p>
-                                {order.creator && <p><strong>Creator:</strong> {order.creator}</p>}
-                                {order.date && <p><strong>Date:</strong> {order.date}</p>}
+                            <div className="space-y-2 text-sm">
+                                <p className="text-zinc-400"><strong className="text-zinc-300">Order ID:</strong> {order.id}</p>
+                                <p className="text-zinc-400"><strong className="text-zinc-300">Amount:</strong> {order.amount}</p>
+                                {order.creator && <p className="text-zinc-400"><strong className="text-zinc-300">Creator:</strong> {order.creator}</p>}
+                                {order.date && <p className="text-zinc-400"><strong className="text-zinc-300">Date:</strong> {order.date}</p>}
                             </div>
-                            <div className="card__actions" style={{ marginTop: '0.75rem' }}>
-                                <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(order.id)}>Remove</button>
+                            <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                                <button className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors" onClick={() => handleDelete(order.id)}>Remove</button>
                                 <select
                                     value={order.status}
                                     onChange={e => handleStatusUpdate(order.id, e.target.value)}
                                     disabled={statusUpdating === order.id}
-                                    style={{ marginLeft: 8 }}
+                                    className="flex-1 bg-black/20 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-white/20 disabled:opacity-50"
                                 >
                                     {['Pending', 'In_progress', 'Completed', 'Cancelled'].map(opt => (
                                         <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>
                                     ))}
                                 </select>
-                                {statusUpdating === order.id && <span style={{ marginLeft: 8 }}>Updating...</span>}
+                                {statusUpdating === order.id && <span className="text-xs text-zinc-500">Updating...</span>}
                             </div>
                         </div>
                     )) : (
-                        <div className="empty-state">
-                            <p>No orders found for the selected filter.</p>
+                        <div className="col-span-full flex items-center justify-center py-16">
+                            <p className="text-zinc-500">No orders found for the selected filter.</p>
                         </div>
                     )}
                 </div>

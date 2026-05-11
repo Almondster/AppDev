@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { ImagePlus, Plus, Search, X } from 'lucide-react';
 import { createService, deleteService, fetchMyServices, getUserData, updateService } from '../api';
 import { Button } from '../components/Button';
-import '../styles/ProjectsPage.css';
 
 const EMPTY_FORM = {
   title: '',
@@ -176,19 +175,21 @@ const MyGigsPage = () => {
   };
 
   return (
-    <section className="section page-fade">
+    <section className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
       {notification && (
-        <div className={`notification notification--${notification.type}`}>
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300 ${
+          notification.type === 'success' ? 'bg-emerald-500/90 text-white' : 'bg-blue-500/90 text-white'
+        }`}>
           {notification.message}
         </div>
       )}
 
-      <header className="section__header">
+      <header className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="section__title">My Gigs ({services.length})</h2>
-          <p style={{ color: '#71717a', margin: '0.35rem 0 0' }}>Create, update, and manage the services clients can order.</p>
+          <h2 className="text-3xl font-bold text-white mb-2">My Gigs ({services.length})</h2>
+          <p className="text-sm text-zinc-400">Create, update, and manage the services clients can order.</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="flex gap-2 flex-wrap">
           <Button
             variant={showForm ? 'danger' : 'primary'}
             onClick={toggleForm}
@@ -200,20 +201,20 @@ const MyGigsPage = () => {
       </header>
 
       {showForm && (
-        <form className="form-card page-fade" onSubmit={handleSubmit}>
-          <h3 className="form-card__title">{editingId ? 'Edit Service' : 'Create Service'}</h3>
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label" htmlFor="title">Service Title *</label>
-              <input className="form-input" type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="Professional Logo Design" required />
+        <form className="p-8 rounded-2xl bg-white/[0.02] border border-white/5 space-y-6 animate-in fade-in duration-300" onSubmit={handleSubmit}>
+          <h3 className="text-xl font-medium text-white">{editingId ? 'Edit Service' : 'Create Service'}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-zinc-300" htmlFor="title">Service Title *</label>
+              <input className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" type="text" id="title" name="title" value={formData.title} onChange={handleChange} placeholder="Professional Logo Design" required />
             </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="price">Starting Price (PHP)</label>
-              <input className="form-input" type="number" id="price" name="price" value={formData.price} onChange={handleChange} placeholder="5000" min="1" required />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-zinc-300" htmlFor="price">Starting Price (PHP)</label>
+              <input className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" type="number" id="price" name="price" value={formData.price} onChange={handleChange} placeholder="5000" min="1" required />
             </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="category">Category</label>
-              <select className="form-input" id="category" name="category" value={formData.category} onChange={handleChange}>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-zinc-300" htmlFor="category">Category</label>
+              <select className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20" id="category" name="category" value={formData.category} onChange={handleChange}>
                 <option>Design & Creative</option>
                 <option>Development & IT</option>
                 <option>Digital Marketing</option>
@@ -222,27 +223,27 @@ const MyGigsPage = () => {
                 <option>Writing & Translation</option>
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="cover_image">Cover Image</label>
-              <label className="gig-upload" htmlFor="cover_image">
-                <span className="gig-upload__icon"><ImagePlus size={18} /></span>
-                <span className="gig-upload__text">Upload cover image</span>
-                <span className="gig-upload__hint">PNG, JPG, or WebP</span>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-zinc-300" htmlFor="cover_image">Cover Image</label>
+              <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-white/10 rounded-lg hover:border-white/20 cursor-pointer transition-colors" htmlFor="cover_image">
+                <span className="text-zinc-400 mb-2"><ImagePlus size={18} /></span>
+                <span className="text-sm text-zinc-300 mb-1">Upload cover image</span>
+                <span className="text-xs text-zinc-500">PNG, JPG, or WebP</span>
               </label>
-              <input className="gig-upload__input" type="file" id="cover_image" accept="image/*" onChange={handleImageUpload} />
+              <input className="hidden" type="file" id="cover_image" accept="image/*" onChange={handleImageUpload} />
             </div>
-            <div className="form-group form-group--full">
-              <label className="form-label" htmlFor="description">Description *</label>
-              <textarea className="form-input form-textarea" id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Describe what you offer to clients." rows="4" required />
+            <div className="md:col-span-2 space-y-2">
+              <label className="block text-sm font-medium text-zinc-300" htmlFor="description">Description *</label>
+              <textarea className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600 resize-none" id="description" name="description" value={formData.description} onChange={handleChange} placeholder="Describe what you offer to clients." rows="4" required />
             </div>
             {formData.image_url && (
-              <div className="form-group form-group--full">
-                <label className="form-label">Cover Preview</label>
-                <div className="gig-cover-preview">
-                  <img src={formData.image_url} alt="Selected cover" />
-                  <div className="gig-cover-preview__meta">
-                    <span>Cover selected</span>
-                    <button type="button" onClick={() => setFormData((prev) => ({ ...prev, image_url: '' }))}>
+              <div className="md:col-span-2 space-y-2">
+                <label className="block text-sm font-medium text-zinc-300">Cover Preview</label>
+                <div className="relative rounded-lg overflow-hidden border border-white/10">
+                  <img src={formData.image_url} alt="Selected cover" className="w-full h-48 object-cover" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 flex items-center justify-between">
+                    <span className="text-sm text-white">Cover selected</span>
+                    <button type="button" onClick={() => setFormData((prev) => ({ ...prev, image_url: '' }))} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs font-medium flex items-center gap-1.5 transition-colors">
                       <X size={14} />
                       Remove
                     </button>
@@ -251,23 +252,23 @@ const MyGigsPage = () => {
               </div>
             )}
           </div>
-          <div className="form-actions">
-            <button className="btn btn--primary" type="submit" disabled={saving}>{saving ? 'Saving...' : editingId ? 'Update Service' : 'Create Service'}</button>
-            <button className="btn btn--ghost" type="button" onClick={handleCancel}>Cancel</button>
+          <div className="flex gap-3 pt-4">
+            <button className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50" type="submit" disabled={saving}>{saving ? 'Saving...' : editingId ? 'Update Service' : 'Create Service'}</button>
+            <button className="px-6 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 text-white text-sm font-medium transition-colors" type="button" onClick={handleCancel}>Cancel</button>
           </div>
         </form>
       )}
 
-      <div className="toolbar">
-        <div className="search-wrapper">
-          <span className="search-icon">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
             <Search size={14} />
           </span>
           <label htmlFor="gigsSearch" className="sr-only">Search services</label>
           <input
             id="gigsSearch"
             type="text"
-            className="search-input"
+            className="w-full bg-black/20 border border-white/10 rounded-lg pl-9 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600"
             placeholder="Search your services..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -276,7 +277,7 @@ const MyGigsPage = () => {
         <label htmlFor="gigsSort" className="sr-only">Sort services</label>
         <select
           id="gigsSort"
-          className="form-input sort-select"
+          className="bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
         >
@@ -289,38 +290,40 @@ const MyGigsPage = () => {
       </div>
 
       {loading ? (
-        <div className="empty-state"><p>Loading services...</p></div>
+        <div className="flex items-center justify-center py-16">
+          <p className="text-zinc-500">Loading services...</p>
+        </div>
       ) : (
-        <div className="card-grid my-gigs-grid">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {visibleServices.length > 0 ? (
             visibleServices.map((service) => (
-              <article key={service.id} className="my-gig-card">
-                <div className="my-gig-card__cover">
+              <article key={service.id} className="rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden hover:bg-white/[0.03] transition-colors">
+                <div className="aspect-video bg-zinc-900 flex items-center justify-center">
                   {service.image_url ? (
-                    <img src={service.image_url} alt={service.title || 'Service cover'} />
+                    <img src={service.image_url} alt={service.title || 'Service cover'} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="my-gig-card__placeholder">
+                    <div className="text-zinc-600">
                       <ImagePlus size={22} />
                     </div>
                   )}
                 </div>
-                <div className="my-gig-card__body">
-                  <div className="my-gig-card__top">
-                    <h3>{service.title || 'Untitled service'}</h3>
-                    <span>PHP {Number(service.price || 0).toLocaleString()}</span>
+                <div className="p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-base font-medium text-white flex-1 line-clamp-2">{service.title || 'Untitled service'}</h3>
+                    <span className="text-sm font-semibold text-emerald-400 whitespace-nowrap">₱{Number(service.price || 0).toLocaleString()}</span>
                   </div>
-                  <p className="my-gig-card__category">{service.category}</p>
-                  {service.description && <p className="my-gig-card__desc">{service.description}</p>}
+                  <p className="text-xs text-zinc-500">{service.category}</p>
+                  {service.description && <p className="text-sm text-zinc-400 line-clamp-2">{service.description}</p>}
                 </div>
-                <div className="card__actions my-gig-card__actions">
-                  <button className="card-action-btn card-action-btn--edit" onClick={() => handleEdit(service)}>Edit</button>
-                  <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(service)}>Delete</button>
+                <div className="px-5 pb-5 flex gap-2">
+                  <button className="flex-1 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-white text-sm font-medium transition-colors" onClick={() => handleEdit(service)}>Edit</button>
+                  <button className="flex-1 px-4 py-2 rounded-lg border border-red-500/20 hover:bg-red-500/10 text-red-400 text-sm font-medium transition-colors" onClick={() => handleDelete(service)}>Delete</button>
                 </div>
               </article>
             ))
           ) : (
-            <div className="empty-state">
-              <p>{searchTerm ? 'No services match your search.' : 'No services yet. Create your first service to start earning.'}</p>
+            <div className="col-span-full flex items-center justify-center py-16">
+              <p className="text-zinc-500">{searchTerm ? 'No services match your search.' : 'No services yet. Create your first service to start earning.'}</p>
             </div>
           )}
         </div>

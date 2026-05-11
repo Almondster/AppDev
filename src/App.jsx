@@ -21,7 +21,6 @@ import DisputesPage from './pages/DisputesPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
 import { fetchMyCreatorOrders, fetchMyMessages, fetchMyOrders, fetchFollows, getToken, getUserData, logout as apiLogout } from './api';
-import './index.css';
 
 const ROUTE_LABELS_BY_ROLE = {
   client: {
@@ -108,7 +107,13 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
         ]);
 
         const messagesUnread = mRes.ok
-          ? (mRes.data.results || mRes.data || []).filter((m) => m.sender_id !== uid && !m.is_read && !readMessageIds.has(`m-${m.id}`)).length
+          ? (mRes.data.results || mRes.data || []).filter((m) => {
+              // Only count messages where current user is the RECEIVER and message is unread
+              const isReceiver = String(m.receiver_id) === String(uid);
+              const isUnread = !m.is_read;
+              const notMarkedRead = !readMessageIds.has(`m-${m.id}`);
+              return isReceiver && isUnread && notMarkedRead;
+            }).length
           : 0;
 
         const ordersUnread = oRes.ok
@@ -128,7 +133,7 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
     };
 
     pullUnread();
-    const timer = setInterval(pullUnread, 5000);
+    const timer = setInterval(pullUnread, 2500); // Poll every 2.5 seconds for near real-time updates
     return () => {
       disposed = true;
       clearInterval(timer);
@@ -147,11 +152,11 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
               onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               unreadCount={unreadCount}
           />
-          <main className="flex-1 min-w-0 flex flex-col relative overflow-hidden">
+          <main className="flex-1 flex flex-col relative overflow-hidden">
               {/* Header Area */}
               <header className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#080808]/50 backdrop-blur-md z-10 shrink-0">
                   <div className="flex items-center gap-4 text-sm text-zinc-400">
-                      <span className="hover:text-white cursor-pointer capitalize">{userRole} Workspace</span>
+                      <span className="hover:text-white cursor-pointer transition-colors capitalize">{userRole} Workspace</span>
                       <span className="mx-2 text-zinc-700">/</span>
                       <span className="text-white font-medium capitalize">
                           {pathName}
@@ -160,7 +165,7 @@ function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
               </header>
 
               {/* Main Content Area */}
-              <div className="flex-1 overflow-auto px-4 py-6 sm:px-6 lg:px-8 scroll-smooth">
+              <div className="flex-1 overflow-auto p-0 scroll-smooth">
                   <ErrorBoundary resetKey={location.pathname}>
                       <Outlet />
                   </ErrorBoundary>
@@ -193,7 +198,7 @@ function App() {
   };
 
   return (
-      <div className="app">
+      <div className="app bg-[#0A0A0A] min-h-screen">
         <Routes>
           <Route path="/landing" element={<LandingPage />} />
           <Route path="/login" element={

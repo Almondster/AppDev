@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchCreatorByUid, fetchServices, fetchReviews, fetchFollows, fetchBlocks, getUserData, createFollow, deleteFollow, createBlock, deleteBlock, createReport, createOrder, fetchUsers, updateCreator, patchUser } from '../api';
 import { ArrowLeft, MapPin, Star, MessageSquare, UserPlus, UserMinus, ShieldBan, Flag } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
-import './CreatorProfilePage.css';
 
 
 const CreatorProfilePage = () => {
@@ -52,31 +51,42 @@ const CreatorProfilePage = () => {
         (async () => {
             setLoading(true);
             try {
-                const [cRes, sRes, rRes, fRes, uRes] = await Promise.all([
-                    fetchCreatorByUid(profileUid),
-                    fetchServices(),
-                    fetchReviews(),
-                    fetchFollows(),
-                    fetchUsers(),
-                ]);
+                // Fetch creator profile
+                const cRes = await fetchCreatorByUid(profileUid);
+                if (cRes.ok && cRes.data) {
+                    setCreator(cRes.data);
+                    // FastAPI returns nested user in creator.user
+                    if (cRes.data.user) {
+                        setUserProfile(cRes.data.user);
+                    }
+                }
 
-                if (cRes.ok) {
-                    setCreator(cRes.data || null);
+                // Fetch user profile as fallback if creator doesn't have nested user
+                if (!cRes.data?.user) {
+                    const uRes = await fetchUsers();
+                    if (uRes.ok) {
+                        const users = uRes.data.results || uRes.data || [];
+                        const foundUser = users.find(u => sameId(u.firebase_uid ?? u.id, profileUid));
+                        if (foundUser) setUserProfile(foundUser);
+                    }
                 }
-                // Always try to find the user record as fallback
-                if (uRes.ok) {
-                    const users = uRes.data.results || uRes.data || [];
-                    const foundUser = users.find(u => sameId(u.firebase_uid ?? u.id, profileUid));
-                    if (foundUser) setUserProfile(foundUser);
-                }
+
+                // Fetch services
+                const sRes = await fetchServices();
                 if (sRes.ok) {
                     const allServices = sRes.data.results || sRes.data || [];
                     setServices(allServices.filter(s => sameId(s.creator_id, profileUid)));
                 }
+
+                // Fetch reviews
+                const rRes = await fetchReviews();
                 if (rRes.ok) {
                     const allReviews = rRes.data.results || rRes.data || [];
                     setReviews(allReviews.filter(r => sameId(r.reviewee_id, profileUid)));
                 }
+
+                // Fetch follows
+                const fRes = await fetchFollows();
                 if (fRes.ok) {
                     const allFollows = fRes.data.results || fRes.data || [];
                     setFollowers(allFollows.filter(f => sameId(f.following_id, profileUid)).length);
@@ -110,7 +120,7 @@ const CreatorProfilePage = () => {
 
     const avgRating = reviews.length > 0
         ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
-        : '5';
+        : null; // Return null instead of '5' when no reviews
 
     // Safely parse skills — handles arrays, JSON, Python list strings, comma-separated, postgres text format
     const parseSkills = (raw) => {
@@ -281,67 +291,70 @@ const CreatorProfilePage = () => {
 
     // Helper to render the profile sidebar card (reused for both creator and non-creator)
     const renderProfileCard = (showCreatorStats) => (
-        <div className="cp-profile-card">
-            <div className="cp-avatar">
+        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 pt-16 text-center relative">
+            <div className="w-28 h-28 mx-auto absolute left-1/2 -translate-x-1/2 -top-14">
                 {avatarUrl ? (
-                    <img src={avatarUrl} alt="Avatar" />
+                    <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full object-cover border-4 border-[#080808] shadow-xl" />
                 ) : (
-                    <div className="cp-avatar-placeholder">
+                    <div className="w-full h-full rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-3xl font-bold border-4 border-[#080808] shadow-xl">
                         {safeText(displayName, 'U').charAt(0).toUpperCase()}
                     </div>
                 )}
             </div>
-            <h2 className="cp-name">{displayName}</h2>
-            <p className="cp-role" style={{ textTransform: 'capitalize' }}>{showCreatorStats ? (creator?.job_title || 'Creator') : userRole}</p>
-            <p className="cp-location"><MapPin size={14} /> Remote</p>
+            <h2 className="text-xl font-bold text-white mb-1 mt-2">{displayName}</h2>
+            <p className="text-zinc-400 text-sm mb-2 capitalize">{showCreatorStats ? (creator?.job_title || 'Creator') : userRole}</p>
+            <p className="flex items-center justify-center gap-1 text-zinc-500 text-xs mb-4"><MapPin size={12} /> Remote</p>
 
-            <div className="cp-stats-row">
-                <div className="cp-stat">
-                    <span className="cp-stat-value">{followers}</span>
-                    <span className="cp-stat-label">FOLLOWERS</span>
+            <div className="flex justify-center gap-8 py-4 border-y border-white/5 mb-4">
+                <div className="text-center">
+                    <span className="block text-2xl font-bold text-white mb-1">{followers}</span>
+                    <span className="text-xs text-zinc-400 uppercase tracking-wide">Followers</span>
                 </div>
                 {showCreatorStats && (
-                    <div className="cp-stat">
-                        <span className="cp-stat-value">{avgRating} <Star size={12} fill="#f59e0b" color="#f59e0b" /></span>
-                        <span className="cp-stat-label">RATING</span>
+                    <div className="text-center">
+                        <span className="flex items-center justify-center gap-1 text-2xl font-bold text-white mb-1">
+                            {avgRating ? avgRating : 'New'} 
+                            {avgRating && <Star size={14} fill="#f59e0b" color="#f59e0b" />}
+                        </span>
+                        <span className="text-xs text-zinc-400 uppercase tracking-wide">Rating</span>
                     </div>
                 )}
             </div>
 
             {!isOwnProfile && (
-                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: 16 }}>
-                    <button
-                        className="cp-cover-btn"
-                        style={{ background: isFollowing ? 'rgba(239,68,68,0.15)' : '#6366f1', color: isFollowing ? '#f87171' : '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
-                        onClick={handleFollow}
-                    >
-                        {isFollowing ? <><UserMinus size={14} /> Unfollow</> : <><UserPlus size={14} /> Follow</>}
-                    </button>
-                    <button
-                        className="cp-cover-btn"
-                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}
-                        onClick={() => navigate(`/messages?to=${profileUid}`)}
-                    >
-                        <MessageSquare size={14} /> Message
-                    </button>
-                    <button
-                        className="cp-cover-btn"
-                        style={{ background: isBlocked ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 6, color: isBlocked ? '#f87171' : 'inherit' }}
-                        onClick={handleBlock}
-                    >
-                        <ShieldBan size={14} /> {isBlocked ? 'Unblock' : 'Block'}
-                    </button>
-                    <button
-                        className="cp-cover-btn"
-                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 6, color: '#f87171' }}
-                        onClick={() => setReportModal(true)}
-                    >
-                        <Flag size={14} /> Report
-                    </button>
+                <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                        <button
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isFollowing ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-indigo-600 text-white border-none hover:bg-indigo-700'}`}
+                            onClick={handleFollow}
+                        >
+                            {isFollowing ? <><UserMinus size={14} /> Unfollow</> : <><UserPlus size={14} /> Follow</>}
+                        </button>
+                        <button
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-white transition-colors"
+                            onClick={() => navigate(`/messages?to=${profileUid}`)}
+                        >
+                            <MessageSquare size={14} /> Message
+                        </button>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isBlocked ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'}`}
+                            onClick={handleBlock}
+                        >
+                            <ShieldBan size={14} /> {isBlocked ? 'Unblock' : 'Block'}
+                        </button>
+                        <button
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/15 transition-colors"
+                            onClick={() => setReportModal(true)}
+                        >
+                            <Flag size={14} /> Report
+                        </button>
+                    </div>
                 </div>
             )}
             {isOwnProfile && (
-                <button className="cp-cover-btn" style={{ marginTop: 16 }} onClick={() => setEditProfile(prev => !prev)}>
+                <button className="w-full mt-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors" onClick={() => setEditProfile(prev => !prev)}>
                     {editProfile ? 'Close Editor' : 'Edit Creator Profile'}
                 </button>
             )}
@@ -349,68 +362,82 @@ const CreatorProfilePage = () => {
     );
 
     return (
-        <section className="creator-profile-page">
+        <section className="min-h-screen bg-[#080808] pb-20">
             {/* Breadcrumb */}
-            <div className="cp-breadcrumb">
-                <span className="cp-breadcrumb-muted">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
-                <span className="cp-breadcrumb-sep">/</span>
-                <span className="cp-breadcrumb-active">Profile</span>
+            <div className="flex items-center gap-2 text-sm px-6 lg:px-8 pt-6 pb-4">
+                <span className="text-zinc-400">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
+                <span className="text-zinc-600">/</span>
+                <span className="text-white font-medium">Profile</span>
             </div>
 
             {/* Back Button */}
-            <button className="cp-back-btn" onClick={() => navigate(-1)}>
-                <ArrowLeft size={20} />
-            </button>
+            <div className="px-6 lg:px-8 mb-6">
+                <button 
+                    className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white transition-colors inline-flex items-center gap-2" 
+                    onClick={() => navigate(-1)}
+                >
+                    <ArrowLeft size={18} />
+                    <span className="text-sm font-medium">Back</span>
+                </button>
+            </div>
 
-            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+            {toast && (
+                <div className="fixed top-6 right-6 bg-green-500/10 border border-green-500/30 text-green-400 px-6 py-3 rounded-xl z-50 backdrop-blur-md shadow-lg">
+                    {toast}
+                </div>
+            )}
 
             {loading ? (
                 <>
                     {/* Skeleton Cover */}
-                    <div className="cp-cover"><div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 0 }}></div></div>
-                    <div className="cp-layout">
-                        <div className="cp-sidebar">
-                            <div className="cp-profile-card">
-                                <div className="skeleton" style={{ width: 90, height: 90, borderRadius: '50%', margin: '-45px auto 12px' }}></div>
-                                <div className="skeleton" style={{ width: '55%', height: 22, margin: '0 auto 8px' }}></div>
-                                <div className="skeleton" style={{ width: '30%', height: 16, margin: '0 auto 6px' }}></div>
-                                <div className="skeleton" style={{ width: '40%', height: 14, margin: '0 auto 18px' }}></div>
+                    <div className="h-64 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer"></div>
+                    <div className="max-w-7xl mx-auto px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-3 gap-8 -mt-24 relative z-10">
+                        <div className="lg:col-span-1">
+                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 pt-16 relative">
+                                <div className="w-28 h-28 mx-auto absolute left-1/2 -translate-x-1/2 -top-14 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-full border-4 border-[#080808]"></div>
+                                <div className="h-6 w-3/5 mx-auto mb-2 mt-2 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded"></div>
+                                <div className="h-4 w-2/5 mx-auto mb-2 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded"></div>
+                                <div className="h-4 w-2/5 mx-auto mb-6 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded"></div>
                             </div>
                         </div>
-                        <div className="cp-main">
-                            <div className="skeleton" style={{ height: 200, borderRadius: 12 }}></div>
+                        <div className="lg:col-span-2">
+                            <div className="h-64 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-2xl"></div>
                         </div>
                     </div>
                 </>
             ) : !creator && !isOwnProfile ? (
                 /* ── Non-creator user fallback ── */
                 <>
-                    <div className="cp-cover"><div className="cp-cover-gradient"></div></div>
-                    <div className="cp-layout">
-                        <div className="cp-sidebar">
+                    <div className="h-64 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 relative">
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#080808]"></div>
+                    </div>
+                    <div className="max-w-7xl mx-auto px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-3 gap-8 -mt-24 relative z-10">
+                        <div className="lg:col-span-1">
                             {renderProfileCard(false)}
                         </div>
-                        <div className="cp-main">
-                            <div className="cp-about">
-                                <h3>About</h3>
-                                <p style={{ color: '#71717a' }}>This user hasn't set up a creator profile yet.</p>
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                                <h3 className="text-lg font-semibold text-white mb-3">About</h3>
+                                <p className="text-zinc-400 text-sm leading-relaxed">This user hasn't set up a creator profile yet.</p>
                             </div>
                             {reviews.length > 0 && (
-                                <div className="cp-tab-content" style={{ marginTop: '1.5rem' }}>
-                                    <h3 style={{ color: '#fff', marginBottom: '1rem' }}>Reviews</h3>
-                                    <div className="cp-reviews-list">
+                                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                                    <h3 className="text-lg font-semibold text-white mb-4">Reviews</h3>
+                                    <div className="flex flex-col gap-4">
                                         {reviews.map(r => (
-                                            <div key={r.id} className="cp-review-item">
-                                                <div className="cp-review-avatar">{(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}</div>
-                                                <div className="cp-review-body">
-                                                    <div className="cp-review-top">
-                                                        <div>
-                                                            <h4>{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
-                                                            <div className="cp-review-stars">{renderStars(r.rating || 0)}</div>
+                                            <div key={r.id} className="flex gap-4 p-4 bg-white/5 rounded-xl">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                                                    {(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start mb-2 gap-4">
+                                                        <div className="min-w-0">
+                                                            <h4 className="text-white font-medium text-sm truncate">{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
+                                                            <div className="flex gap-0.5 mt-1">{renderStars(r.rating || 0)}</div>
                                                         </div>
-                                                        <span className="cp-review-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
+                                                        <span className="text-zinc-500 text-xs whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
                                                     </div>
-                                                    <p>{r.comment || '(No comment)'}</p>
+                                                    <p className="text-zinc-400 text-sm leading-relaxed">{r.comment || '(No comment)'}</p>
                                                 </div>
                                             </div>
                                         ))}
@@ -423,170 +450,184 @@ const CreatorProfilePage = () => {
             ) : (
                 /* ── Full creator profile ── */
                 <>
-                    <div className="cp-cover"><div className="cp-cover-gradient"></div></div>
-                    <div className="cp-layout">
-                        <div className="cp-sidebar">
+                    <div className="h-64 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 relative">
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#080808]"></div>
+                    </div>
+                    <div className="max-w-7xl mx-auto px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-3 gap-8 -mt-24 relative z-10">
+                        <div className="lg:col-span-1 space-y-6">
                             {renderProfileCard(true)}
 
                             {/* Stats Card */}
-                            <div className="cp-info-card">
-                                <h3>STATS</h3>
-                                <div className="cp-info-row">
-                                    <span>Response Time</span>
-                                    <span className="cp-info-val">{creator?.response_time || '1 hour'}</span>
-                                </div>
-                                <div className="cp-info-row">
-                                    <span>Completed Jobs</span>
-                                    <span className="cp-info-val">{completedJobs}</span>
-                                </div>
-                                <div className="cp-info-row">
-                                    <span>Hourly Rate</span>
-                                    <span className="cp-info-val">₱{creator?.starting_price || '500'}/hr</span>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Stats</h3>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                        <span className="text-zinc-400 text-sm">Response Time</span>
+                                        <span className="text-white font-medium text-sm">~1 hour</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                        <span className="text-zinc-400 text-sm">Completed Jobs</span>
+                                        <span className="text-white font-medium text-sm">{completedJobs}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-2">
+                                        <span className="text-zinc-400 text-sm">Starting Price</span>
+                                        <span className="text-white font-medium text-sm">₱{creator?.starting_price || '500'}</span>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Skills Card */}
-                            <div className="cp-info-card">
-                                <h3>SKILLS</h3>
-                                <div className="cp-skills">
+                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">Skills</h3>
+                                <div className="flex flex-wrap gap-2">
                                     {skills.length > 0 ? skills.map((s, i) => (
-                                        <span key={i} className="cp-skill-tag">{s}</span>
+                                        <span key={i} className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-xs font-medium">{s}</span>
                                     )) : (
-                                        <p style={{ color: '#52525b', fontSize: '0.85rem', margin: 0 }}>No skills added yet.</p>
+                                        <p className="text-zinc-500 text-sm">No skills added yet.</p>
                                     )}
                                 </div>
                             </div>
                         </div>
 
                         {/* Right Column - Content */}
-                        <div className="cp-main">
+                        <div className="lg:col-span-2 space-y-6">
                             {isOwnProfile && editProfile && (
-                                <div className="cp-edit-card">
-                                    <h3>Edit Profile</h3>
-                                    <div className="cp-edit-grid">
-                                        <div className="cp-edit-group">
-                                            <label>Display Name</label>
+                                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                                    <h3 className="text-lg font-semibold text-white mb-6">Edit Profile</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-zinc-400 mb-2">Display Name</label>
                                             <input
                                                 value={profileForm.full_name}
                                                 onChange={(e) => setProfileForm(prev => ({ ...prev, full_name: e.target.value }))}
                                                 placeholder="Your display name"
+                                                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-colors"
                                             />
                                         </div>
-                                        <div className="cp-edit-group">
-                                            <label>Avatar URL</label>
+                                        <div>
+                                            <label className="block text-sm font-medium text-zinc-400 mb-2">Avatar URL</label>
                                             <input
                                                 value={profileForm.avatar_url}
                                                 onChange={(e) => setProfileForm(prev => ({ ...prev, avatar_url: e.target.value }))}
                                                 placeholder="https://example.com/avatar.jpg"
+                                                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-colors"
                                             />
                                         </div>
-                                        <div className="cp-edit-group cp-edit-group--full">
-                                            <label>Bio</label>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-zinc-400 mb-2">Bio</label>
                                             <textarea
                                                 rows={4}
                                                 value={profileForm.bio}
                                                 onChange={(e) => setProfileForm(prev => ({ ...prev, bio: e.target.value }))}
                                                 placeholder="Describe your expertise"
+                                                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-white/20 resize-none transition-colors"
                                             />
                                         </div>
-                                        <div className="cp-edit-group cp-edit-group--full">
-                                            <label>Skills (comma-separated)</label>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-zinc-400 mb-2">Skills (comma-separated)</label>
                                             <input
                                                 value={profileForm.skills}
                                                 onChange={(e) => setProfileForm(prev => ({ ...prev, skills: e.target.value }))}
                                                 placeholder="Logo Design, Branding, UI/UX"
+                                                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-colors"
                                             />
                                         </div>
-                                        <div className="cp-edit-group">
-                                            <label>Years of Experience</label>
+                                        <div>
+                                            <label className="block text-sm font-medium text-zinc-400 mb-2">Years of Experience</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 value={profileForm.experience_years}
                                                 onChange={(e) => setProfileForm(prev => ({ ...prev, experience_years: e.target.value }))}
                                                 placeholder="3"
+                                                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-colors"
                                             />
                                         </div>
-                                        <div className="cp-edit-group">
-                                            <label>Portfolio URL</label>
+                                        <div>
+                                            <label className="block text-sm font-medium text-zinc-400 mb-2">Portfolio URL</label>
                                             <input
                                                 value={profileForm.portfolio_url}
                                                 onChange={(e) => setProfileForm(prev => ({ ...prev, portfolio_url: e.target.value }))}
                                                 placeholder="https://portfolio.example.com"
+                                                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-colors"
                                             />
                                         </div>
                                     </div>
-                                    <div className="cp-edit-actions">
-                                        <button className="cp-cover-btn" onClick={() => setEditProfile(false)}>Cancel</button>
-                                        <button className="cp-save-btn" onClick={handleSaveProfile} disabled={savingProfile}>
+                                    <div className="flex gap-3 mt-6">
+                                        <button className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-sm font-semibold transition-colors" onClick={() => setEditProfile(false)}>Cancel</button>
+                                        <button className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50" onClick={handleSaveProfile} disabled={savingProfile}>
                                             {savingProfile ? 'Saving...' : 'Save Changes'}
                                         </button>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="cp-about">
-                                <h3>About</h3>
-                                <p>{creator?.bio || 'No bio provided yet.'}</p>
+                            <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                                <h3 className="text-lg font-semibold text-white mb-3">About</h3>
+                                <p className="text-zinc-400 text-sm leading-relaxed">{creator?.bio || 'No bio provided yet.'}</p>
                             </div>
 
-                            <div className="cp-tabs">
-                                <button className={`cp-tab ${profileTab === 'services' ? 'active' : ''}`} onClick={() => setProfileTab('services')}>Services</button>
-                                <button className={`cp-tab ${profileTab === 'reviews' ? 'active' : ''}`} onClick={() => setProfileTab('reviews')}>Reviews</button>
+                            <div className="flex gap-2 border-b border-white/5">
+                                <button className={`px-6 py-3 text-sm font-semibold transition-colors ${profileTab === 'services' ? 'text-white border-b-2 border-indigo-500' : 'text-zinc-400 hover:text-white'}`} onClick={() => setProfileTab('services')}>Services</button>
+                                <button className={`px-6 py-3 text-sm font-semibold transition-colors ${profileTab === 'reviews' ? 'text-white border-b-2 border-indigo-500' : 'text-zinc-400 hover:text-white'}`} onClick={() => setProfileTab('reviews')}>Reviews</button>
                             </div>
 
                             {profileTab === 'services' && (
-                                <div className="cp-tab-content">
+                                <div>
                                     {services.length > 0 ? (
-                                        <div className="cp-services-list">
+                                        <div className="grid grid-cols-1 gap-4">
                                             {services.map(svc => (
-                                                <div key={svc.id} className="cp-service-item" style={{ cursor: 'pointer' }} onClick={() => navigate(`/services/${svc.id}`)}>
-                                                    <div>
-                                                        <h4>{svc.title || svc.label}</h4>
-                                                        {svc.description && <p>{svc.description}</p>}
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                        <span className="cp-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
-                                                        {!isOwnProfile && userData?.role !== 'creator' && (
-                                                            <button
-                                                                style={{ padding: '0.4rem 0.8rem', borderRadius: 8, background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
-                                                                onClick={(e) => { e.stopPropagation(); setConfirmModal({ open: true, service: svc }); }}
-                                                            >
-                                                                Order
-                                                            </button>
-                                                        )}
+                                                <div key={svc.id} className="bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-6 cursor-pointer transition-all" onClick={() => navigate(`/services/${svc.id}`)}>
+                                                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-base font-semibold text-white mb-2">{svc.title || svc.label}</h4>
+                                                            {svc.description && <p className="text-zinc-400 text-sm line-clamp-2">{svc.description}</p>}
+                                                        </div>
+                                                        <div className="flex items-center gap-3 shrink-0">
+                                                            <span className="text-lg font-bold text-white">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
+                                                            {!isOwnProfile && userData?.role !== 'creator' && (
+                                                                <button
+                                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                                                                    onClick={(e) => { e.stopPropagation(); setConfirmModal({ open: true, service: svc }); }}
+                                                                >
+                                                                    Order
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="cp-empty">No services listed yet.</p>
+                                        <p className="text-center text-zinc-500 py-12 text-sm">No services listed yet.</p>
                                     )}
                                 </div>
                             )}
 
                             {profileTab === 'reviews' && (
-                                <div className="cp-tab-content">
+                                <div>
                                     {reviews.length > 0 ? (
-                                        <div className="cp-reviews-list">
+                                        <div className="flex flex-col gap-4">
                                             {reviews.map(r => (
-                                                <div key={r.id} className="cp-review-item">
-                                                    <div className="cp-review-avatar">{(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}</div>
-                                                    <div className="cp-review-body">
-                                                        <div className="cp-review-top">
-                                                            <div>
-                                                                <h4>{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
-                                                                <div className="cp-review-stars">{renderStars(r.rating || 0)}</div>
+                                                <div key={r.id} className="flex gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+                                                        {(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start mb-2 gap-4">
+                                                            <div className="min-w-0">
+                                                                <h4 className="text-white font-medium text-sm truncate">{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
+                                                                <div className="flex gap-0.5 mt-1">{renderStars(r.rating || 0)}</div>
                                                             </div>
-                                                            <span className="cp-review-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
+                                                            <span className="text-zinc-500 text-xs whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
                                                         </div>
-                                                        <p>{r.comment || '(No comment)'}</p>
+                                                        <p className="text-zinc-400 text-sm leading-relaxed">{r.comment || '(No comment)'}</p>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="cp-empty">No reviews yet.</p>
+                                        <p className="text-center text-zinc-500 py-12 text-sm">No reviews yet.</p>
                                     )}
                                 </div>
                             )}
@@ -608,21 +649,21 @@ const CreatorProfilePage = () => {
 
             {/* Report Modal */}
             {reportModal && (
-                <div className="confirm-overlay" onClick={() => setReportModal(false)}>
-                    <div className="confirm-modal" onClick={e => e.stopPropagation()}>
-                        <h3 className="confirm-modal__title">Report User</h3>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1rem' }}>Describe the issue. Our team will investigate.</p>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setReportModal(false)}>
+                    <div className="bg-[#18181b] border border-white/10 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-white mb-2">Report User</h3>
+                        <p className="text-zinc-400 text-sm mb-4">Describe the issue. Our team will investigate.</p>
                         <form onSubmit={handleReport}>
                             <textarea
                                 value={reportReason}
                                 onChange={e => setReportReason(e.target.value)}
                                 placeholder="Why are you reporting this user?"
                                 required
-                                style={{ width: '100%', minHeight: 100, padding: '0.75rem', borderRadius: 10, background: 'var(--bg-input, #18181b)', border: '1px solid var(--border, #27272a)', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', marginBottom: '1rem' }}
+                                className="w-full min-h-[100px] px-4 py-3 bg-black/20 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-white/20 resize-vertical mb-4"
                             />
-                            <div className="confirm-modal__actions">
-                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setReportModal(false)}>Cancel</button>
-                                <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" style={{ background: '#ef4444' }} disabled={reporting}>{reporting ? 'Submitting...' : 'Submit Report'}</button>
+                            <div className="flex gap-3">
+                                <button type="button" className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-semibold transition-colors" onClick={() => setReportModal(false)}>Cancel</button>
+                                <button type="submit" className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50" disabled={reporting}>{reporting ? 'Submitting...' : 'Submit Report'}</button>
                             </div>
                         </form>
                     </div>

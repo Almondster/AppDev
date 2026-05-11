@@ -1,41 +1,57 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 
-const colors = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
-  '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899',
-];
+export const Avatar = ({ src, alt = 'U', size = 40, className = '' }) => {
+  const getInitial = (text) => {
+    if (!text) return 'U';
+    const str = String(text).trim();
+    return str.charAt(0).toUpperCase();
+  };
 
-const getInitials = (name = '') =>
-  name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0].toUpperCase())
-    .join('') || '?';
+  const getColor = (text) => {
+    const colors = [
+      'linear-gradient(135deg, #6366f1, #818cf8)',
+      'linear-gradient(135deg, #f97316, #fbbf24)',
+      'linear-gradient(135deg, #10b981, #34d399)',
+      'linear-gradient(135deg, #ef4444, #fca5a5)',
+      'linear-gradient(135deg, #a855f7, #d8b4fe)',
+      'linear-gradient(135deg, #3b82f6, #60a5fa)',
+    ];
+    let hash = 0;
+    const str = String(text || '');
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
 
-export const Avatar = ({ src, alt = 'User', size = 40, className = '', onClick }) => {
-  const bg = useMemo(() => colors[Math.abs(String(alt).length) % colors.length], [alt]);
-  const style = { width: size, height: size };
-
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={`rounded-full object-cover ${className}`}
-        style={style}
-        onClick={onClick}
-      />
-    );
-  }
+  const initial = getInitial(alt);
+  const bgGradient = getColor(alt);
 
   return (
     <div
-      className={`rounded-full flex items-center justify-center text-white font-semibold ${className}`}
-      style={{ ...style, backgroundColor: bg, fontSize: Math.max(12, Math.floor(size * 0.38)) }}
-      onClick={onClick}
+      className={`flex items-center justify-center rounded-full font-semibold text-white overflow-hidden ring-2 ring-white/10 transition-transform hover:scale-105 ${className}`}
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        minHeight: size,
+        background: src ? 'transparent' : bgGradient,
+        fontSize: `${size * 0.4}px`,
+      }}
+      title={alt}
     >
-      {getInitials(alt)}
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.target.style.display = 'none';
+          }}
+        />
+      ) : (
+        <span className="font-bold tracking-tight">{initial}</span>
+      )}
     </div>
   );
 };

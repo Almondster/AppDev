@@ -3,7 +3,6 @@ import { BadgeCheck, Search, MoreVertical } from 'lucide-react';
 import { fetchUsers as apiFetchUsers, patchUser } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import RoleBadge from '../components/RoleBadge';
-import '../styles/UsersPage.css';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
