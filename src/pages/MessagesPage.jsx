@@ -17,6 +17,7 @@ const MessagesPage = () => {
     const markingReadRef = useRef(new Set());
     const [searchParams] = useSearchParams();
     const toParam = searchParams.get('to');
+    const prefilledMessageParam = searchParams.get('prefilledMessage');
 
     const userData = getUserData();
     const myUid = String(userData?.firebase_uid || '');
@@ -88,6 +89,9 @@ const MessagesPage = () => {
                             }
                         }
                         setSelectedChat(targetId);
+                        if (prefilledMessageParam) {
+                            setNewMsg(prefilledMessageParam);
+                        }
                     }
                 }
             } catch (err) {
@@ -112,7 +116,7 @@ const MessagesPage = () => {
             window.clearInterval(intervalId);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [toParam]);
+    }, [prefilledMessageParam, toParam]);
 
     // Group messages into conversations by the other user
     const conversations = messages.reduce((acc, msg) => {

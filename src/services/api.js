@@ -23,6 +23,12 @@ export const clearToken = () => {
   localStorage.removeItem(USER_KEY);
 };
 
+export const logout = () => {
+  clearToken();
+  clearAllCache();
+  window.location.href = '/login';
+};
+
 export const getStoredUser = () => {
   try {
     const raw = localStorage.getItem(USER_KEY);
@@ -199,6 +205,7 @@ export async function loginAPI(email, password) {
     email: data.email,
     role: data.role,
     full_name: data.full_name,
+    auth_provider: data.auth_provider || 'password',
   });
   clearAllCache();
   return data;
@@ -216,14 +223,45 @@ export async function registerAPI({ email, password, confirm_password, first_nam
     email: data.email,
     role: data.role,
     full_name: data.full_name,
+    auth_provider: data.auth_provider || 'password',
   });
   clearAllCache();
+  return data;
+}
+
+export async function forgotPasswordAPI(email) {
+  const data = await request('/auth/forgot-password/', {
+    method: 'POST',
+    body: { email },
+    auth: false,
+  });
   return data;
 }
 
 export async function fetchMe(options) {
   return request('/auth/me/', { skipCache: true, ...options });
 }
+
+export async function googleLoginAPI(idToken, role = 'client') {
+  const data = await request('/auth/google/', {
+    method: 'POST',
+    body: { id_token: idToken, role },
+    auth: false,
+  });
+  setToken(data.access);
+  setStoredUser({
+    firebase_uid: data.firebase_uid,
+    email: data.email,
+    role: data.role,
+    full_name: data.full_name,
+    auth_provider: data.auth_provider || 'google',
+  });
+  clearAllCache();
+  return data;
+}
+
+export const changePassword = (body) => request('/auth/change-password/', { method: 'POST', body });
+export const changeEmail = (body) => request('/auth/change-email/', { method: 'POST', body });
 
 // ── Users ──────────────────────────────────────────────────────────────────
 
@@ -243,6 +281,8 @@ export const updateCreator = (id, body) => request(`/creators/${id}/`, { method:
 // ── Categories ─────────────────────────────────────────────────────────────
 
 export const fetchCategories = (params, options) => request('/categories/', { params, ...options });
+export const createCategory = (body) => request('/categories/', { method: 'POST', body });
+export const deleteCategory = (id) => request(`/categories/${id}/`, { method: 'DELETE' });
 
 // ── Services ───────────────────────────────────────────────────────────────
 
@@ -257,8 +297,55 @@ export const deleteService = (id) => request(`/services/${id}/`, { method: 'DELE
 export const fetchOrders = (params, options) => request('/orders/', { params, ...options });
 export const fetchOrder = (id) => request(`/orders/${id}/`);
 export const createOrder = (body) => request('/orders/', { method: 'POST', body });
-export const updateOrder = (id, body) => request(`/orders/${id}/`, { method: 'PATCH', body });
+export const updateOrder = async (id, body) => {
+  try {
+    const data = await request(`/orders/${id}/`, { method: 'PATCH', body });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to update order' } };
+  }
+};
 export const updateOrderStatus = (id, status) => request(`/orders/${id}/update_status/`, { method: 'POST', body: { status } });
+export const acceptOrder = async (id) => {
+  try {
+    const data = await updateOrderStatus(id, 'accepted');
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to accept order' } };
+  }
+};
+export const rejectOrder = async (id, reason) => {
+  try {
+    const data = await request(`/orders/${id}/update_status/`, { method: 'POST', body: { status: 'rejected', reason } });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to reject order' } };
+  }
+};
+export const payOrder = async (id) => {
+  try {
+    const data = await request(`/orders/${id}/pay/`, { method: 'POST' });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Payment failed' } };
+  }
+};
+export const submitPartialOutput = async (id, body) => {
+  try {
+    const data = await request(`/orders/${id}/partial-output/`, { method: 'POST', body });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to submit partial output' } };
+  }
+};
+export const submitFinalOutput = async (id, body) => {
+  try {
+    const data = await request(`/orders/${id}/final-output/`, { method: 'POST', body });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Failed to submit final output' } };
+  }
+};
 
 // ── Order Timeline ─────────────────────────────────────────────────────────
 
@@ -268,6 +355,7 @@ export const fetchOrderTimeline = (params, options) => request('/order-timeline/
 
 export const fetchReviews = (params, options) => request('/reviews/', { params, ...options });
 export const createReview = (body) => request('/reviews/', { method: 'POST', body });
+export const updateReview = (id, body) => request(`/reviews/${id}/`, { method: 'PATCH', body });
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
@@ -289,10 +377,12 @@ export const createBlock = (body) => request('/blocks/', { method: 'POST', body 
 
 export const fetchReports = (params, options) => request('/reports/', { params, ...options });
 export const createReport = (body) => request('/reports/', { method: 'POST', body });
+export const updateReport = (id, body) => request(`/reports/${id}/`, { method: 'PATCH', body });
 
 // ── Matches ────────────────────────────────────────────────────────────────
 
 export const fetchMatches = (params, options) => request('/matches/', { params, ...options });
+export const fetchSmartMatches = (body) => request('/smart-match/', { method: 'POST', body, skipCache: true });
 
 // ── Payment Methods ────────────────────────────────────────────────────────
 
@@ -322,3 +412,167 @@ export const fetchDeadlineNotifications = (params, options) => request('/deadlin
 // ── Daily Analytics ────────────────────────────────────────────────────────
 
 export const fetchDailyAnalytics = (params, options) => request('/daily-analytics/', { params, ...options });
+
+// ── Dashboard Stats (replaces Supabase RPCs) ───────────────────────────────
+
+export const fetchCreatorStats = (options) => request('/dashboard/creator-stats', { skipCache: true, ...options });
+export const fetchAdminStats = (options) => request('/dashboard/admin-stats', { skipCache: true, ...options });
+
+// ── Creator Applications ───────────────────────────────────────────────────
+const CREATOR_APPLICATION_ENDPOINTS = [
+  '/creator-applications/',
+  '/creator-applications',
+  '/creator_applications/',
+  '/creator_applications',
+];
+
+async function requestCreatorApplicationsWithFallback({ method = 'GET', body, params, id, action } = {}) {
+  const endpointVariants = CREATOR_APPLICATION_ENDPOINTS.map((base) => {
+    if (id == null) return base;
+    const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const withId = `${normalizedBase}/${id}`;
+    return action ? `${withId}/${action}/` : `${withId}/`;
+  });
+
+  let lastErr;
+  for (const endpoint of endpointVariants) {
+    try {
+      return await request(endpoint, { method, body, params, skipCache: true });
+    } catch (err) {
+      lastErr = err;
+      if (err?.status !== 404) throw err;
+    }
+  }
+  throw lastErr || new Error('Creator application endpoint is not available on backend.');
+}
+
+export const submitCreatorApplication = (data) =>
+  requestCreatorApplicationsWithFallback({ method: 'POST', body: data });
+
+export const fetchCreatorApplications = (params) =>
+  requestCreatorApplicationsWithFallback({ method: 'GET', params });
+
+export const fetchCreatorApplication = (id) =>
+  requestCreatorApplicationsWithFallback({ method: 'GET', id });
+
+export const reviewCreatorApplication = (id, data) =>
+  requestCreatorApplicationsWithFallback({ method: 'PATCH', id, action: 'review', body: data });
+
+// ── Disputes ──────────────────────────────────────────────────────────────
+
+export const fetchDisputes = (params, options) => request('/disputes/', { params, ...options });
+export const fetchDispute = (id) => request(`/disputes/${id}/`);
+export const createDispute = (body) => request('/disputes/', { method: 'POST', body });
+export const resolveDispute = (id, body) => request(`/disputes/${id}/resolve`, { method: 'PATCH', body });
+export const escalateDispute = (id) => request(`/disputes/${id}/escalate`, { method: 'POST' });
+export const deleteDispute = (id) => request(`/disputes/${id}/`, { method: 'DELETE' });
+
+// ── Refunds ────────────────────────────────────────────────────────────────
+
+export const refundOrder = (id, body) => request(`/orders/${id}/refund/`, { method: 'POST', body });
+
+// ── Order Notifications ────────────────────────────────────────────────────
+
+export const fetchOrderNotifications = (params, options) => request('/order-notifications/', { params, skipCache: true, ...options });
+export const getUnreadNotificationCount = (options) => request('/order-notifications/unread-count', { skipCache: true, ...options });
+export const markNotificationRead = (id) => request(`/order-notifications/${id}/mark-read`, { method: 'POST' });
+export const markAllNotificationsRead = () => request('/order-notifications/mark-all-read', { method: 'POST' });
+export const deleteNotification = (id) => request(`/order-notifications/${id}/`, { method: 'DELETE' });
+export const clearAllNotifications = () => request('/order-notifications/clear-all', { method: 'DELETE' });
+
+// ── Convenience: getUserData (stored user from localStorage) ───────────────
+
+export const getUserData = () => getStoredUser();
+export const fetchEarningsOverview = fetchCreatorStats; // alias for backward compatibility
+
+// ── Auth aliases for backward compat ───────────────────────────────────────
+
+export const login = async (email, password) => {
+  try {
+    const data = await loginAPI(email, password);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Login failed' } };
+  }
+};
+
+export const register = async ({ email, password, confirm_password, first_name, last_name, phone, role }) => {
+  try {
+    const data = await registerAPI({ email, password, confirm_password, first_name, last_name, phone, role });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Registration failed' } };
+  }
+};
+
+export const forgotPassword = async (email) => {
+  try {
+    const data = await forgotPasswordAPI(email);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, data: { detail: err.message || 'Unable to send password reset email' } };
+  }
+};
+
+// ── Convenience aliases for backward-compat imports ────────────────────────
+
+export const fetchMyOrders = (options = {}) => {
+  const userId = getStoredUser()?.firebase_uid || getStoredUser()?.id;
+  return request('/orders/', { params: { client_id: userId }, ...options });
+};
+export const fetchMyCreatorOrders = (options = {}) => {
+  const userId = getStoredUser()?.firebase_uid || getStoredUser()?.id;
+  return request('/orders/', { params: { creator_id: userId }, ...options });
+};
+export const fetchMyServices = (options) => {
+  const userId = getStoredUser()?.id || getStoredUser()?.firebase_uid;
+  return request('/services/', { params: { creator_id: userId }, ...options });
+};
+export const fetchMyMessages = (options) => request('/messages/', options);
+export const fetchMyPaymentMethods = (options) => request('/payment-methods/', options);
+export const fetchMyWallets = (options) => request('/wallets/', options);
+export const fetchMyWithdrawals = (options) => request('/withdrawals/', options);
+export const fetchTimeline = (params, options) => request('/order-timeline/', { params, ...options });
+export const createMessage = (body) => request('/messages/', { method: 'POST', body });
+export const updateMessage = (id, body) => request(`/messages/${id}/`, { method: 'PATCH', body });
+export const deleteBlock = (id) => request(`/blocks/${id}/`, { method: 'DELETE' });
+export const deleteWallet = (id) => request(`/wallets/${id}/`, { method: 'DELETE' });
+export const deletePaymentMethod = (id) => request(`/payment-methods/${id}/`, { method: 'DELETE' });
+export const patchUser = (id, body) => request(`/users/${id}/`, { method: 'PATCH', body });
+export const deleteOrder = (id) => request(`/orders/${id}/`, { method: 'DELETE' });
+export const createMatch = (body) => request('/matches/', { method: 'POST', body });
+export const fetchDeadlines = (options) => request('/deadline-notifications/', options);
+
+// ── Order helper stubs used by OrdersPage ──────────────────────────────────
+
+export const logOrderEvent = async (orderId, eventType, actorId, metadata = {}) => {
+  try {
+    return await request('/order-timeline/', {
+      method: 'POST',
+      body: { order_id: orderId, event_type: eventType, actor_id: actorId, message: eventType, ...metadata }
+    });
+  } catch { return null; }
+};
+
+export const uploadPreviewFile = async (orderId, url) => {
+  try {
+    await request(`/orders/${orderId}/`, { method: 'PATCH', body: { preview_url: url } });
+    return { success: true };
+  } catch (err) { return { success: false, error: err.message }; }
+};
+
+export const uploadFinalFiles = async (orderId, url) => {
+  try {
+    await request(`/orders/${orderId}/`, { method: 'PATCH', body: { final_file_url: url, status: 'delivered' } });
+    return { success: true };
+  } catch (err) { return { success: false, error: err.message }; }
+};
+
+// ── More backward-compat aliases ───────────────────────────────────────────
+
+export const fetchMyFollowers = (options) => request('/follows/', { params: { following_id: getStoredUser()?.id }, ...options });
+export const fetchMyFollowing = (options) => request('/follows/', { params: { follower_id: getStoredUser()?.id }, ...options });
+export const fetchNotifications = (options) => request('/deadline-notifications/', options);
+export const deleteBlock2 = (id) => request(`/blocks/${id}/`, { method: 'DELETE' });
+export const createCreatorProfile = (body) => request('/creators/', { method: 'POST', body });
+export const fetchMyReviews = (options) => request('/reviews/', options);
