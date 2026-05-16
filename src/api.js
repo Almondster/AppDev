@@ -1,7 +1,10 @@
 // Createch API Helper — connects web UI to FastAPI backend
 // All requests include JWT Bearer tokens when available.
 // 401 responses trigger auto-logout; 403 returns clear permission errors.
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE = import.meta.env.DEV
+  ? '/api'
+  : (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api');
+const REQUEST_TIMEOUT_MS = 12000;
 
 // ---------------------------------------------------------------------------
 // Token helpers
@@ -28,10 +31,35 @@ async function request(method, path, body = null) {
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const opts = { method, headers };
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const opts = { method, headers, signal: controller.signal };
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(`${API_BASE}${path}`, opts);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, opts);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return {
+        ok: false,
+        status: 408,
+        data: {
+          detail: 'The server took too long to respond. Check that the backend is running and try again.',
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      status: 0,
+      data: {
+        detail: 'Cannot connect to the server. Check that the backend is running and accessible.',
+      },
+    };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   // Handle 401 — token expired or invalid → auto-logout
   // Skip for auth endpoints (login/register return 401 for invalid credentials)
@@ -165,8 +193,8 @@ export const deleteService    = (id) => api.delete(`/services/${id}`);
 export const fetchOrders      = () => api.get('/orders/');
 export const fetchOrder       = (id) => api.get(`/orders/${id}`);
 export const createOrder      = (body) => api.post('/orders/', body);
-export const updateOrder      = (id, body) => api.patch(`/orders/${id}/`, body);
-export const deleteOrder      = (id) => api.delete(`/orders/${id}/`);
+export const updateOrder      = (id, body) => api.patch(`/orders/${id}`, body);
+export const deleteOrder      = (id) => api.delete(`/orders/${id}`);
 export const acceptOrder      = (id) => api.post(`/orders/${id}/accept/`);
 export const rejectOrder      = (id, reason) => api.post(`/orders/${id}/reject/`, { reason });
 export const submitPartialOutput = (id, body) => api.post(`/orders/${id}/partial-output/`, body);
@@ -191,7 +219,7 @@ export const fetchMessages    = () => api.get('/messages/');
 export const fetchMessage     = (id) => api.get(`/messages/${id}`);
 export const createMessage    = (body) => api.post('/messages/', body);
 export const patchMessage     = (id, body) => api.patch(`/messages/${id}`, body);
-export const updateMessage    = (id, body) => api.patch(`/messages/${id}/`, body);
+export const updateMessage    = (id, body) => api.patch(`/messages/${id}`, body);
 export const deleteMessage    = (id) => api.delete(`/messages/${id}`);
 
 // ---------------------------------------------------------------------------
@@ -224,6 +252,7 @@ export const fetchMatch       = (id) => api.get(`/matches/${id}`);
 export const createMatch      = (body) => api.post('/matches/', body);
 export const updateMatch      = (id, body) => api.put(`/matches/${id}`, body);
 export const deleteMatch      = (id) => api.delete(`/matches/${id}`);
+export const fetchSmartMatches = (body) => api.post('/smart-match/', body);
 
 // ---------------------------------------------------------------------------
 // Payment Methods
@@ -288,13 +317,13 @@ export const deleteDeadline   = (id) => api.delete(`/deadline-notifications/${id
 export const fetchMyOrders = () => {
   const user = getUserData();
   if (!user?.firebase_uid) return fetchOrders();
-  return api.get(`/orders/?client_id=${user.firebase_uid}`);
+  return api.get(`/orders/?client_id=${Number(user.firebase_uid)}`);
 };
 
 export const fetchMyCreatorOrders = () => {
   const user = getUserData();
   if (!user?.firebase_uid) return fetchOrders();
-  return api.get(`/orders/?creator_id=${user.firebase_uid}`);
+  return api.get(`/orders/?creator_id=${Number(user.firebase_uid)}`);
 };
 
 export const fetchMyMessages = () => {

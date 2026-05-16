@@ -30,7 +30,11 @@ export default function PaymentMethodsPage() {
   }, []);
 
   useEffect(() => {
-    loadMethods();
+    const timerId = setTimeout(() => {
+      loadMethods();
+    }, 0);
+
+    return () => clearTimeout(timerId);
   }, [loadMethods]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };

@@ -11,6 +11,7 @@ const CreatorDashboardPage = () => {
     const [loading, setLoading] = useState(true);
 
     const userData = getUserData();
+    const userUid = userData?.firebase_uid;
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -24,8 +25,7 @@ const CreatorDashboardPage = () => {
                 if (rRes.ok) {
                     const allReviews = rRes.data.results || rRes.data || [];
                     // Filter reviews for this creator
-                    const uid = userData?.firebase_uid;
-                    setReviews(uid ? allReviews.filter(r => r.reviewee_id === uid) : allReviews);
+                    setReviews(userUid ? allReviews.filter(r => r.reviewee_id === userUid) : allReviews);
                 }
             } catch (err) {
                 console.error('Failed to load dashboard:', err);
@@ -33,7 +33,7 @@ const CreatorDashboardPage = () => {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [userUid]);
 
     const completed = orders.filter(o => o.status === 'completed');
     const active = orders.filter(o => ['pending', 'accepted', 'partial_submitted', 'final_submitted'].includes(o.status));

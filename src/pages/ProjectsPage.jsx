@@ -69,7 +69,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [isCreator]);
 
     const mapStatus = (status) => {
         if (['accepted', 'partial_submitted', 'final_submitted', 'in_progress', 'delivered'].includes(status)) return 'active';

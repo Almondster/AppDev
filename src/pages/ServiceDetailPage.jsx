@@ -58,19 +58,14 @@ const ServiceDetailPage = () => {
   const handleOrder = async () => {
     setOrdering(true);
     try {
-      const { ok } = await createOrder({
-        client_id: userData?.firebase_uid,
-        creator_id: service.creator_id,
-        service_title: service.title || service.label,
-        price: service.price,
-        status: 'pending',
-        client_name: userData?.full_name || userData?.email,
+      const { ok, data } = await createOrder({
+        service_id: service.id,
       });
       if (ok) {
         showToast(`Order placed for "${service.title}"! Redirecting...`);
-        setTimeout(() => navigate('/projects'), 1500);
+        setTimeout(() => navigate(`/orders/${data.id}`), 1200);
       } else {
-        showToast('Failed to place order.');
+        showToast(data?.detail || 'Failed to place order.');
       }
     } catch {
       showToast('Connection error.');
@@ -128,7 +123,7 @@ const ServiceDetailPage = () => {
       <div className="sd-breadcrumb">
         <span>Marketplace</span>
         <span className="sd-bc-sep">/</span>
-        <span className="sd-bc-active">{service.title || service.label}</span>
+        <span className="sd-bc-active">{serviceTitle}</span>
       </div>
 
       <button className="sd-back" onClick={() => navigate(-1)}><ArrowLeft size={16} /> Back</button>
@@ -140,13 +135,13 @@ const ServiceDetailPage = () => {
         <div>
           <div className="sd-hero">
             {service.image_url ? (
-              <img src={service.image_url} alt={service.title} className="sd-hero-image" />
+              <img src={service.image_url} alt={serviceTitle} className="sd-hero-image" />
             ) : (
-              <div className="sd-hero-placeholder">{getInitial(service.title)}</div>
+              <div className="sd-hero-placeholder">{getInitial(serviceTitle)}</div>
             )}
             <div className="sd-hero-body">
               {service.category && <span className="sd-category-chip">{service.category}</span>}
-              <h1 className="sd-title">{service.title || service.label}</h1>
+              <h1 className="sd-title">{serviceTitle}</h1>
               <p className="sd-description">{service.description || 'No description provided.'}</p>
 
               <div className="sd-meta-row">

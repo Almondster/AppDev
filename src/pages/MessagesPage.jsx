@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchMyMessages as apiFetchMessages, createMessage, getUserData, fetchUser, updateMessage } from '../api';
+import { createMessage, fetchMyMessages as apiFetchMessages, fetchUser, getToken, getUserData, updateMessage } from '../api';
 import { Search, Paperclip, Send, MoreVertical } from 'lucide-react';
 import './MessagesPage.css';
 
@@ -13,6 +13,7 @@ const MessagesPage = () => {
     const [userNames, setUserNames] = useState({});
     const chatEndRef = useRef(null);
     const userNamesRef = useRef({});
+    const websocketRef = useRef(null);
     const pollingRef = useRef(false);
     const markingReadRef = useRef(new Set());
     const [searchParams] = useSearchParams();
@@ -21,7 +22,7 @@ const MessagesPage = () => {
     const userData = getUserData();
     const myUid = String(userData?.firebase_uid || '');
 
-    const getUserName = async (userId) => {
+    const getUserName = useCallback(async (userId) => {
         if (!userId) return null;
         const key = String(userId);
         try {
@@ -30,9 +31,9 @@ const MessagesPage = () => {
         } catch {
             return null;
         }
-    };
+    }, []);
 
-    const hydrateMessages = async (msgs) => {
+    const hydrateMessages = useCallback(async (msgs) => {
         const ids = [...new Set(
             msgs
                 .flatMap(msg => [
@@ -58,7 +59,18 @@ const MessagesPage = () => {
             sender_name: msg.sender_name || names[String(msg.sender_id)],
             receiver_name: msg.receiver_name || names[String(msg.receiver_id)],
         }));
-    };
+    }, [getUserName]);
+
+    const mergeMessages = useCallback((incoming) => {
+        const nextMessages = Array.isArray(incoming) ? incoming : [incoming];
+        setMessages(prev => {
+            const map = new Map(prev.map(message => [message.id, message]));
+            nextMessages.forEach(message => {
+                map.set(message.id, { ...map.get(message.id), ...message });
+            });
+            return [...map.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        });
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -112,10 +124,42 @@ const MessagesPage = () => {
             window.clearInterval(intervalId);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [toParam]);
+    }, [hydrateMessages, toParam, getUserName]);
+
+    useEffect(() => {
+        if (!myUid) return undefined;
+
+        const token = getToken();
+        if (!token) return undefined;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const socketUrl = `${protocol}://127.0.0.1:8000/api/messages/ws?token=${encodeURIComponent(token)}`;
+        const socket = new WebSocket(socketUrl);
+        websocketRef.current = socket;
+
+        socket.onmessage = async (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                if (!payload?.message) return;
+                const [hydrated] = await hydrateMessages([payload.message]);
+                mergeMessages(hydrated);
+            } catch (error) {
+                console.error('Failed to handle message update:', error);
+            }
+        };
+
+        socket.onopen = () => {
+            socket.send('ping');
+        };
+
+        return () => {
+            socket.close();
+            websocketRef.current = null;
+        };
+    }, [hydrateMessages, mergeMessages, myUid]);
 
     // Group messages into conversations by the other user
-    const conversations = messages.reduce((acc, msg) => {
+    const conversations = useMemo(() => messages.reduce((acc, msg) => {
         const senderId = String(msg.sender_id);
         const receiverId = String(msg.receiver_id);
         const otherId = senderId === myUid ? receiverId : senderId;
@@ -127,9 +171,9 @@ const MessagesPage = () => {
         }
         acc[otherId].messages.push(msg);
         return acc;
-    }, {});
+    }, {}), [messages, myUid, userNames]);
 
-    const convList = [
+    const convList = useMemo(() => [
         ...Object.values(conversations),
         ...(selectedChat && !conversations[selectedChat]
             ? [{ userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] }]
@@ -138,15 +182,23 @@ const MessagesPage = () => {
         const aTime = a.messages[a.messages.length - 1]?.timestamp || '';
         const bTime = b.messages[b.messages.length - 1]?.timestamp || '';
         return new Date(bTime) - new Date(aTime);
-    });
+    }), [conversations, selectedChat, userNames]);
 
-    const filteredConvs = convList.filter(c =>
+    const filteredConvs = useMemo(() => convList.filter(c =>
         c.userName?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    ), [convList, searchTerm]);
 
     // If toParam set but no conversation exists, create a virtual entry
-    const activeConv = selectedChat ? (conversations[selectedChat] || { userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] }) : null;
-    const activeMessages = activeConv?.messages?.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) || [];
+    const activeConv = useMemo(() => (
+        selectedChat
+            ? (conversations[selectedChat] || { userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] })
+            : null
+    ), [conversations, selectedChat, userNames]);
+    const activeMessages = useMemo(() => (
+        activeConv?.messages
+            ? [...activeConv.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            : []
+    ), [activeConv]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -178,7 +230,7 @@ const MessagesPage = () => {
             });
     }, [activeMessages, selectedChat, myUid]);
 
-    const handleSend = async (e) => {
+    const handleSend = useCallback(async (e) => {
         e.preventDefault();
         if (!newMsg.trim() || !selectedChat) return;
         try {
@@ -188,11 +240,11 @@ const MessagesPage = () => {
             });
             if (ok) {
                 const hydrated = await hydrateMessages([data]);
-                setMessages(prev => [...prev, hydrated[0]]);
+                mergeMessages(hydrated[0]);
                 setNewMsg('');
             }
         } catch { /* ignore */ }
-    };
+    }, [hydrateMessages, mergeMessages, newMsg, selectedChat]);
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';

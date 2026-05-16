@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     fetchDeadlines as apiFetchDeadlines, fetchMyMessages, fetchMyOrders, fetchMyCreatorOrders,
@@ -30,16 +30,18 @@ const NotificationsPage = () => {
     const userData = getUserData();
     const uid = userData?.firebase_uid;
     const isCreator = userData?.role === 'creator';
+    const ordersLastSeenAt = userData?.orders_last_seen_at;
+    const followsLastSeenAt = userData?.follows_last_seen_at;
 
     // Persist read IDs in localStorage
     const STORAGE_KEY = `createch_read_notifs_${uid}`;
-    const getReadIds = () => {
+    const getReadIds = useCallback(() => {
         try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
         catch { return new Set(); }
-    };
-    const saveReadIds = (ids) => {
+    }, [STORAGE_KEY]);
+    const saveReadIds = useCallback((ids) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
-    };
+    }, [STORAGE_KEY]);
 
     useEffect(() => {
         (async () => {
@@ -54,8 +56,8 @@ const NotificationsPage = () => {
                 ]);
 
                 const notifs = [];
-                const ordersLastSeen = userData?.orders_last_seen_at ? new Date(userData.orders_last_seen_at) : new Date(0);
-                const followsLastSeen = userData?.follows_last_seen_at ? new Date(userData.follows_last_seen_at) : new Date(0);
+                const ordersLastSeen = ordersLastSeenAt ? new Date(ordersLastSeenAt) : new Date(0);
+                const followsLastSeen = followsLastSeenAt ? new Date(followsLastSeenAt) : new Date(0);
 
                 // Deadline notifications
                 if (dRes.ok) {
@@ -178,7 +180,7 @@ const NotificationsPage = () => {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [followsLastSeenAt, getReadIds, isCreator, ordersLastSeenAt, uid]);
 
     const markAllRead = () => {
         const readIds = getReadIds();

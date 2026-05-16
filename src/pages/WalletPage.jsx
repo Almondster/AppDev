@@ -62,7 +62,7 @@ const WalletPage = ({ userRole }) => {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [isCreator]);
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 

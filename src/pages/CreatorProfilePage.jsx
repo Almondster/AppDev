@@ -30,6 +30,7 @@ const CreatorProfilePage = () => {
     const [searchParams] = useSearchParams();
 
     const userData = getUserData();
+    const currentUid = userData?.firebase_uid;
     const profileUid = searchParams.get('uid') || userData?.firebase_uid;
     const isOwnProfile = String(profileUid) === String(userData?.firebase_uid);
     const sameId = (a, b) => String(a) === String(b);
@@ -70,7 +71,7 @@ const CreatorProfilePage = () => {
                 if (fRes.ok) {
                     const allFollows = fRes.data.results || fRes.data || [];
                     setFollowers(allFollows.filter(f => sameId(f.following_id, profileUid)).length);
-                    const myFollow = allFollows.find(f => sameId(f.follower_id, userData?.firebase_uid) && sameId(f.following_id, profileUid));
+                    const myFollow = allFollows.find(f => sameId(f.follower_id, currentUid) && sameId(f.following_id, profileUid));
                     if (myFollow) {
                         setIsFollowing(true);
                         setFollowId(myFollow.id);
@@ -84,10 +85,13 @@ const CreatorProfilePage = () => {
                 const bRes = await fetchBlocks();
                 if (bRes.ok) {
                     const allBlocks = bRes.data.results || bRes.data || [];
-                    const myBlock = allBlocks.find(b => b.blocker_id === userData?.firebase_uid && b.blocked_id === profileUid);
+                    const myBlock = allBlocks.find(b => sameId(b.blocker_id, currentUid) && sameId(b.blocked_id, profileUid));
                     if (myBlock) {
                         setIsBlocked(true);
                         setBlockId(myBlock.id);
+                    } else {
+                        setIsBlocked(false);
+                        setBlockId(null);
                     }
                 }
             } catch (err) {
@@ -96,7 +100,7 @@ const CreatorProfilePage = () => {
                 setLoading(false);
             }
         })();
-    }, [profileUid]);
+    }, [profileUid, currentUid]);
 
     const avgRating = reviews.length > 0
         ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImagePlus, Plus, Search, X } from 'lucide-react';
 import { createService, deleteService, fetchMyServices, getUserData, updateService } from '../api';
 import Button from '../components/Button';
@@ -25,12 +25,12 @@ const MyGigsPage = () => {
 
   const userData = getUserData();
 
-  const showNotification = (message, type = 'success') => {
+  const showNotification = useCallback((message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     setLoading(true);
     try {
       const { ok, data } = await fetchMyServices();
@@ -41,11 +41,11 @@ const MyGigsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
   useEffect(() => {
     loadServices();
-  }, []);
+  }, [loadServices]);
 
   const visibleServices = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

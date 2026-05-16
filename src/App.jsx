@@ -113,11 +113,11 @@ function App() {
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/creator-profile" element={<CreatorProfilePage />} />
 
             {/* Creator-only Routes */}
             <Route element={<RoleGuard allowedRoles={['creator']} userRole={userRole} />}>
               <Route path="/my-gigs" element={<MyGigsPage userRole={userRole} />} />
-              <Route path="/creator-profile" element={<CreatorProfilePage />} />
             </Route>
 
             {/* Admin-only Routes — guarded by role */}
