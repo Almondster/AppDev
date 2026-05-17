@@ -85,7 +85,7 @@ const Sidebar = ({ userRole, onLogout }) => {
             </nav>
 
             <div className="sidebar-footer">
-                <button className="nav-item" type="button" onClick={toggleTheme} style={{ justifyContent: 'space-between', gap: 10 }}>
+                <button className="nav-item" type="button" onClick={toggleTheme}>
                     {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
                     <span>{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
