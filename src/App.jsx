@@ -63,18 +63,26 @@ function App() {
   });
   const [userData, setUserData] = useState(() => getUserData());
 
-  // Keep auth state in sync with localStorage changes across tabs
+  // Keep auth state in sync with localStorage changes across tabs and same-tab auth updates.
   useEffect(() => {
-    const handleStorage = (event) => {
-      if (!event.key || (event.key !== 'createch_user' && event.key !== 'createch_token')) return;
+    const syncAuthState = () => {
       const user = getUserData();
       setUserRole(user?.role || 'creator');
       setUserData(user);
       setIsLoggedIn(!!getToken());
     };
 
+    const handleStorage = (event) => {
+      if (!event.key || (event.key !== 'createch_user' && event.key !== 'createch_token')) return;
+      syncAuthState();
+    };
+
+    window.addEventListener('createch-auth-changed', syncAuthState);
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('createch-auth-changed', syncAuthState);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Initialize theme from localStorage

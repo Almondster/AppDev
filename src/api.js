@@ -10,8 +10,18 @@ const REQUEST_TIMEOUT_MS = 12000;
 // Token helpers
 // ---------------------------------------------------------------------------
 export const getToken = () => localStorage.getItem('createch_token');
-export const setToken = (token) => localStorage.setItem('createch_token', token);
-export const clearToken = () => localStorage.removeItem('createch_token');
+const emitAuthStateChanged = () => {
+  window.dispatchEvent(new Event('createch-auth-changed'));
+};
+
+export const setToken = (token) => {
+  localStorage.setItem('createch_token', token);
+  emitAuthStateChanged();
+};
+export const clearToken = () => {
+  localStorage.removeItem('createch_token');
+  emitAuthStateChanged();
+};
 
 export const getUserData = () => {
   try {
@@ -20,8 +30,14 @@ export const getUserData = () => {
     return null;
   }
 };
-export const setUserData = (data) => localStorage.setItem('createch_user', JSON.stringify(data));
-export const clearUserData = () => localStorage.removeItem('createch_user');
+export const setUserData = (data) => {
+  localStorage.setItem('createch_user', JSON.stringify(data));
+  emitAuthStateChanged();
+};
+export const clearUserData = () => {
+  localStorage.removeItem('createch_user');
+  emitAuthStateChanged();
+};
 
 // ---------------------------------------------------------------------------
 // Core fetch wrapper with auth error handling

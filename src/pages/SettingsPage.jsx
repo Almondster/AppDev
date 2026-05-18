@@ -42,6 +42,11 @@ const CREATOR_SUBCATEGORY_MAP = {
     'Music & Audio': ['Voice Over', 'Mixing & Mastering', 'Producers & Composers', 'Singers & Vocalists'],
 };
 
+const digitsOnly = (value, maxLength = null) => {
+    const sanitized = String(value || '').replace(/\D/g, '');
+    return typeof maxLength === 'number' ? sanitized.slice(0, maxLength) : sanitized;
+};
+
 const SettingsPage = ({ userRole, onLogout }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -258,8 +263,16 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 showToast('Complete the identity fields first.');
                 return false;
             }
+            if (!/^09\d{9}$/.test(creatorForm.phone.trim())) {
+                showToast('Phone number must be 11 digits and start with 09.');
+                return false;
+            }
             if (!/^\d{12}$/.test(creatorForm.id_number.trim())) {
                 showToast('Government ID number must be 12 digits.');
+                return false;
+            }
+            if (creatorForm.postal_code.trim() && !/^\d+$/.test(creatorForm.postal_code.trim())) {
+                showToast('Postal code must contain numbers only.');
                 return false;
             }
             if (!creatorForm.street_address.trim() || !creatorForm.city.trim()) {
@@ -272,6 +285,14 @@ const SettingsPage = ({ userRole, onLogout }) => {
         if (creatorStep === 2) {
             if (!creatorForm.category || creatorForm.skills.length === 0 || !creatorForm.bio.trim() || !creatorForm.experience_years.trim() || !creatorForm.starting_price.trim() || !creatorForm.turnaround_time.trim()) {
                 showToast('Complete the creator profile fields before continuing.');
+                return false;
+            }
+            if (!/^\d+$/.test(creatorForm.experience_years.trim())) {
+                showToast('Experience must contain numbers only.');
+                return false;
+            }
+            if (!/^\d+$/.test(creatorForm.starting_price.trim())) {
+                showToast('Starting price must contain numbers only.');
                 return false;
             }
             return true;
@@ -870,13 +891,23 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                     </div>
                                     <div className="settings-form-group">
                                         <label>Phone</label>
-                                        <input value={creatorForm.phone} onChange={e => updateCreatorField('phone', e.target.value)} placeholder="+63..." />
+                                        <input
+                                            value={creatorForm.phone}
+                                            onChange={e => updateCreatorField('phone', digitsOnly(e.target.value, 11))}
+                                            placeholder="09123456789"
+                                            inputMode="numeric"
+                                        />
                                     </div>
                                 </div>
                                 <div className="settings-form-row">
                                     <div className="settings-form-group">
                                         <label>Government ID Number</label>
-                                        <input value={creatorForm.id_number} onChange={e => updateCreatorField('id_number', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} placeholder="12 digits" />
+                                        <input
+                                            value={creatorForm.id_number}
+                                            onChange={e => updateCreatorField('id_number', digitsOnly(e.target.value, 12))}
+                                            placeholder="12 digits"
+                                            inputMode="numeric"
+                                        />
                                     </div>
                                     <div className="settings-form-group">
                                         <label>Country</label>
@@ -898,7 +929,11 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                     </div>
                                     <div className="settings-form-group">
                                         <label>Postal Code</label>
-                                        <input value={creatorForm.postal_code} onChange={e => updateCreatorField('postal_code', e.target.value)} />
+                                        <input
+                                            value={creatorForm.postal_code}
+                                            onChange={e => updateCreatorField('postal_code', digitsOnly(e.target.value, 10))}
+                                            inputMode="numeric"
+                                        />
                                     </div>
                                 </div>
                                 <div className="settings-form-group">
@@ -941,11 +976,21 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                 <div className="settings-form-row settings-form-row--3">
                                     <div className="settings-form-group">
                                         <label>Experience</label>
-                                        <input value={creatorForm.experience_years} onChange={e => updateCreatorField('experience_years', e.target.value)} placeholder="e.g. 3" />
+                                        <input
+                                            value={creatorForm.experience_years}
+                                            onChange={e => updateCreatorField('experience_years', digitsOnly(e.target.value, 2))}
+                                            placeholder="e.g. 3"
+                                            inputMode="numeric"
+                                        />
                                     </div>
                                     <div className="settings-form-group">
                                         <label>Starting Price</label>
-                                        <input value={creatorForm.starting_price} onChange={e => updateCreatorField('starting_price', e.target.value)} placeholder="e.g. 500" />
+                                        <input
+                                            value={creatorForm.starting_price}
+                                            onChange={e => updateCreatorField('starting_price', digitsOnly(e.target.value, 9))}
+                                            placeholder="e.g. 500"
+                                            inputMode="numeric"
+                                        />
                                     </div>
                                     <div className="settings-form-group">
                                         <label>Turnaround</label>

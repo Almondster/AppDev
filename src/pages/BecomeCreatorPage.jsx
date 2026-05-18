@@ -15,6 +15,11 @@ const STEP_LABELS = [
     { number: 3, title: 'Review', description: 'Confirm and activate.' },
 ];
 
+const digitsOnly = (value, maxLength = null) => {
+    const sanitized = String(value || '').replace(/\D/g, '');
+    return typeof maxLength === 'number' ? sanitized.slice(0, maxLength) : sanitized;
+};
+
 const BecomeCreatorPage = () => {
     const navigate = useNavigate();
     const userData = getUserData();
@@ -48,8 +53,16 @@ const BecomeCreatorPage = () => {
                 setError('Complete the identity fields first.');
                 return false;
             }
+            if (!/^09\d{9}$/.test(creatorForm.phone.trim())) {
+                setError('Phone number must be 11 digits and start with 09.');
+                return false;
+            }
             if (!/^\d{12}$/.test(creatorForm.id_number.trim())) {
                 setError('Government ID number must be exactly 12 digits.');
+                return false;
+            }
+            if (creatorForm.postal_code.trim() && !/^\d+$/.test(creatorForm.postal_code.trim())) {
+                setError('Postal code must contain numbers only.');
                 return false;
             }
             if (!creatorForm.street_address.trim() || !creatorForm.city.trim()) {
@@ -61,6 +74,14 @@ const BecomeCreatorPage = () => {
         if (step === 2) {
             if (!creatorForm.category || creatorForm.skills.length === 0 || !creatorForm.bio.trim() || !creatorForm.experience_years.trim() || !creatorForm.starting_price.trim() || !creatorForm.turnaround_time.trim()) {
                 setError('Complete the creator profile details before continuing.');
+                return false;
+            }
+            if (!/^\d+$/.test(creatorForm.experience_years.trim())) {
+                setError('Experience must contain numbers only.');
+                return false;
+            }
+            if (!/^\d+$/.test(creatorForm.starting_price.trim())) {
+                setError('Starting price must contain numbers only.');
                 return false;
             }
         }
@@ -156,7 +177,12 @@ const BecomeCreatorPage = () => {
                 </label>
                 <label className="bc-field">
                     <span>Phone</span>
-                    <input value={creatorForm.phone} onChange={(event) => updateField('phone', event.target.value)} placeholder="+63..." />
+                    <input
+                        value={creatorForm.phone}
+                        onChange={(event) => updateField('phone', digitsOnly(event.target.value, 11))}
+                        placeholder="09123456789"
+                        inputMode="numeric"
+                    />
                 </label>
             </div>
 
@@ -165,8 +191,9 @@ const BecomeCreatorPage = () => {
                     <span>Government ID Number</span>
                     <input
                         value={creatorForm.id_number}
-                        onChange={(event) => updateField('id_number', event.target.value.replace(/[^0-9]/g, '').slice(0, 12))}
+                        onChange={(event) => updateField('id_number', digitsOnly(event.target.value, 12))}
                         placeholder="12 digits"
+                        inputMode="numeric"
                     />
                 </label>
                 <label className="bc-field">
@@ -191,7 +218,11 @@ const BecomeCreatorPage = () => {
                 </label>
                 <label className="bc-field">
                     <span>Postal Code</span>
-                    <input value={creatorForm.postal_code} onChange={(event) => updateField('postal_code', event.target.value)} />
+                    <input
+                        value={creatorForm.postal_code}
+                        onChange={(event) => updateField('postal_code', digitsOnly(event.target.value, 10))}
+                        inputMode="numeric"
+                    />
                 </label>
             </div>
 
@@ -247,11 +278,21 @@ const BecomeCreatorPage = () => {
             <div className="bc-form-row bc-form-row--triple">
                 <label className="bc-field">
                     <span>Experience</span>
-                    <input value={creatorForm.experience_years} onChange={(event) => updateField('experience_years', event.target.value)} placeholder="e.g. 3" />
+                    <input
+                        value={creatorForm.experience_years}
+                        onChange={(event) => updateField('experience_years', digitsOnly(event.target.value, 2))}
+                        placeholder="e.g. 3"
+                        inputMode="numeric"
+                    />
                 </label>
                 <label className="bc-field">
                     <span>Starting Price</span>
-                    <input value={creatorForm.starting_price} onChange={(event) => updateField('starting_price', event.target.value)} placeholder="e.g. 500" />
+                    <input
+                        value={creatorForm.starting_price}
+                        onChange={(event) => updateField('starting_price', digitsOnly(event.target.value, 9))}
+                        placeholder="e.g. 500"
+                        inputMode="numeric"
+                    />
                 </label>
                 <label className="bc-field">
                     <span>Turnaround</span>
