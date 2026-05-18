@@ -265,7 +265,7 @@ export const activateUser = (id) => request(`/users/${id}/activate/`, { method: 
 // ── Creators ───────────────────────────────────────────────────────────────
 
 export const fetchCreators = (params, options) => request('/creators/', { params, ...options });
-export const fetchCreatorByUid = (uid) => request(`/creators/by-uid/${uid}/`);
+export const fetchCreatorByUid = (uid) => request(`/creators/by-uid/${uid}`);
 export const createCreator = (body) => request('/creators/', { method: 'POST', body });
 export const updateCreator = (id, body) => request(`/creators/${id}`, { method: 'PATCH', body });
 

@@ -70,7 +70,7 @@ const MessagesPage = () => {
             pollingRef.current = true;
             if (showInitialLoader) setLoading(true);
             try {
-                const { ok, data } = await apiFetchMessages();
+                const { ok, data } = await apiFetchMessages({ skipCache: true });
                 if (ok) {
                     const msgs = await hydrateMessages(data.results || data || []);
                     if (cancelled) return;
