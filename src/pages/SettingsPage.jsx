@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     User, Shield, Bell, CreditCard, HelpCircle, LogOut, Camera, Users, Heart,
-    ChevronRight, Mail, Phone, Globe, Palette, Save, X, Send, UserPlus, UserMinus, Trash2,
+    ChevronRight, Mail, Phone, Globe, Palette, Save, X, Send, UserPlus, UserMinus, Trash2, Sparkles, Briefcase, MapPin,
 } from 'lucide-react';
 import {
     getUserData, patchUser, fetchMyFollowers, fetchMyFollowing, deleteFollow,
     fetchMyWallets, createWallet, deleteWallet, fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod,
-    createSupportTicket, fetchSupportTickets,
+    createSupportTicket, fetchSupportTickets, submitCreatorApplication, fetchMe, setUserData,
 } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import { useTheme } from '../context/hooks/useTheme.js';
@@ -24,13 +24,56 @@ const TABS = [
 ];
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const CREATOR_MAIN_CATEGORIES = [
+    'Design & Creative',
+    'Development & IT',
+    'Writing & Translation',
+    'Digital Marketing',
+    'Video & Animation',
+    'Music & Audio',
+];
+
+const CREATOR_SUBCATEGORY_MAP = {
+    'Design & Creative': ['Logo Design', 'Brand Style Guides', 'Illustration', 'UI/UX Design', 'Portrait Drawing'],
+    'Development & IT': ['Web Development', 'Mobile App Development', 'Game Development', 'Support & IT'],
+    'Writing & Translation': ['Articles & Blog Posts', 'Translation', 'Creative Writing', 'Proofreading'],
+    'Digital Marketing': ['Social Media Marketing', 'SEO', 'Content Marketing', 'Video Marketing'],
+    'Video & Animation': ['Video Editing', 'Animation for Kids', '3D Product Animation', 'Visual Effects'],
+    'Music & Audio': ['Voice Over', 'Mixing & Mastering', 'Producers & Composers', 'Singers & Vocalists'],
+};
 
 const SettingsPage = ({ userRole, onLogout }) => {
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const initialTab = searchParams.get('tab') || 'profile';
+    const shouldOpenBecomeCreator = searchParams.get('becomeCreator') === '1';
     const [activeTab, setActiveTab] = useState(initialTab);
     const userData = getUserData();
     const [toast, setToast] = useState('');
+    const [creatorModalOpen, setCreatorModalOpen] = useState(shouldOpenBecomeCreator);
+    const [creatorStep, setCreatorStep] = useState(1);
+    const [creatorSubmitting, setCreatorSubmitting] = useState(false);
+    const [creatorForm, setCreatorForm] = useState({
+        first_name: '',
+        middle_name: '',
+        last_name: '',
+        phone: '',
+        id_number: '',
+        street_address: '',
+        barangay: '',
+        city: '',
+        province: '',
+        postal_code: '',
+        country: 'Philippines',
+        category: '',
+        skills: [],
+        bio: '',
+        experience_years: '',
+        starting_price: '',
+        turnaround_time: '',
+        portfolio_url: '',
+        agreed: false,
+    });
 
     // Profile state
     const [profileForm, setProfileForm] = useState({
@@ -78,6 +121,24 @@ const SettingsPage = ({ userRole, onLogout }) => {
     }, [accentColor]);
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+    useEffect(() => {
+        const fullName = (userData?.full_name || '').trim();
+        const [firstName = '', ...rest] = fullName.split(/\s+/).filter(Boolean);
+        const lastName = rest.join(' ');
+        setCreatorForm(prev => ({
+            ...prev,
+            first_name: prev.first_name || firstName,
+            last_name: prev.last_name || lastName,
+        }));
+    }, [userData?.full_name]);
+
+    useEffect(() => {
+        if (shouldOpenBecomeCreator && userRole === 'client') {
+            setActiveTab('profile');
+            setCreatorModalOpen(true);
+        }
+    }, [shouldOpenBecomeCreator, userRole]);
 
     // Load tab-specific data
     useEffect(() => {
@@ -170,6 +231,121 @@ const SettingsPage = ({ userRole, onLogout }) => {
             }
         } catch { showToast('Connection error.'); }
         setSaving(false);
+    };
+
+    const updateCreatorField = (key, value) => {
+        setCreatorForm(prev => ({ ...prev, [key]: value }));
+    };
+
+    const toggleCreatorSkill = (skill) => {
+        setCreatorForm(prev => ({
+            ...prev,
+            skills: prev.skills.includes(skill)
+                ? prev.skills.filter(s => s !== skill)
+                : [...prev.skills, skill],
+        }));
+    };
+
+    const resetCreatorModal = () => {
+        setCreatorStep(1);
+        setCreatorSubmitting(false);
+        setCreatorModalOpen(false);
+    };
+
+    const validateCreatorStep = () => {
+        if (creatorStep === 1) {
+            if (!creatorForm.first_name.trim() || !creatorForm.last_name.trim() || !creatorForm.phone.trim() || !creatorForm.id_number.trim()) {
+                showToast('Complete the identity fields first.');
+                return false;
+            }
+            if (!/^\d{12}$/.test(creatorForm.id_number.trim())) {
+                showToast('Government ID number must be 12 digits.');
+                return false;
+            }
+            if (!creatorForm.street_address.trim() || !creatorForm.city.trim()) {
+                showToast('Street address and city are required.');
+                return false;
+            }
+            return true;
+        }
+
+        if (creatorStep === 2) {
+            if (!creatorForm.category || creatorForm.skills.length === 0 || !creatorForm.bio.trim() || !creatorForm.experience_years.trim() || !creatorForm.starting_price.trim() || !creatorForm.turnaround_time.trim()) {
+                showToast('Complete the creator profile fields before continuing.');
+                return false;
+            }
+            return true;
+        }
+
+        if (!creatorForm.agreed) {
+            showToast('You must agree to the creator terms.');
+            return false;
+        }
+        return true;
+    };
+
+    const handleCreatorNext = () => {
+        if (!validateCreatorStep()) return;
+        setCreatorStep(prev => Math.min(3, prev + 1));
+    };
+
+    const handleCreatorBack = () => {
+        setCreatorStep(prev => Math.max(1, prev - 1));
+    };
+
+    const handleCreatorSubmit = async () => {
+        if (!validateCreatorStep()) return;
+
+        setCreatorSubmitting(true);
+        try {
+            const payload = {
+                first_name: creatorForm.first_name.trim(),
+                middle_name: creatorForm.middle_name.trim() || null,
+                last_name: creatorForm.last_name.trim(),
+                phone: creatorForm.phone.trim() || null,
+                id_number: creatorForm.id_number.trim() || null,
+                street_address: creatorForm.street_address.trim() || null,
+                barangay: creatorForm.barangay.trim() || null,
+                city: creatorForm.city.trim() || null,
+                province: creatorForm.province.trim() || null,
+                postal_code: creatorForm.postal_code.trim() || null,
+                country: creatorForm.country.trim() || 'Philippines',
+                bio: creatorForm.bio.trim() || null,
+                experience_years: creatorForm.experience_years.trim() || null,
+                starting_price: creatorForm.starting_price.trim() || null,
+                turnaround_time: creatorForm.turnaround_time.trim() || null,
+                category: creatorForm.category || null,
+                skills: creatorForm.skills,
+                portfolio_url: creatorForm.portfolio_url.trim() || null,
+            };
+
+            const { ok, data } = await submitCreatorApplication(payload);
+            if (!ok) {
+                showToast(data?.detail || 'Failed to submit creator application.');
+                setCreatorSubmitting(false);
+                return;
+            }
+
+            const me = await fetchMe();
+            if (me.ok) {
+                const nextUser = {
+                    ...getUserData(),
+                    ...me.data,
+                    firebase_uid: String(me.data.firebase_uid || me.data.id || userData?.firebase_uid),
+                    full_name: me.data.full_name || me.data.username || `${payload.first_name} ${payload.last_name}`.trim(),
+                    role: me.data.role || 'creator',
+                };
+                setUserData(nextUser);
+            }
+
+            showToast('Creator profile created successfully.');
+            resetCreatorModal();
+            window.location.href = '/';
+        } catch (error) {
+            showToast(error?.message || 'Failed to submit creator application.');
+        } finally {
+            setCreatorSubmitting(false);
+        }
     };
 
     // ── NOTIFICATIONS ──
@@ -334,6 +510,25 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                     <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
+
+                            {userRole === 'client' && (
+                                <div className="settings-creator-card">
+                                    <div className="settings-creator-card__icon">
+                                        <Sparkles size={20} />
+                                    </div>
+                                    <div className="settings-creator-card__copy">
+                                        <h3>Become a Creator</h3>
+                                        <p>Complete the same onboarding flow used in mobile: identity details, service category, skills, rates, and creator profile information.</p>
+                                        <div className="settings-creator-card__meta">
+                                            <span><Briefcase size={14} /> 3-step onboarding</span>
+                                            <span><MapPin size={14} /> Local profile verification</span>
+                                        </div>
+                                    </div>
+                                    <button className="settings-creator-card__button" onClick={() => navigate('/become-creator')}>
+                                        Start Creator Setup
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -633,6 +828,192 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 onConfirm={handleDelete}
                 onCancel={() => setDeleteConfirm({ open: false, type: '', id: null })}
             />
+
+            {creatorModalOpen && (
+                <div className="confirm-overlay" onClick={resetCreatorModal}>
+                    <div className="confirm-modal settings-creator-modal" onClick={e => e.stopPropagation()}>
+                        <div className="settings-creator-modal__header">
+                            <div>
+                                <h3 className="confirm-modal__title">Become a Creator</h3>
+                                <p className="settings-creator-modal__sub">Step {creatorStep} of 3</p>
+                            </div>
+                            <button className="settings-creator-modal__close" onClick={resetCreatorModal}>
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="settings-creator-modal__progress">
+                            {[1, 2, 3].map(step => (
+                                <div
+                                    key={step}
+                                    className={`settings-creator-modal__dot ${creatorStep >= step ? 'is-active' : ''}`}
+                                />
+                            ))}
+                        </div>
+
+                        {creatorStep === 1 && (
+                            <div className="settings-creator-form">
+                                <div className="settings-form-row">
+                                    <div className="settings-form-group">
+                                        <label>First Name</label>
+                                        <input value={creatorForm.first_name} onChange={e => updateCreatorField('first_name', e.target.value)} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Last Name</label>
+                                        <input value={creatorForm.last_name} onChange={e => updateCreatorField('last_name', e.target.value)} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-row">
+                                    <div className="settings-form-group">
+                                        <label>Middle Name</label>
+                                        <input value={creatorForm.middle_name} onChange={e => updateCreatorField('middle_name', e.target.value)} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Phone</label>
+                                        <input value={creatorForm.phone} onChange={e => updateCreatorField('phone', e.target.value)} placeholder="+63..." />
+                                    </div>
+                                </div>
+                                <div className="settings-form-row">
+                                    <div className="settings-form-group">
+                                        <label>Government ID Number</label>
+                                        <input value={creatorForm.id_number} onChange={e => updateCreatorField('id_number', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} placeholder="12 digits" />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Country</label>
+                                        <input value={creatorForm.country} onChange={e => updateCreatorField('country', e.target.value)} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-group">
+                                    <label>Street Address</label>
+                                    <input value={creatorForm.street_address} onChange={e => updateCreatorField('street_address', e.target.value)} />
+                                </div>
+                                <div className="settings-form-row settings-form-row--3">
+                                    <div className="settings-form-group">
+                                        <label>Barangay / District</label>
+                                        <input value={creatorForm.barangay} onChange={e => updateCreatorField('barangay', e.target.value)} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>City</label>
+                                        <input value={creatorForm.city} onChange={e => updateCreatorField('city', e.target.value)} />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Postal Code</label>
+                                        <input value={creatorForm.postal_code} onChange={e => updateCreatorField('postal_code', e.target.value)} />
+                                    </div>
+                                </div>
+                                <div className="settings-form-group">
+                                    <label>Province / State</label>
+                                    <input value={creatorForm.province} onChange={e => updateCreatorField('province', e.target.value)} />
+                                </div>
+                            </div>
+                        )}
+
+                        {creatorStep === 2 && (
+                            <div className="settings-creator-form">
+                                <div className="settings-form-group">
+                                    <label>Main Category</label>
+                                    <select value={creatorForm.category} onChange={e => updateCreatorField('category', e.target.value)}>
+                                        <option value="">Select category</option>
+                                        {CREATOR_MAIN_CATEGORIES.map(category => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {creatorForm.category && (
+                                    <div className="settings-form-group">
+                                        <label>Skills</label>
+                                        <div className="settings-creator-skills">
+                                            {(CREATOR_SUBCATEGORY_MAP[creatorForm.category] || []).map(skill => (
+                                                <button
+                                                    key={skill}
+                                                    type="button"
+                                                    className={`settings-creator-skill ${creatorForm.skills.includes(skill) ? 'is-active' : ''}`}
+                                                    onClick={() => toggleCreatorSkill(skill)}
+                                                >
+                                                    {skill}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="settings-form-row settings-form-row--3">
+                                    <div className="settings-form-group">
+                                        <label>Experience</label>
+                                        <input value={creatorForm.experience_years} onChange={e => updateCreatorField('experience_years', e.target.value)} placeholder="e.g. 3" />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Starting Price</label>
+                                        <input value={creatorForm.starting_price} onChange={e => updateCreatorField('starting_price', e.target.value)} placeholder="e.g. 500" />
+                                    </div>
+                                    <div className="settings-form-group">
+                                        <label>Turnaround</label>
+                                        <input value={creatorForm.turnaround_time} onChange={e => updateCreatorField('turnaround_time', e.target.value)} placeholder="e.g. 3 days" />
+                                    </div>
+                                </div>
+
+                                <div className="settings-form-group">
+                                    <label>Bio</label>
+                                    <textarea rows="5" value={creatorForm.bio} onChange={e => updateCreatorField('bio', e.target.value)} placeholder="Tell clients about your work, strengths, and creative approach." />
+                                </div>
+
+                                <div className="settings-form-group">
+                                    <label>Portfolio URL</label>
+                                    <input value={creatorForm.portfolio_url} onChange={e => updateCreatorField('portfolio_url', e.target.value)} placeholder="https://..." />
+                                </div>
+                            </div>
+                        )}
+
+                        {creatorStep === 3 && (
+                            <div className="settings-creator-form">
+                                <div className="settings-creator-review">
+                                    <h4>Review your creator setup</h4>
+                                    <p>Your account will be upgraded to creator immediately after submission, matching the mobile onboarding flow.</p>
+                                    <ul className="settings-creator-review__list">
+                                        <li><strong>Name:</strong> {[creatorForm.first_name, creatorForm.middle_name, creatorForm.last_name].filter(Boolean).join(' ')}</li>
+                                        <li><strong>Category:</strong> {creatorForm.category || 'Not selected'}</li>
+                                        <li><strong>Skills:</strong> {creatorForm.skills.join(', ') || 'None selected'}</li>
+                                        <li><strong>Rate:</strong> {creatorForm.starting_price || 'N/A'}</li>
+                                        <li><strong>Turnaround:</strong> {creatorForm.turnaround_time || 'N/A'}</li>
+                                    </ul>
+                                </div>
+
+                                <label className="settings-creator-agree">
+                                    <input
+                                        type="checkbox"
+                                        checked={creatorForm.agreed}
+                                        onChange={e => updateCreatorField('agreed', e.target.checked)}
+                                    />
+                                    <span>I confirm the information is accurate and I want to activate my creator account.</span>
+                                </label>
+                            </div>
+                        )}
+
+                        <div className="confirm-modal__actions">
+                            {creatorStep > 1 ? (
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={handleCreatorBack}>
+                                    Back
+                                </button>
+                            ) : (
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={resetCreatorModal}>
+                                    Cancel
+                                </button>
+                            )}
+
+                            {creatorStep < 3 ? (
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--confirm" onClick={handleCreatorNext}>
+                                    Continue
+                                </button>
+                            ) : (
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--confirm" disabled={creatorSubmitting} onClick={handleCreatorSubmit}>
+                                    {creatorSubmitting ? 'Submitting...' : 'Become a Creator'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </main>
     );
 };

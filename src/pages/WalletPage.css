@@ -225,9 +225,15 @@
     font-size: 0.9rem;
     font-family: inherit;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-.earn-form-input:focus { border-color: var(--accent); }
+.earn-form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+
+select.earn-form-input {
+    padding-right: 3rem;
+    min-height: 42px;
+    font-weight: 500;
+}
 .earn-modal-balance {
     color: var(--text-muted);
     font-size: 0.9rem;

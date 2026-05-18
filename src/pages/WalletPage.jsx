@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, ArrowDownCircle, ArrowUpCircle, Plus, CreditCard, Trash2, DollarSign } from 'lucide-react';
-import { getUserData, fetchMyOrders, fetchMyCreatorOrders, fetchMyWallets, fetchMyWithdrawals, createWallet, deleteWallet, createWithdrawal } from '../api';
+import { fetchMyWallets, fetchMyWithdrawals, createWallet, deleteWallet, createWithdrawal } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import { readCollection } from '../utils/collections';
+import { getCurrentUser } from '../utils/currentUser';
+import { getOrderFetcherForRole, isPendingPayoutOrderStatus } from '../utils/orders';
 import './WalletPage.css';
 
 const WalletPage = ({ userRole }) => {
@@ -26,43 +29,42 @@ const WalletPage = ({ userRole }) => {
     const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
     const [deleting, setDeleting] = useState(false);
 
-    const userData = getUserData();
+    const userData = getCurrentUser();
     const isCreator = userRole === 'creator';
 
     useEffect(() => {
         (async () => {
             try {
-                const ordersFetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
                 const [oRes, wRes, xRes] = await Promise.all([
-                    ordersFetcher(),
+                    getOrderFetcherForRole(userRole)(),
                     fetchMyWallets(),
                     fetchMyWithdrawals(),
                 ]);
 
                 if (oRes.ok) {
-                    const orders = oRes.data.results || oRes.data || [];
+                    const orders = readCollection(oRes);
                     const completed = orders.filter(o => o.status === 'completed');
-                    const pending = orders.filter(o => ['in_progress', 'delivered', 'accepted'].includes(o.status));
+                    const pending = orders.filter(o => isPendingPayoutOrderStatus(o.status));
                     const totalEarned = completed.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
                     setPendingBalance(pending.reduce((sum, o) => sum + parseFloat(o.price || 0), 0));
 
                     let totalWithdrawn = 0;
                     if (xRes.ok) {
-                        const ws = xRes.data.results || xRes.data || [];
+                        const ws = readCollection(xRes);
                         setWithdrawals(ws);
                         totalWithdrawn = ws.filter(w => w.status !== 'rejected').reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
                     }
                     setBalance(Math.max(0, totalEarned - totalWithdrawn));
                 }
 
-                if (wRes.ok) setWallets(wRes.data.results || wRes.data || []);
+                if (wRes.ok) setWallets(readCollection(wRes));
             } catch (err) {
                 console.error('Wallet load error:', err);
             } finally {
                 setLoading(false);
             }
         })();
-    }, [isCreator]);
+    }, [isCreator, userRole]);
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 

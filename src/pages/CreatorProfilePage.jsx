@@ -1,10 +1,79 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchCreatorByUid, fetchServices, fetchReviews, fetchFollows, fetchBlocks, getUserData, createFollow, deleteFollow, createBlock, deleteBlock, createReport, createOrder, fetchUsers } from '../api';
-import { ArrowLeft, MapPin, Star, MessageSquare, UserPlus, UserMinus, ShieldBan, Flag } from 'lucide-react';
+import {
+    fetchCreatorByUid,
+    fetchServices,
+    fetchReviews,
+    fetchFollows,
+    fetchBlocks,
+    getUserData,
+    createFollow,
+    deleteFollow,
+    createBlock,
+    deleteBlock,
+    createReport,
+    createOrder,
+    fetchUsers,
+} from '../api';
+import {
+    ArrowLeft,
+    MapPin,
+    Star,
+    MessageSquare,
+    UserPlus,
+    UserMinus,
+    ShieldBan,
+    Flag,
+    Briefcase,
+    Clock3,
+    Sparkles,
+} from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
+import { readCollection } from '../utils/collections';
 import './CreatorProfilePage.css';
 
+const DEFAULT_EMPTY_MESSAGE = 'No reviews yet.';
+
+const sameId = (a, b) => String(a) === String(b);
+
+const safeText = (value, fallback = '') => {
+    if (value === null || value === undefined || value === '') return fallback;
+    return String(value);
+};
+
+const formatCurrency = (value) => `PHP ${Number(value || 0).toLocaleString()}`;
+
+const parseSkills = (raw) => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (error) {
+            void error;
+        }
+
+        if (raw.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(raw.replace(/'/g, '"'));
+                if (Array.isArray(parsed)) return parsed;
+            } catch (error) {
+                void error;
+            }
+        }
+
+        const trimmed = raw.replace(/^\[|\]$|^\{|\}$/g, '').trim();
+        if (!trimmed) return [];
+        return trimmed
+            .split(',')
+            .map((skill) => skill.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
+    }
+
+    return [];
+};
 
 const CreatorProfilePage = () => {
     const [creator, setCreator] = useState(null);
@@ -19,80 +88,73 @@ const CreatorProfilePage = () => {
     const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
     const [orderLoading, setOrderLoading] = useState(false);
     const [toast, setToast] = useState('');
-
-    // Block & Report state
     const [isBlocked, setIsBlocked] = useState(false);
     const [blockId, setBlockId] = useState(null);
     const [reportModal, setReportModal] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [reporting, setReporting] = useState(false);
+
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
     const userData = getUserData();
     const currentUid = userData?.firebase_uid;
     const profileUid = searchParams.get('uid') || userData?.firebase_uid;
-    const isOwnProfile = String(profileUid) === String(userData?.firebase_uid);
-    const sameId = (a, b) => String(a) === String(b);
-    const safeText = (value, fallback = '') => {
-        if (value === null || value === undefined || value === '') return fallback;
-        return String(value);
-    };
+    const isOwnProfile = sameId(profileUid, userData?.firebase_uid);
 
     useEffect(() => {
         (async () => {
             setLoading(true);
+
             try {
-                const [cRes, sRes, rRes, fRes, uRes] = await Promise.all([
+                const [creatorRes, servicesRes, reviewsRes, followsRes, usersRes, blocksRes] = await Promise.all([
                     fetchCreatorByUid(profileUid),
                     fetchServices(),
                     fetchReviews(),
                     fetchFollows(),
                     fetchUsers(),
+                    fetchBlocks(),
                 ]);
 
-                if (cRes.ok) {
-                    setCreator(cRes.data || null);
-                }
-                // Always try to find the user record as fallback
-                if (uRes.ok) {
-                    const users = uRes.data.results || uRes.data || [];
-                    const foundUser = users.find(u => sameId(u.firebase_uid ?? u.id, profileUid));
-                    if (foundUser) setUserProfile(foundUser);
-                }
-                if (sRes.ok) {
-                    const allServices = sRes.data.results || sRes.data || [];
-                    setServices(allServices.filter(s => sameId(s.creator_id, profileUid)));
-                }
-                if (rRes.ok) {
-                    const allReviews = rRes.data.results || rRes.data || [];
-                    setReviews(allReviews.filter(r => sameId(r.reviewee_id, profileUid)));
-                }
-                if (fRes.ok) {
-                    const allFollows = fRes.data.results || fRes.data || [];
-                    setFollowers(allFollows.filter(f => sameId(f.following_id, profileUid)).length);
-                    const myFollow = allFollows.find(f => sameId(f.follower_id, currentUid) && sameId(f.following_id, profileUid));
-                    if (myFollow) {
-                        setIsFollowing(true);
-                        setFollowId(myFollow.id);
-                    } else {
-                        setIsFollowing(false);
-                        setFollowId(null);
-                    }
+                if (creatorRes.ok) {
+                    setCreator(creatorRes.data || null);
+                } else {
+                    setCreator(null);
                 }
 
-                // Check block status
-                const bRes = await fetchBlocks();
-                if (bRes.ok) {
-                    const allBlocks = bRes.data.results || bRes.data || [];
-                    const myBlock = allBlocks.find(b => sameId(b.blocker_id, currentUid) && sameId(b.blocked_id, profileUid));
-                    if (myBlock) {
-                        setIsBlocked(true);
-                        setBlockId(myBlock.id);
-                    } else {
-                        setIsBlocked(false);
-                        setBlockId(null);
-                    }
+                if (usersRes.ok) {
+                    const users = readCollection(usersRes);
+                    const foundUser = users.find((user) => sameId(user.firebase_uid ?? user.id, profileUid));
+                    setUserProfile(foundUser || null);
+                }
+
+                if (servicesRes.ok) {
+                    const allServices = readCollection(servicesRes);
+                    setServices(allServices.filter((service) => sameId(service.creator_id, profileUid)));
+                }
+
+                if (reviewsRes.ok) {
+                    const allReviews = readCollection(reviewsRes);
+                    setReviews(allReviews.filter((review) => sameId(review.reviewee_id, profileUid)));
+                }
+
+                if (followsRes.ok) {
+                    const allFollows = readCollection(followsRes);
+                    setFollowers(allFollows.filter((follow) => sameId(follow.following_id, profileUid)).length);
+                    const myFollow = allFollows.find(
+                        (follow) => sameId(follow.follower_id, currentUid) && sameId(follow.following_id, profileUid),
+                    );
+                    setIsFollowing(Boolean(myFollow));
+                    setFollowId(myFollow?.id || null);
+                }
+
+                if (blocksRes.ok) {
+                    const allBlocks = readCollection(blocksRes);
+                    const myBlock = allBlocks.find(
+                        (block) => sameId(block.blocker_id, currentUid) && sameId(block.blocked_id, profileUid),
+                    );
+                    setIsBlocked(Boolean(myBlock));
+                    setBlockId(myBlock?.id || null);
                 }
             } catch (err) {
                 console.error('Failed to load profile:', err);
@@ -102,46 +164,30 @@ const CreatorProfilePage = () => {
         })();
     }, [profileUid, currentUid]);
 
-    const avgRating = reviews.length > 0
-        ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
-        : '5';
-
-    // Safely parse skills — handles arrays, JSON, Python list strings, comma-separated, postgres text format
-    const parseSkills = (raw) => {
-        if (!raw) return [];
-        if (Array.isArray(raw)) return raw;
-        if (typeof raw === 'string') {
-            // Try JSON parse (handles ["a","b"])
-            try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed; } catch (err) { console.error('Failed to parse skills JSON:', err); }
-            // Handle Python-style list: ['a', 'b'] → convert single quotes to double quotes
-            if (raw.startsWith('[')) {
-                try { const parsed = JSON.parse(raw.replace(/'/g, '"')); if (Array.isArray(parsed)) return parsed; } catch (err) { console.error('Failed to parse skills Python list:', err); }
-            }
-            // Handle postgres text array format: {a,b,c}
-            const trimmed = raw.replace(/^\[|\]$|^\{|\}$/g, '').trim();
-            if (!trimmed) return [];
-            return trimmed.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
-        }
-        return [];
-    };
-    const skills = parseSkills(creator?.skills) || parseSkills(creator?.custom_skills) || [];
-    const completedJobs = 0;
-
-    // Use creator.user OR the fetched userProfile as fallback
     const creatorUser = creator?.user || userProfile || {};
     const displayName = safeText(
         creatorUser.display_name ||
-        creatorUser.full_name ||
-        creatorUser.username ||
-        creatorUser.email ||
-        creator?.display_name ||
-        creator?.username,
-        'Creator'
+            creatorUser.full_name ||
+            creatorUser.username ||
+            creatorUser.email ||
+            creator?.display_name ||
+            creator?.username,
+        'Creator',
     );
     const avatarUrl = creatorUser.avatar_url || null;
     const userRole = creatorUser.role || userProfile?.role || (creator ? 'creator' : 'client');
+    const skills = parseSkills(creator?.skills) || parseSkills(creator?.custom_skills) || [];
+    const completedJobs = 0;
+    const avgRating = reviews.length > 0
+        ? (reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / reviews.length).toFixed(1)
+        : '5.0';
+    const hourlyRate = formatCurrency(creator?.starting_price || 500);
+    const responseTime = creator?.response_time || '1 hour';
 
-    const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+    const showToast = (message) => {
+        setToast(message);
+        setTimeout(() => setToast(''), 3500);
+    };
 
     const handleFollow = async () => {
         if (isFollowing && followId) {
@@ -149,22 +195,27 @@ const CreatorProfilePage = () => {
                 await deleteFollow(followId);
                 setIsFollowing(false);
                 setFollowId(null);
-                setFollowers(prev => Math.max(0, prev - 1));
+                setFollowers((prev) => Math.max(0, prev - 1));
                 showToast('Unfollowed');
-            } catch { showToast('Failed to unfollow.'); }
-        } else {
-            try {
-                const { ok, data } = await createFollow({
-                    follower_id: userData?.firebase_uid,
-                    following_id: profileUid,
-                });
-                if (ok) {
-                    setIsFollowing(true);
-                    setFollowId(data.id);
-                    setFollowers(prev => prev + 1);
-                    showToast('Following!');
-                }
-            } catch { showToast('Failed to follow.'); }
+            } catch {
+                showToast('Failed to unfollow.');
+            }
+            return;
+        }
+
+        try {
+            const { ok, data } = await createFollow({
+                follower_id: currentUid,
+                following_id: profileUid,
+            });
+            if (ok) {
+                setIsFollowing(true);
+                setFollowId(data.id);
+                setFollowers((prev) => prev + 1);
+                showToast('Following!');
+            }
+        } catch {
+            showToast('Failed to follow.');
         }
     };
 
@@ -175,295 +226,415 @@ const CreatorProfilePage = () => {
                 setIsBlocked(false);
                 setBlockId(null);
                 showToast('User unblocked');
-            } catch { showToast('Failed to unblock.'); }
-        } else {
-            try {
-                const { ok, data } = await createBlock({ blocker_id: userData?.firebase_uid, blocked_id: profileUid });
-                if (ok) { setIsBlocked(true); setBlockId(data.id); showToast('User blocked'); }
-            } catch { showToast('Failed to block.'); }
+            } catch {
+                showToast('Failed to unblock.');
+            }
+            return;
+        }
+
+        try {
+            const { ok, data } = await createBlock({
+                blocker_id: currentUid,
+                blocked_id: profileUid,
+            });
+            if (ok) {
+                setIsBlocked(true);
+                setBlockId(data.id);
+                showToast('User blocked');
+            }
+        } catch {
+            showToast('Failed to block.');
         }
     };
 
-    const handleReport = async (e) => {
-        e.preventDefault();
+    const handleReport = async (event) => {
+        event.preventDefault();
         if (!reportReason.trim()) return;
+
         setReporting(true);
         try {
-            const { ok } = await createReport({ reporter_id: userData?.firebase_uid, reported_id: profileUid, reason: reportReason });
-            if (ok) { showToast('Report submitted. Our team will review it.'); setReportModal(false); setReportReason(''); }
-            else showToast('Failed to submit report.');
-        } catch { showToast('Connection error.'); }
+            const { ok } = await createReport({
+                reporter_id: currentUid,
+                reported_id: profileUid,
+                reason: reportReason,
+            });
+            if (ok) {
+                showToast('Report submitted. Our team will review it.');
+                setReportModal(false);
+                setReportReason('');
+            } else {
+                showToast('Failed to submit report.');
+            }
+        } catch {
+            showToast('Connection error.');
+        }
         setReporting(false);
     };
 
     const handleOrderService = async () => {
         const service = confirmModal.service;
         if (!service) return;
+
         setOrderLoading(true);
         try {
-            const { ok } = await createOrder({
-                service_id: service.id,
-            });
-            if (ok) {
-                showToast(`Order placed for "${service.title}"!`);
-            } else {
-                showToast('Failed to place order.');
-            }
-        } catch { showToast('Connection error.'); }
+            const { ok } = await createOrder({ service_id: service.id });
+            showToast(ok ? `Order placed for "${service.title}"!` : 'Failed to place order.');
+        } catch {
+            showToast('Connection error.');
+        }
         setOrderLoading(false);
         setConfirmModal({ open: false, service: null });
     };
 
-    const renderStars = (rating) => {
-        return [...Array(5)].map((_, i) => (
-            <Star key={i} size={14} fill={i < rating ? '#f59e0b' : 'transparent'} color={i < rating ? '#f59e0b' : '#52525b'} />
+    const renderStars = (rating) =>
+        [...Array(5)].map((_, index) => (
+            <Star
+                key={index}
+                size={14}
+                fill={index < rating ? '#f59e0b' : 'transparent'}
+                color={index < rating ? '#f59e0b' : '#71717a'}
+            />
         ));
-    };
 
-    // Helper to render the profile sidebar card (reused for both creator and non-creator)
+    const renderReviewList = (emptyMessage = DEFAULT_EMPTY_MESSAGE) => (
+        reviews.length > 0 ? (
+            <div className="cp-reviews-list">
+                {reviews.map((review) => (
+                    <article key={review.id} className="cp-review-item">
+                        <div className="cp-review-avatar">
+                            {safeText(review.reviewer_name || review.reviewer_id, 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="cp-review-body">
+                            <div className="cp-review-top">
+                                <div>
+                                    <h4>{review.reviewer_name || review.reviewer_id || 'Anonymous'}</h4>
+                                    <div className="cp-review-stars">{renderStars(review.rating || 0)}</div>
+                                </div>
+                                <span className="cp-review-date">
+                                    {review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}
+                                </span>
+                            </div>
+                            <p>{review.comment || '(No comment)'}</p>
+                        </div>
+                    </article>
+                ))}
+            </div>
+        ) : (
+            <p className="cp-empty">{emptyMessage}</p>
+        )
+    );
+
+    const renderServices = () => (
+        services.length > 0 ? (
+            <div className="cp-services-list">
+                {services.map((service) => (
+                    <article
+                        key={service.id}
+                        className="cp-service-item"
+                        onClick={() => navigate(`/services/${service.id}`)}
+                    >
+                        <div className="cp-service-copy">
+                            <div className="cp-service-meta">
+                                <span className="cp-service-badge">{service.category || service.label || 'Service'}</span>
+                                <span className="cp-service-turnaround">{service.turnaround_time || '3 days'}</span>
+                            </div>
+                            <h4>{service.title || service.label}</h4>
+                            {service.description && <p>{service.description}</p>}
+                        </div>
+                        <div className="cp-service-actions">
+                            <span className="cp-service-price">{formatCurrency(service.price)}</span>
+                            {!isOwnProfile && userData?.role !== 'creator' && (
+                                <button
+                                    type="button"
+                                    className="cp-service-order-btn"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        setConfirmModal({ open: true, service });
+                                    }}
+                                >
+                                    Order
+                                </button>
+                            )}
+                        </div>
+                    </article>
+                ))}
+            </div>
+        ) : (
+            <p className="cp-empty">No services listed yet.</p>
+        )
+    );
+
     const renderProfileCard = (showCreatorStats) => (
         <div className="cp-profile-card">
             <div className="cp-avatar">
                 {avatarUrl ? (
-                    <img src={avatarUrl} alt="Avatar" />
+                    <img src={avatarUrl} alt={`${displayName} avatar`} />
                 ) : (
                     <div className="cp-avatar-placeholder">
                         {safeText(displayName, 'U').charAt(0).toUpperCase()}
                     </div>
                 )}
             </div>
-            <h2 className="cp-name">{displayName}</h2>
-            <p className="cp-role" style={{ textTransform: 'capitalize' }}>{showCreatorStats ? (creator?.job_title || 'Creator') : userRole}</p>
-            <p className="cp-location"><MapPin size={14} /> Remote</p>
 
-            <div className="cp-stats-row">
+            <div className="cp-identity">
+                <span className="cp-role-chip">{showCreatorStats ? 'Creator Profile' : 'Community Member'}</span>
+                <h2 className="cp-name">{displayName}</h2>
+                <p className="cp-role" style={{ textTransform: 'capitalize' }}>
+                    {showCreatorStats ? creator?.job_title || 'Independent creator' : userRole}
+                </p>
+                <p className="cp-location">
+                    <MapPin size={14} />
+                    Remote
+                </p>
+            </div>
+
+            <div className={`cp-stats-row ${showCreatorStats ? 'cp-stats-row--triple' : ''}`}>
                 <div className="cp-stat">
                     <span className="cp-stat-value">{followers}</span>
-                    <span className="cp-stat-label">FOLLOWERS</span>
+                    <span className="cp-stat-label">Followers</span>
                 </div>
                 {showCreatorStats && (
-                    <div className="cp-stat">
-                        <span className="cp-stat-value">{avgRating} <Star size={12} fill="#f59e0b" color="#f59e0b" /></span>
-                        <span className="cp-stat-label">RATING</span>
-                    </div>
+                    <>
+                        <div className="cp-stat">
+                            <span className="cp-stat-value">{avgRating}</span>
+                            <span className="cp-stat-label">Rating</span>
+                        </div>
+                        <div className="cp-stat">
+                            <span className="cp-stat-value">{services.length}</span>
+                            <span className="cp-stat-label">Services</span>
+                        </div>
+                    </>
                 )}
             </div>
 
-            {!isOwnProfile && (
-                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: 16 }}>
+            {!isOwnProfile ? (
+                <div className="cp-action-grid">
                     <button
-                        className="cp-cover-btn"
-                        style={{ background: isFollowing ? 'rgba(239,68,68,0.15)' : '#6366f1', color: isFollowing ? '#f87171' : '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                        type="button"
+                        className={`cp-action-btn cp-action-btn--primary ${isFollowing ? 'cp-action-btn--danger' : ''}`}
                         onClick={handleFollow}
                     >
-                        {isFollowing ? <><UserMinus size={14} /> Unfollow</> : <><UserPlus size={14} /> Follow</>}
+                        {isFollowing ? <UserMinus size={15} /> : <UserPlus size={15} />}
+                        {isFollowing ? 'Unfollow' : 'Follow'}
                     </button>
                     <button
-                        className="cp-cover-btn"
-                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 6 }}
+                        type="button"
+                        className="cp-action-btn"
                         onClick={() => navigate(`/messages?to=${profileUid}`)}
                     >
-                        <MessageSquare size={14} /> Message
+                        <MessageSquare size={15} />
+                        Message
                     </button>
                     <button
-                        className="cp-cover-btn"
-                        style={{ background: isBlocked ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 6, color: isBlocked ? '#f87171' : 'inherit' }}
+                        type="button"
+                        className={`cp-action-btn ${isBlocked ? 'cp-action-btn--danger-soft' : ''}`}
                         onClick={handleBlock}
                     >
-                        <ShieldBan size={14} /> {isBlocked ? 'Unblock' : 'Block'}
+                        <ShieldBan size={15} />
+                        {isBlocked ? 'Unblock' : 'Block'}
                     </button>
                     <button
-                        className="cp-cover-btn"
-                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 6, color: '#f87171' }}
+                        type="button"
+                        className="cp-action-btn cp-action-btn--danger-soft"
                         onClick={() => setReportModal(true)}
                     >
-                        <Flag size={14} /> Report
+                        <Flag size={15} />
+                        Report
                     </button>
                 </div>
+            ) : (
+                <button type="button" className="cp-action-btn cp-action-btn--primary cp-action-btn--full" onClick={() => navigate('/settings')}>
+                    Edit Profile
+                </button>
             )}
-            {isOwnProfile && (
-                <button className="cp-cover-btn" style={{ marginTop: 16 }} onClick={() => navigate('/settings')}>Edit Profile</button>
-            )}
+        </div>
+    );
+
+    const renderCreatorOverview = () => (
+        <div className="cp-overview-grid">
+            <div className="cp-highlight-card">
+                <div className="cp-highlight-icon">
+                    <Clock3 size={18} />
+                </div>
+                <div>
+                    <span className="cp-highlight-label">Response Time</span>
+                    <strong>{responseTime}</strong>
+                </div>
+            </div>
+            <div className="cp-highlight-card">
+                <div className="cp-highlight-icon">
+                    <Briefcase size={18} />
+                </div>
+                <div>
+                    <span className="cp-highlight-label">Completed Jobs</span>
+                    <strong>{completedJobs}</strong>
+                </div>
+            </div>
+            <div className="cp-highlight-card">
+                <div className="cp-highlight-icon">
+                    <Sparkles size={18} />
+                </div>
+                <div>
+                    <span className="cp-highlight-label">Starting Rate</span>
+                    <strong>{hourlyRate}/hr</strong>
+                </div>
+            </div>
         </div>
     );
 
     return (
         <section className="creator-profile-page">
-            {/* Breadcrumb */}
-            <div className="cp-breadcrumb">
-                <span className="cp-breadcrumb-muted">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
-                <span className="cp-breadcrumb-sep">/</span>
-                <span className="cp-breadcrumb-active">Profile</span>
+            <div className="cp-topbar">
+                <div className="cp-breadcrumb">
+                    <span className="cp-breadcrumb-muted">
+                        {userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}
+                    </span>
+                    <span className="cp-breadcrumb-sep">/</span>
+                    <span className="cp-breadcrumb-active">Profile</span>
+                </div>
+                <button type="button" className="cp-back-btn" onClick={() => navigate(-1)}>
+                    <ArrowLeft size={18} />
+                    Back
+                </button>
             </div>
-
-            {/* Back Button */}
-            <button className="cp-back-btn" onClick={() => navigate(-1)}>
-                <ArrowLeft size={20} />
-            </button>
 
             {toast && <div className="global-toast global-toast--success">{toast}</div>}
 
             {loading ? (
                 <>
-                    {/* Skeleton Cover */}
-                    <div className="cp-cover"><div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 0 }}></div></div>
+                    <div className="cp-cover">
+                        <div className="skeleton" style={{ width: '100%', height: '100%', borderRadius: 0 }}></div>
+                    </div>
                     <div className="cp-layout">
-                        <div className="cp-sidebar">
+                        <aside className="cp-sidebar">
                             <div className="cp-profile-card">
-                                <div className="skeleton" style={{ width: 90, height: 90, borderRadius: '50%', margin: '-45px auto 12px' }}></div>
-                                <div className="skeleton" style={{ width: '55%', height: 22, margin: '0 auto 8px' }}></div>
-                                <div className="skeleton" style={{ width: '30%', height: 16, margin: '0 auto 6px' }}></div>
-                                <div className="skeleton" style={{ width: '40%', height: 14, margin: '0 auto 18px' }}></div>
+                                <div className="skeleton" style={{ width: 110, height: 110, borderRadius: '50%', margin: '0 auto 1rem' }}></div>
+                                <div className="skeleton" style={{ width: '60%', height: 22, margin: '0 auto 0.75rem' }}></div>
+                                <div className="skeleton" style={{ width: '38%', height: 16, margin: '0 auto 1rem' }}></div>
+                                <div className="skeleton" style={{ width: '100%', height: 52, borderRadius: 16 }}></div>
                             </div>
-                        </div>
+                        </aside>
                         <div className="cp-main">
-                            <div className="skeleton" style={{ height: 200, borderRadius: 12 }}></div>
+                            <div className="skeleton" style={{ height: 132, borderRadius: 20 }}></div>
+                            <div className="skeleton" style={{ height: 260, borderRadius: 20 }}></div>
                         </div>
                     </div>
                 </>
             ) : !creator && !isOwnProfile ? (
-                /* ── Non-creator user fallback ── */
                 <>
-                    <div className="cp-cover"><div className="cp-cover-gradient"></div></div>
-                    <div className="cp-layout">
-                        <div className="cp-sidebar">
-                            {renderProfileCard(false)}
+                    <div className="cp-cover">
+                        <div className="cp-cover-gradient"></div>
+                        <div className="cp-cover-content">
+                            <span className="cp-cover-kicker">Community profile</span>
+                            <h1>{displayName}</h1>
+                            <p>This user has not published a creator profile yet.</p>
                         </div>
+                    </div>
+
+                    <div className="cp-layout">
+                        <aside className="cp-sidebar">
+                            {renderProfileCard(false)}
+                        </aside>
+
                         <div className="cp-main">
-                            <div className="cp-about">
-                                <h3>About</h3>
-                                <p style={{ color: '#71717a' }}>This user hasn't set up a creator profile yet.</p>
-                            </div>
-                            {reviews.length > 0 && (
-                                <div className="cp-tab-content" style={{ marginTop: '1.5rem' }}>
-                                    <h3 style={{ color: '#fff', marginBottom: '1rem' }}>Reviews</h3>
-                                    <div className="cp-reviews-list">
-                                        {reviews.map(r => (
-                                            <div key={r.id} className="cp-review-item">
-                                                <div className="cp-review-avatar">{(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}</div>
-                                                <div className="cp-review-body">
-                                                    <div className="cp-review-top">
-                                                        <div>
-                                                            <h4>{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
-                                                            <div className="cp-review-stars">{renderStars(r.rating || 0)}</div>
-                                                        </div>
-                                                        <span className="cp-review-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
-                                                    </div>
-                                                    <p>{r.comment || '(No comment)'}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                            <section className="cp-panel cp-panel--soft">
+                                <div className="cp-section-heading">
+                                    <h3>About</h3>
+                                    <p>This account can still receive reviews and profile interactions.</p>
                                 </div>
-                            )}
+                                <p className="cp-body-copy">This user has not set up a creator profile yet.</p>
+                            </section>
+
+                            <section className="cp-panel">
+                                <div className="cp-section-heading">
+                                    <h3>Reviews</h3>
+                                    <p>Community feedback left on this profile.</p>
+                                </div>
+                                {renderReviewList()}
+                            </section>
                         </div>
                     </div>
                 </>
             ) : (
-                /* ── Full creator profile ── */
                 <>
-                    <div className="cp-cover"><div className="cp-cover-gradient"></div></div>
+                    <div className="cp-cover">
+                        <div className="cp-cover-gradient"></div>
+                        <div className="cp-cover-content">
+                            <span className="cp-cover-kicker">Creator spotlight</span>
+                            <h1>{displayName}</h1>
+                            <p>{creator?.bio || 'Independent creator available for custom work and project-based collaboration.'}</p>
+                        </div>
+                    </div>
+
                     <div className="cp-layout">
-                        <div className="cp-sidebar">
+                        <aside className="cp-sidebar">
                             {renderProfileCard(true)}
 
-                            {/* Stats Card */}
                             <div className="cp-info-card">
-                                <h3>STATS</h3>
+                                <h3>Stats</h3>
                                 <div className="cp-info-row">
                                     <span>Response Time</span>
-                                    <span className="cp-info-val">{creator?.response_time || '1 hour'}</span>
+                                    <span className="cp-info-val">{responseTime}</span>
                                 </div>
                                 <div className="cp-info-row">
                                     <span>Completed Jobs</span>
                                     <span className="cp-info-val">{completedJobs}</span>
                                 </div>
                                 <div className="cp-info-row">
-                                    <span>Hourly Rate</span>
-                                    <span className="cp-info-val">₱{creator?.starting_price || '500'}/hr</span>
+                                    <span>Starting Rate</span>
+                                    <span className="cp-info-val">{hourlyRate}/hr</span>
                                 </div>
                             </div>
 
-                            {/* Skills Card */}
                             <div className="cp-info-card">
-                                <h3>SKILLS</h3>
+                                <h3>Skills</h3>
                                 <div className="cp-skills">
-                                    {skills.length > 0 ? skills.map((s, i) => (
-                                        <span key={i} className="cp-skill-tag">{s}</span>
-                                    )) : (
-                                        <p style={{ color: '#52525b', fontSize: '0.85rem', margin: 0 }}>No skills added yet.</p>
+                                    {skills.length > 0 ? (
+                                        skills.map((skill, index) => (
+                                            <span key={`${skill}-${index}`} className="cp-skill-tag">
+                                                {skill}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <p className="cp-empty-note">No skills added yet.</p>
                                     )}
                                 </div>
                             </div>
-                        </div>
+                        </aside>
 
-                        {/* Right Column - Content */}
                         <div className="cp-main">
-                            <div className="cp-about">
-                                <h3>About</h3>
-                                <p>{creator?.bio || 'No bio provided yet.'}</p>
-                            </div>
+                            {renderCreatorOverview()}
 
-                            <div className="cp-tabs">
-                                <button className={`cp-tab ${profileTab === 'services' ? 'active' : ''}`} onClick={() => setProfileTab('services')}>Services</button>
-                                <button className={`cp-tab ${profileTab === 'reviews' ? 'active' : ''}`} onClick={() => setProfileTab('reviews')}>Reviews</button>
-                            </div>
-
-                            {profileTab === 'services' && (
-                                <div className="cp-tab-content">
-                                    {services.length > 0 ? (
-                                        <div className="cp-services-list">
-                                            {services.map(svc => (
-                                                <div key={svc.id} className="cp-service-item" style={{ cursor: 'pointer' }} onClick={() => navigate(`/services/${svc.id}`)}>
-                                                    <div>
-                                                        <h4>{svc.title || svc.label}</h4>
-                                                        {svc.description && <p>{svc.description}</p>}
-                                                    </div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                        <span className="cp-service-price">₱{parseFloat(svc.price || 0).toLocaleString()}</span>
-                                                        {!isOwnProfile && userData?.role !== 'creator' && (
-                                                            <button
-                                                                style={{ padding: '0.4rem 0.8rem', borderRadius: 8, background: '#6366f1', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
-                                                                onClick={(e) => { e.stopPropagation(); setConfirmModal({ open: true, service: svc }); }}
-                                                            >
-                                                                Order
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="cp-empty">No services listed yet.</p>
-                                    )}
+                            <section className="cp-panel cp-panel--soft">
+                                <div className="cp-section-heading">
+                                    <h3>About</h3>
+                                    <p>Profile summary and working style.</p>
                                 </div>
-                            )}
+                                <p className="cp-body-copy">{creator?.bio || 'No bio provided yet.'}</p>
+                            </section>
 
-                            {profileTab === 'reviews' && (
-                                <div className="cp-tab-content">
-                                    {reviews.length > 0 ? (
-                                        <div className="cp-reviews-list">
-                                            {reviews.map(r => (
-                                                <div key={r.id} className="cp-review-item">
-                                                    <div className="cp-review-avatar">{(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}</div>
-                                                    <div className="cp-review-body">
-                                                        <div className="cp-review-top">
-                                                            <div>
-                                                                <h4>{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
-                                                                <div className="cp-review-stars">{renderStars(r.rating || 0)}</div>
-                                                            </div>
-                                                            <span className="cp-review-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
-                                                        </div>
-                                                        <p>{r.comment || '(No comment)'}</p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="cp-empty">No reviews yet.</p>
-                                    )}
+                            <section className="cp-panel">
+                                <div className="cp-tabs">
+                                    <button
+                                        type="button"
+                                        className={`cp-tab ${profileTab === 'services' ? 'active' : ''}`}
+                                        onClick={() => setProfileTab('services')}
+                                    >
+                                        Services
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`cp-tab ${profileTab === 'reviews' ? 'active' : ''}`}
+                                        onClick={() => setProfileTab('reviews')}
+                                    >
+                                        Reviews
+                                    </button>
                                 </div>
-                            )}
+
+                                <div className="cp-tab-content">
+                                    {profileTab === 'services' ? renderServices() : renderReviewList()}
+                                </div>
+                            </section>
                         </div>
                     </div>
                 </>
@@ -472,7 +643,16 @@ const CreatorProfilePage = () => {
             <ConfirmModal
                 open={confirmModal.open}
                 title="Place Order?"
-                message={confirmModal.service ? <>Order <strong>"{confirmModal.service.title}"</strong> for <strong>₱{parseFloat(confirmModal.service?.price || 0).toLocaleString()}</strong>?</> : ''}
+                message={
+                    confirmModal.service ? (
+                        <>
+                            Order <strong>{confirmModal.service.title}</strong> for{' '}
+                            <strong>{formatCurrency(confirmModal.service?.price)}</strong>?
+                        </>
+                    ) : (
+                        ''
+                    )
+                }
                 variant="info"
                 confirmLabel="Place Order"
                 loading={orderLoading}
@@ -480,23 +660,34 @@ const CreatorProfilePage = () => {
                 onCancel={() => setConfirmModal({ open: false, service: null })}
             />
 
-            {/* Report Modal */}
             {reportModal && (
                 <div className="confirm-overlay" onClick={() => setReportModal(false)}>
-                    <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+                    <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
                         <h3 className="confirm-modal__title">Report User</h3>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1rem' }}>Describe the issue. Our team will investigate.</p>
+                        <p className="cp-report-copy">Describe the issue. Our team will investigate.</p>
                         <form onSubmit={handleReport}>
                             <textarea
                                 value={reportReason}
-                                onChange={e => setReportReason(e.target.value)}
+                                onChange={(event) => setReportReason(event.target.value)}
                                 placeholder="Why are you reporting this user?"
                                 required
-                                style={{ width: '100%', minHeight: 100, padding: '0.75rem', borderRadius: 10, background: 'var(--bg-input, #18181b)', border: '1px solid var(--border, #27272a)', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', marginBottom: '1rem' }}
+                                className="cp-report-textarea"
                             />
                             <div className="confirm-modal__actions">
-                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setReportModal(false)}>Cancel</button>
-                                <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" style={{ background: '#ef4444' }} disabled={reporting}>{reporting ? 'Submitting...' : 'Submit Report'}</button>
+                                <button
+                                    type="button"
+                                    className="confirm-modal__btn confirm-modal__btn--cancel"
+                                    onClick={() => setReportModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="confirm-modal__btn confirm-modal__btn--confirm cp-report-submit"
+                                    disabled={reporting}
+                                >
+                                    {reporting ? 'Submitting...' : 'Submit Report'}
+                                </button>
                             </div>
                         </form>
                     </div>

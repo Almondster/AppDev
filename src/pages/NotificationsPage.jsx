@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    fetchDeadlines as apiFetchDeadlines, fetchMyMessages, fetchMyOrders, fetchMyCreatorOrders,
-    fetchFollows, getUserData, patchUser,
+    fetchDeadlines as apiFetchDeadlines, fetchMyMessages, fetchFollows, patchUser,
 } from '../api';
 import { MessageSquare, ShoppingBag, Users, CheckCheck, Clock, Bell, UserPlus, Package, AlertCircle } from 'lucide-react';
+import { readCollection } from '../utils/collections';
+import { getCurrentUser, getCurrentUserUid } from '../utils/currentUser';
+import { getOrderFetcherForRole } from '../utils/orders';
 import './NotificationsPage.css';
 
 const FILTERS = ['all', 'unread', 'messages', 'orders', 'social'];
@@ -27,8 +29,8 @@ const NotificationsPage = () => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
     const navigate = useNavigate();
-    const userData = getUserData();
-    const uid = userData?.firebase_uid;
+    const userData = getCurrentUser();
+    const uid = getCurrentUserUid();
     const isCreator = userData?.role === 'creator';
     const ordersLastSeenAt = userData?.orders_last_seen_at;
     const followsLastSeenAt = userData?.follows_last_seen_at;
@@ -47,11 +49,10 @@ const NotificationsPage = () => {
         (async () => {
             try {
                 const readIds = getReadIds();
-                const ordersFetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
                 const [dRes, mRes, oRes, fRes] = await Promise.all([
                     apiFetchDeadlines(),
                     fetchMyMessages(),
-                    ordersFetcher(),
+                    getOrderFetcherForRole(userData?.role || 'client')(),
                     fetchFollows(),
                 ]);
 
@@ -61,7 +62,7 @@ const NotificationsPage = () => {
 
                 // Deadline notifications
                 if (dRes.ok) {
-                    (dRes.data.results || dRes.data || []).forEach(n => {
+                    readCollection(dRes).forEach(n => {
                         if (n.sent_to !== uid) return;
                         const nid = `d-${n.id}`;
                         notifs.push({
@@ -77,7 +78,7 @@ const NotificationsPage = () => {
 
                 // Message notifications (incoming only)
                 if (mRes.ok) {
-                    const msgs = (mRes.data.results || mRes.data || [])
+                    const msgs = readCollection(mRes)
                         .filter(m => m.sender_id !== uid)
                         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
@@ -100,7 +101,7 @@ const NotificationsPage = () => {
 
                 // Order notifications — status changes
                 if (oRes.ok) {
-                    const orders = (oRes.data.results || oRes.data || []);
+                    const orders = readCollection(oRes);
                     // Role-specific labels
                     const creatorLabels = {
                         pending: 'New order from a client',
@@ -139,7 +140,7 @@ const NotificationsPage = () => {
 
                 // Follow notifications
                 if (fRes.ok) {
-                    const allFollows = fRes.data.results || fRes.data || [];
+                    const allFollows = readCollection(fRes);
                     allFollows
                         .filter(f => f.following_id === uid)
                         .forEach(f => {
@@ -180,7 +181,7 @@ const NotificationsPage = () => {
                 setLoading(false);
             }
         })();
-    }, [followsLastSeenAt, getReadIds, isCreator, ordersLastSeenAt, uid]);
+    }, [followsLastSeenAt, getReadIds, isCreator, ordersLastSeenAt, uid, userData?.role]);
 
     const markAllRead = () => {
         const readIds = getReadIds();

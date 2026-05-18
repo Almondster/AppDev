@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImagePlus, Plus, Search, X } from 'lucide-react';
-import { createService, deleteService, fetchMyServices, getUserData, updateService } from '../api';
+import { createService, deleteService, fetchMyServices, updateService } from '../api';
 import Button from '../components/Button';
 import '../styles/ProjectsPage.css';
+import { readCollection } from '../utils/collections';
+import { getCurrentUser } from '../utils/currentUser';
 
 const EMPTY_FORM = {
   title: '',
@@ -23,7 +25,7 @@ const MyGigsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
 
-  const userData = getUserData();
+  const userData = getCurrentUser();
 
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ message, type });
@@ -34,7 +36,7 @@ const MyGigsPage = () => {
     setLoading(true);
     try {
       const { ok, data } = await fetchMyServices();
-      if (ok) setServices(data.results || data || []);
+      if (ok) setServices(readCollection({ data }));
       else showNotification(data?.detail || 'Failed to load services.', 'info');
     } catch {
       showNotification('Cannot connect to server.', 'info');

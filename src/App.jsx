@@ -14,6 +14,7 @@ import NotificationsPage from './pages/NotificationsPage';
 import SettingsPage from './pages/SettingsPage';
 import WalletPage from './pages/WalletPage';
 import CreatorProfilePage from './pages/CreatorProfilePage';
+import BecomeCreatorPage from './pages/BecomeCreatorPage';
 import UsersPage from './pages/UsersPage';
 import DisputesPage from './pages/DisputesPage';
 import OrderDetailPage from './pages/OrderDetailPage';
@@ -114,6 +115,7 @@ function App() {
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />
+            <Route path="/become-creator" element={<BecomeCreatorPage />} />
 
             {/* Creator-only Routes */}
             <Route element={<RoleGuard allowedRoles={['creator']} userRole={userRole} />}>

@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { fetchMyOrders as apiFetchOrders, fetchMyCreatorOrders, deleteOrder, getUserData, updateOrderStatus } from '../api';
+import { deleteOrder, updateOrderStatus } from '../api';
+import { readCollection } from '../utils/collections';
+import { getCurrentUserRole } from '../utils/currentUser';
+import { getOrderFetcherForRole } from '../utils/orders';
+import { humanizeLabel } from '../utils/text';
 
 const OrdersPage = () => {
     const [filter, setFilter] = useState('All');
@@ -13,18 +17,17 @@ const OrdersPage = () => {
         setLoading(true);
         setError('');
         try {
-            const userData = getUserData();
-            const role = userData?.role || 'client';
-            const { ok, data } = role === 'creator'
-                ? await fetchMyCreatorOrders()
-                : await apiFetchOrders();
-            if (ok) {
-                const list = data.results || data || [];
+            const role = getCurrentUserRole('client');
+            const response = await getOrderFetcherForRole(role)();
+
+            if (response.ok) {
+                const list = readCollection(response);
                 setOrders(list.map(o => ({
                     id: o.id,
                     service: o.service_title || `Order #${o.id}`,
-                    status: capitalize(o.status),
-                    amount: `₱${parseFloat(o.price || 0).toLocaleString()}`,
+                    rawStatus: o.status || '',
+                    status: humanizeLabel(o.status),
+                    amount: `â‚±${parseFloat(o.price || 0).toLocaleString()}`,
                     rawPrice: parseFloat(o.price || 0),
                     creator: o.creator_display_name || o.creator_name || o.creator_id,
                     client: o.client_display_name || o.client_name || o.client_id,
@@ -93,7 +96,7 @@ const OrdersPage = () => {
                             className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`}
                             onClick={() => setFilter(f)}
                         >
-                            {f.replace('_', ' ')}
+                            {humanizeLabel(f)}
                         </button>
                     ))}
                 </div>
@@ -128,13 +131,13 @@ const OrdersPage = () => {
                             <div className="card__actions" style={{ marginTop: '0.75rem' }}>
                                 <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(order.id)}>Remove</button>
                                 <select
-                                    value={order.status}
+                                    value={order.rawStatus}
                                     onChange={e => handleStatusUpdate(order.id, e.target.value)}
                                     disabled={statusUpdating === order.id}
                                     style={{ marginLeft: 8 }}
                                 >
                                     {['Pending', 'In_progress', 'Completed', 'Cancelled'].map(opt => (
-                                        <option key={opt} value={opt}>{opt.replace('_', ' ')}</option>
+                                        <option key={opt} value={opt}>{humanizeLabel(opt)}</option>
                                     ))}
                                 </select>
                                 {statusUpdating === order.id && <span style={{ marginLeft: 8 }}>Updating...</span>}
@@ -150,10 +153,5 @@ const OrdersPage = () => {
         </section>
     );
 };
-
-function capitalize(s) {
-    if (!s) return '';
-    return s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ');
-}
 
 export default OrdersPage;

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchMyCreatorOrders as apiFetchOrders, fetchReviews, getUserData } from '../api';
+import { fetchReviews } from '../api';
 import { Eye, MousePointerClick, Briefcase, DollarSign, Clock, Star } from 'lucide-react';
+import { readCollection } from '../utils/collections';
+import { getCurrentUserUid } from '../utils/currentUser';
+import { getOrderFetcherForRole, isActiveCreatorOrderStatus } from '../utils/orders';
 import './CreatorDashboardPage.css';
 
 const CreatorDashboardPage = () => {
@@ -10,20 +13,19 @@ const CreatorDashboardPage = () => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const userData = getUserData();
-    const userUid = userData?.firebase_uid;
+    const userUid = getCurrentUserUid();
     const navigate = useNavigate();
 
     useEffect(() => {
         (async () => {
             try {
                 const [oRes, rRes] = await Promise.all([
-                    apiFetchOrders(),
+                    getOrderFetcherForRole('creator')(),
                     fetchReviews(),
                 ]);
-                if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
+                if (oRes.ok) setOrders(readCollection(oRes));
                 if (rRes.ok) {
-                    const allReviews = rRes.data.results || rRes.data || [];
+                    const allReviews = readCollection(rRes);
                     // Filter reviews for this creator
                     setReviews(userUid ? allReviews.filter(r => r.reviewee_id === userUid) : allReviews);
                 }
@@ -36,7 +38,7 @@ const CreatorDashboardPage = () => {
     }, [userUid]);
 
     const completed = orders.filter(o => o.status === 'completed');
-    const active = orders.filter(o => ['pending', 'accepted', 'partial_submitted', 'final_submitted'].includes(o.status));
+    const active = orders.filter(o => o.status === 'pending' || isActiveCreatorOrderStatus(o.status));
     const revenue = completed.reduce((s, o) => s + parseFloat(o.price || 0), 0);
     const todayRevenue = completed.filter(o => {
         const d = new Date(o.updated_at || o.created_at);

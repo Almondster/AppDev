@@ -104,6 +104,24 @@ const api = {
   delete: (path) => request('DELETE', path),
 };
 
+const getCurrentFirebaseUid = () => getUserData()?.firebase_uid;
+
+const fetchScopedCollection = (path, queryKey, options = {}) => {
+  const {
+    fallback = () => api.get(path),
+    transform = (value) => value,
+  } = options;
+  const firebaseUid = getCurrentFirebaseUid();
+
+  if (!firebaseUid) {
+    return fallback();
+  }
+
+  return api.get(`${path}?${queryKey}=${encodeURIComponent(transform(firebaseUid))}`);
+};
+
+const fetchEmptyCollection = () => Promise.resolve({ ok: true, data: [] });
+
 // ---------------------------------------------------------------------------
 // Auth endpoints (public — no token required)
 // ---------------------------------------------------------------------------
@@ -168,6 +186,7 @@ export const fetchCreator     = (id) => api.get(`/creators/${id}`);
 export const updateCreator    = (id, body) => api.patch(`/creators/${id}`, body);
 export const fetchCreatorByUid = (uid) => api.get(`/creators/by-uid/${uid}`);
 export const deleteCreator    = (id) => api.delete(`/creators/${id}`);
+export const submitCreatorApplication = (body) => api.post('/creator-applications/', body);
 
 // ---------------------------------------------------------------------------
 // Categories
@@ -315,57 +334,59 @@ export const deleteDeadline   = (id) => api.delete(`/deadline-notifications/${id
 // User-scoped fetchers — filter data belonging to the logged-in user
 // ---------------------------------------------------------------------------
 export const fetchMyOrders = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchOrders();
-  return api.get(`/orders/?client_id=${Number(user.firebase_uid)}`);
+  return fetchScopedCollection('/orders/', 'client_id', {
+    fallback: fetchOrders,
+    transform: Number,
+  });
 };
 
 export const fetchMyCreatorOrders = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchOrders();
-  return api.get(`/orders/?creator_id=${Number(user.firebase_uid)}`);
+  return fetchScopedCollection('/orders/', 'creator_id', {
+    fallback: fetchOrders,
+    transform: Number,
+  });
 };
 
 export const fetchMyMessages = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchMessages();
-  return api.get(`/messages/?user_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/messages/', 'user_id', {
+    fallback: fetchMessages,
+  });
 };
 
 export const fetchMyServices = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchServices();
-  return api.get(`/services/?creator_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/services/', 'creator_id', {
+    fallback: fetchServices,
+  });
 };
 
 export const fetchMyWallets = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchWallets();
-  return api.get(`/wallets/?user_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/wallets/', 'user_id', {
+    fallback: fetchWallets,
+  });
 };
 
 export const fetchMyWithdrawals = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchWithdrawals();
-  return api.get(`/withdrawals/?user_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/withdrawals/', 'user_id', {
+    fallback: fetchWithdrawals,
+  });
 };
 
 export const fetchMyPaymentMethods = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return fetchPaymentMethods();
-  return api.get(`/payment-methods/?user_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/payment-methods/', 'user_id', {
+    fallback: fetchPaymentMethods,
+  });
 };
 
 export const fetchMyFollowers = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return Promise.resolve({ ok: true, data: [] });
-  return api.get(`/follows/?following_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/follows/', 'following_id', {
+    fallback: fetchEmptyCollection,
+  });
 };
 
 export const fetchMyFollowing = () => {
-  const user = getUserData();
-  if (!user?.firebase_uid) return Promise.resolve({ ok: true, data: [] });
-  return api.get(`/follows/?follower_id=${user.firebase_uid}`);
+  return fetchScopedCollection('/follows/', 'follower_id', {
+    fallback: fetchEmptyCollection,
+  });
 };
 
 export default api;

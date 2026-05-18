@@ -4,6 +4,8 @@ import { fetchUsers as apiFetchUsers, patchUser } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import RoleBadge from '../components/RoleBadge';
 import '../styles/UsersPage.css';
+import { readCollection } from '../utils/collections';
+import { humanizeLabel } from '../utils/text';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
@@ -24,14 +26,14 @@ const UsersPage = () => {
         try {
             const { ok, data } = await apiFetchUsers();
             if (ok) {
-                const list = data.results || data || [];
+                const list = readCollection({ data });
                 setUsers(list.map(u => ({
                     id: u.id,
                     firebase_uid: u.firebase_uid,
                     name: u.display_name || u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
-                    role: capitalize(u.role || 'client'),
+                    role: humanizeLabel(u.role || 'client'),
                     status: u.is_active !== false ? 'Active' : 'Suspended',
-                    joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+                    joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”',
                 })));
             }
         } catch (err) {
@@ -96,7 +98,7 @@ const UsersPage = () => {
                 </div>
             </div>
 
-{loading ? (
+            {loading ? (
                 <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading users...</div>
             ) : (
                 <div className="glass-card" style={{ overflow: 'hidden' }}>
@@ -162,7 +164,5 @@ const UsersPage = () => {
         </main>
     );
 };
-
-function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
 export default UsersPage;

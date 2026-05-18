@@ -3,62 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
 import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, fetchReviews, fetchSmartMatches, fetchCategories } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import { CreatorSkeleton, ServiceSkeleton } from '../components/MarketplaceSkeletons';
+import { readCollection } from '../utils/collections';
+import {
+    isMarketplaceCategoryVisible,
+    isMarketplaceCreatorVisible,
+    isMarketplaceServiceVisible,
+} from '../utils/marketplaceContent';
 import './ClientDashboardPage.css';
-
-
-
-const ServiceSkeleton = () => (
-    <div className="cm-service-card" style={{ pointerEvents: 'none' }}>
-        <div className="cm-service-thumb skeleton" style={{ position: 'relative' }}>
-            <div className="skeleton-badge" style={{ position: 'absolute', top: 12, right: 12, width: 72 }}></div>
-        </div>
-        <div className="cm-service-info">
-            <div className="skeleton-row" style={{ marginBottom: 8 }}>
-                <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 8 }}></div>
-                <div className="skeleton" style={{ width: 100, height: 16 }}></div>
-            </div>
-            <div className="skeleton" style={{ width: '92%', height: 18, marginBottom: 6 }}></div>
-            <div className="skeleton" style={{ width: '70%', height: 16, marginBottom: 14 }}></div>
-            <div className="skeleton-divider"></div>
-            <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
-                <div className="skeleton" style={{ width: 80, height: 16 }}></div>
-                <div className="skeleton" style={{ width: 65, height: 22, borderRadius: 6 }}></div>
-            </div>
-        </div>
-    </div>
-);
-
-const CreatorSkeleton = () => (
-    <div className="cm-creator-card" style={{ pointerEvents: 'none' }}>
-        <div className="cm-creator-header">
-            <div className="skeleton skeleton-avatar--lg"></div>
-            <div className="skeleton-col" style={{ flex: 1 }}>
-                <div className="skeleton" style={{ width: '55%', height: 18 }}></div>
-                <div className="skeleton" style={{ width: '80%', height: 14 }}></div>
-                <div className="skeleton" style={{ width: '35%', height: 14 }}></div>
-            </div>
-            <div className="skeleton-col" style={{ flex: 0, alignItems: 'flex-end' }}>
-                <div className="skeleton" style={{ width: 55, height: 18 }}></div>
-                <div className="skeleton" style={{ width: 75, height: 14 }}></div>
-            </div>
-        </div>
-        <div className="skeleton" style={{ width: '92%', height: 16, marginTop: 6 }}></div>
-        <div className="skeleton" style={{ width: '70%', height: 16 }}></div>
-        <div className="skeleton-row" style={{ gap: 6, marginTop: 6 }}>
-            <div className="skeleton" style={{ width: 90, height: 26, borderRadius: 6 }}></div>
-            <div className="skeleton" style={{ width: 110, height: 26, borderRadius: 6 }}></div>
-            <div className="skeleton" style={{ width: 80, height: 26, borderRadius: 6 }}></div>
-        </div>
-        <div className="skeleton-divider" style={{ margin: '14px 0' }}></div>
-        <div className="skeleton-row" style={{ justifyContent: 'space-between' }}>
-            <div className="skeleton-col" style={{ gap: 5 }}>
-                <div className="skeleton" style={{ width: 70, height: 14 }}></div>
-                <div className="skeleton" style={{ width: 85, height: 20, borderRadius: 4 }}></div>
-            </div>
-            <div className="skeleton" style={{ width: 100, height: 36, borderRadius: 8 }}></div>
-        </div>
-    </div>
-);
 
 const ClientDashboardPage = () => {
     const [, setOrders] = useState([]);
@@ -93,13 +45,17 @@ const ClientDashboardPage = () => {
                 const [oRes, sRes, cRes, rRes, catRes] = await Promise.all([
                     apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews(), fetchCategories()
                 ]);
-                if (oRes.ok) setOrders(oRes.data.results || oRes.data || []);
-                if (sRes.ok) setServices(sRes.data.results || sRes.data || []);
-                if (cRes.ok) setCreators(cRes.data.results || cRes.data || []);
-                if (rRes.ok) setReviews(rRes.data.results || rRes.data || []);
+                if (oRes.ok) setOrders(readCollection(oRes));
+                if (sRes.ok) setServices(readCollection(sRes));
+                if (cRes.ok) setCreators(readCollection(cRes));
+                if (rRes.ok) setReviews(readCollection(rRes));
                 if (catRes.ok) {
-                    const catList = catRes.data.results || catRes.data || [];
-                    setCategories(catList.map(c => c.name || c.label || 'Other'));
+                    const catList = readCollection(catRes);
+                    setCategories(
+                        catList
+                            .map(c => c.name || c.label || 'Other')
+                            .filter(isMarketplaceCategoryVisible)
+                    );
                 }
             } catch (err) {
                 console.error('Client dashboard error:', err);
@@ -137,7 +93,7 @@ const ClientDashboardPage = () => {
         return [];
     };
 
-    const publicServices = services.filter(s => s.is_public !== false);
+    const publicServices = services.filter(s => s.is_public !== false && isMarketplaceServiceVisible(s));
 
     // Build category filter list from backend data (with 'All' prepended)
     const CATEGORIES = ['All', ...categories];
@@ -204,6 +160,7 @@ const ClientDashboardPage = () => {
     const filteredCreators = creators.filter(c => {
         const skillsArr = parseSkills(c.skills);
         const creatorName = getCreatorName(c);
+        if (!isMarketplaceCreatorVisible(c, skillsArr)) return false;
         return (
             safeText(creatorName).toLowerCase().includes(searchTerm.toLowerCase()) ||
             safeText(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -258,7 +215,7 @@ const ClientDashboardPage = () => {
 
 
     // Get full creator object for a service
-    const getCreator = (creatorId) => creators.find(cr => String(getCreatorUid(cr)) === String(creatorId)) || {};
+    const getCreator = (creatorId) => creators.find(cr => String(getCreatorUid(cr)) === String(creatorId) && isMarketplaceCreatorVisible(cr, parseSkills(cr.skills))) || {};
 
     return (
         <main className="client-marketplace">
@@ -297,7 +254,7 @@ const ClientDashboardPage = () => {
                         <p>Join the marketplace and start selling your services today.</p>
                     </div>
                 </div>
-                <button className="cm-cta-btn" onClick={() => navigate('/settings')}>Become a Creator</button>
+                <button className="cm-cta-btn" onClick={() => navigate('/become-creator')}>Become a Creator</button>
             </div>
 
             {viewMode === 'services' && (

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchMyCreatorOrders, fetchMyOrders, fetchUser, rejectOrder, updateOrder } from '../api';
+import { acceptOrder, fetchUser, rejectOrder, updateOrder } from '../api';
 import { Eye, CheckCircle, XCircle } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
+import { readCollection } from '../utils/collections';
+import { getOrderFetcherForRole, isActiveCreatorOrderStatus, mapOrderStatusBucket, ORDER_STATUS_FILTERS } from '../utils/orders';
+import { humanizeLabel } from '../utils/text';
 import './ProjectsPage.css';
-
-const STATUS_FILTERS = ['all', 'pending', 'active', 'completed', 'refunded', 'cancelled'];
 
 const hydrateOrderParticipantNames = async (orders) => {
     const userIds = [...new Set(
@@ -57,10 +58,9 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     useEffect(() => {
         (async () => {
             try {
-                const fetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
-                const { ok, data } = await fetcher();
+                const { ok, data } = await getOrderFetcherForRole(userRole)();
                 if (ok) {
-                    const list = data.results || data || [];
+                    const list = readCollection({ data });
                     setOrders(await hydrateOrderParticipantNames(list));
                 }
             } catch (err) {
@@ -69,20 +69,14 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                 setLoading(false);
             }
         })();
-    }, [isCreator]);
-
-    const mapStatus = (status) => {
-        if (['accepted', 'partial_submitted', 'final_submitted', 'in_progress', 'delivered'].includes(status)) return 'active';
-        if (['cancelled', 'rejected'].includes(status)) return 'cancelled';
-        return status || 'pending';
-    };
+    }, [isCreator, userRole]);
 
     const filtered = filter === 'all'
         ? orders
-        : orders.filter(o => mapStatus(o.status) === filter);
+        : orders.filter(o => mapOrderStatusBucket(o.status) === filter);
 
-    const statusCounts = STATUS_FILTERS.reduce((acc, s) => {
-        acc[s] = s === 'all' ? orders.length : orders.filter(o => mapStatus(o.status) === s).length;
+    const statusCounts = ORDER_STATUS_FILTERS.reduce((acc, s) => {
+        acc[s] = s === 'all' ? orders.length : orders.filter(o => mapOrderStatusBucket(o.status) === s).length;
         return acc;
     }, {});
 
@@ -135,7 +129,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
     };
 
     const getStatusBadge = (status) => {
-        const s = mapStatus(status);
+        const s = mapOrderStatusBucket(status);
         const styles = {
             pending: { bg: 'rgba(250,204,21,0.1)', color: '#facc15' },
             active: { bg: 'rgba(56,189,248,0.1)', color: '#38bdf8' },
@@ -146,7 +140,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
         const st = styles[s] || styles.pending;
         return (
             <span style={{ background: st.bg, color: st.color, padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>
-                {(status || 'pending').replace('_', ' ')}
+                {humanizeLabel(status || 'pending')}
             </span>
         );
     };
@@ -172,9 +166,9 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
 
             {/* Filter Tabs */}
             <div className="gigs-filters">
-                {STATUS_FILTERS.map(s => (
+                {ORDER_STATUS_FILTERS.map(s => (
                     <button key={s} className={`gigs-filter-btn ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>
-                        {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                        {humanizeLabel(s)}
                         <span className="gigs-filter-count">{statusCounts[s]}</span>
                     </button>
                 ))}
@@ -220,7 +214,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                                                         <button className="gigs-action-btn gigs-action-btn--cancel" title="Reject order" onClick={() => confirmWorkflowAction(order.id, 'Reject Order?', 'This will decline the client order.', () => rejectOrder(order.id, 'Rejected by creator.'), 'danger')}>Reject</button>
                                                     </>
                                                 )}
-                                                {isCreator && ['accepted', 'partial_submitted', 'final_submitted'].includes(order.status) && (
+                                                {isCreator && isActiveCreatorOrderStatus(order.status) && (
                                                     <button className="gigs-action-btn gigs-action-btn--deliver" title="Submit output" onClick={() => navigate(`/orders/${order.id}`)}>Submit output</button>
                                                 )}
                                                 {!isCreator && order.status === 'final_submitted' && (
@@ -229,7 +223,7 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                                                 {!['completed','cancelled','refunded','rejected','final_submitted'].includes(order.status) && (
                                                     <button className="gigs-action-btn gigs-action-btn--cancel" title="Cancel order" onClick={() => confirmStatusChange(order.id, 'cancelled', 'Cancel Order?', 'This action cannot be undone.', 'danger')} style={{ color: '#f87171', fontSize: '0.75rem' }}><XCircle size={14} /></button>
                                                 )}
-                                                {!(isCreator && ['accepted', 'partial_submitted', 'final_submitted'].includes(order.status)) && (
+                                                {!(isCreator && isActiveCreatorOrderStatus(order.status)) && (
                                                     <button className="gigs-action-btn" title="View details" onClick={() => navigate(`/orders/${order.id}`)}><Eye size={16} /></button>
                                                 )}
                                             </div>
