@@ -7,7 +7,7 @@ import {
 import {
     getUserData, patchUser, fetchMyFollowers, fetchMyFollowing, deleteFollow,
     fetchMyWallets, createWallet, deleteWallet, fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod,
-    createSupportTicket, fetchSupportTickets, submitCreatorApplication, fetchMe, setUserData,
+    createSupportTicket, fetchSupportTickets, submitCreatorApplication, setUserData, uploadIdVerificationImage,
 } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import { useTheme } from '../context/hooks/useTheme.js';
@@ -47,6 +47,13 @@ const digitsOnly = (value, maxLength = null) => {
     return typeof maxLength === 'number' ? sanitized.slice(0, maxLength) : sanitized;
 };
 
+const MAX_ID_UPLOAD_BYTES = 5 * 1024 * 1024;
+const SETTINGS_ID_UPLOAD_META = {
+    id_front_url: { label: 'Government ID Front', suffix: 'id-front', required: true },
+    id_back_url: { label: 'Government ID Back', suffix: 'id-back', required: true },
+    id_selfie_url: { label: 'Selfie With ID', suffix: 'id-selfie', required: false },
+};
+
 const SettingsPage = ({ userRole, onLogout }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -58,12 +65,16 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const [creatorModalOpen, setCreatorModalOpen] = useState(shouldOpenBecomeCreator);
     const [creatorStep, setCreatorStep] = useState(1);
     const [creatorSubmitting, setCreatorSubmitting] = useState(false);
+    const [creatorUploadingField, setCreatorUploadingField] = useState('');
     const [creatorForm, setCreatorForm] = useState({
         first_name: '',
         middle_name: '',
         last_name: '',
         phone: '',
         id_number: '',
+        id_front_url: '',
+        id_back_url: '',
+        id_selfie_url: '',
         street_address: '',
         barangay: '',
         city: '',
@@ -254,6 +265,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const resetCreatorModal = () => {
         setCreatorStep(1);
         setCreatorSubmitting(false);
+        setCreatorUploadingField('');
         setCreatorModalOpen(false);
     };
 
@@ -279,6 +291,10 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 showToast('Street address and city are required.');
                 return false;
             }
+            if (!creatorForm.id_front_url || !creatorForm.id_back_url) {
+                showToast('Upload the front and back images of a valid government ID first.');
+                return false;
+            }
             return true;
         }
 
@@ -299,7 +315,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
         }
 
         if (!creatorForm.agreed) {
-            showToast('You must agree to the creator terms.');
+            showToast('You must agree before submitting your creator application.');
             return false;
         }
         return true;
@@ -314,6 +330,33 @@ const SettingsPage = ({ userRole, onLogout }) => {
         setCreatorStep(prev => Math.max(1, prev - 1));
     };
 
+    const handleCreatorIdUpload = async (fieldKey, file) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            showToast('Only image files are allowed for ID verification.');
+            return;
+        }
+        if (file.size > MAX_ID_UPLOAD_BYTES) {
+            showToast('ID verification images must be 5 MB or smaller.');
+            return;
+        }
+
+        setCreatorUploadingField(fieldKey);
+        try {
+            const fileName = `${userData?.firebase_uid || 'user'}-${SETTINGS_ID_UPLOAD_META[fieldKey].suffix}-${Date.now()}-${file.name}`.replace(/\s+/g, '-');
+            const { ok, data } = await uploadIdVerificationImage(file, fileName);
+            if (!ok) {
+                showToast(data?.detail || `Failed to upload ${SETTINGS_ID_UPLOAD_META[fieldKey].label.toLowerCase()}.`);
+                return;
+            }
+            updateCreatorField(fieldKey, data?.url || '');
+        } catch (error) {
+            showToast(error?.message || `Failed to upload ${SETTINGS_ID_UPLOAD_META[fieldKey].label.toLowerCase()}.`);
+        } finally {
+            setCreatorUploadingField('');
+        }
+    };
+
     const handleCreatorSubmit = async () => {
         if (!validateCreatorStep()) return;
 
@@ -325,6 +368,9 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 last_name: creatorForm.last_name.trim(),
                 phone: creatorForm.phone.trim() || null,
                 id_number: creatorForm.id_number.trim() || null,
+                id_front_url: creatorForm.id_front_url || null,
+                id_back_url: creatorForm.id_back_url || null,
+                id_selfie_url: creatorForm.id_selfie_url || null,
                 street_address: creatorForm.street_address.trim() || null,
                 barangay: creatorForm.barangay.trim() || null,
                 city: creatorForm.city.trim() || null,
@@ -347,21 +393,13 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 return;
             }
 
-            const me = await fetchMe();
-            if (me.ok) {
-                const nextUser = {
-                    ...getUserData(),
-                    ...me.data,
-                    firebase_uid: String(me.data.firebase_uid || me.data.id || userData?.firebase_uid),
-                    full_name: me.data.full_name || me.data.username || `${payload.first_name} ${payload.last_name}`.trim(),
-                    role: me.data.role || 'creator',
-                };
-                setUserData(nextUser);
-            }
-
-            showToast('Creator profile created successfully.');
+            setUserData({
+                ...getUserData(),
+                creator_application_status: data?.status || 'pending',
+                creator_application_id: data?.id || null,
+            });
+            showToast('Creator application submitted for admin review.');
             resetCreatorModal();
-            window.location.href = '/';
         } catch (error) {
             showToast(error?.message || 'Failed to submit creator application.');
         } finally {
@@ -914,6 +952,27 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                         <input value={creatorForm.country} onChange={e => updateCreatorField('country', e.target.value)} />
                                     </div>
                                 </div>
+                                <div className="settings-form-row settings-form-row--3">
+                                    {Object.entries(SETTINGS_ID_UPLOAD_META).map(([fieldKey, meta]) => (
+                                        <div key={fieldKey} className="settings-form-group">
+                                            <label>{meta.label}</label>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={e => handleCreatorIdUpload(fieldKey, e.target.files?.[0] || null)}
+                                            />
+                                            <small style={{ color: creatorForm[fieldKey] ? '#22c55e' : '#94a3b8' }}>
+                                                {creatorUploadingField === fieldKey
+                                                    ? 'Uploading...'
+                                                    : creatorForm[fieldKey]
+                                                        ? 'Uploaded'
+                                                        : meta.required
+                                                            ? 'Required'
+                                                            : 'Optional'}
+                                            </small>
+                                        </div>
+                                    ))}
+                                </div>
                                 <div className="settings-form-group">
                                     <label>Street Address</label>
                                     <input value={creatorForm.street_address} onChange={e => updateCreatorField('street_address', e.target.value)} />
@@ -1014,9 +1073,10 @@ const SettingsPage = ({ userRole, onLogout }) => {
                             <div className="settings-creator-form">
                                 <div className="settings-creator-review">
                                     <h4>Review your creator setup</h4>
-                                    <p>Your account will be upgraded to creator immediately after submission, matching the mobile onboarding flow.</p>
+                                    <p>Your application will stay pending until an admin reviews and approves it.</p>
                                     <ul className="settings-creator-review__list">
                                         <li><strong>Name:</strong> {[creatorForm.first_name, creatorForm.middle_name, creatorForm.last_name].filter(Boolean).join(' ')}</li>
+                                        <li><strong>ID Verification:</strong> {creatorForm.id_front_url && creatorForm.id_back_url ? (creatorForm.id_selfie_url ? 'Front, back, and selfie uploaded' : 'Front and back uploaded') : 'Missing required uploads'}</li>
                                         <li><strong>Category:</strong> {creatorForm.category || 'Not selected'}</li>
                                         <li><strong>Skills:</strong> {creatorForm.skills.join(', ') || 'None selected'}</li>
                                         <li><strong>Rate:</strong> {creatorForm.starting_price || 'N/A'}</li>
@@ -1030,7 +1090,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                         checked={creatorForm.agreed}
                                         onChange={e => updateCreatorField('agreed', e.target.checked)}
                                     />
-                                    <span>I confirm the information is accurate and I want to activate my creator account.</span>
+                                    <span>I confirm the information is accurate and I want to submit this creator application for admin review.</span>
                                 </label>
                             </div>
                         )}
@@ -1052,7 +1112,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                 </button>
                             ) : (
                                 <button type="button" className="confirm-modal__btn confirm-modal__btn--confirm" disabled={creatorSubmitting} onClick={handleCreatorSubmit}>
-                                    {creatorSubmitting ? 'Submitting...' : 'Become a Creator'}
+                                    {creatorSubmitting ? 'Submitting...' : 'Submit Application'}
                                 </button>
                             )}
                         </div>

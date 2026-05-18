@@ -81,13 +81,25 @@ async function request(method, path, body = null) {
   // Skip for auth endpoints (login/register return 401 for invalid credentials)
   const isAuthPath = path.startsWith('/auth/');
   if (res.status === 401 && !isAuthPath) {
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { detail: 'Session expired. Please log in again.' };
+    }
     clearToken();
     clearUserData();
     // Redirect to login if not already there
     if (window.location.pathname !== '/login') {
       window.location.href = '/login';
     }
-    return { ok: false, status: 401, data: { detail: 'Session expired. Please log in again.' } };
+    return {
+      ok: false,
+      status: 401,
+      data: {
+        detail: data?.detail || 'Session expired. Please log in again.',
+      },
+    };
   }
 
   // Handle 403 — insufficient permissions
@@ -119,6 +131,63 @@ const api = {
   patch:  (path, body) => request('PATCH', path, body),
   delete: (path) => request('DELETE', path),
 };
+
+const buildQuery = (params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return;
+    query.set(key, String(value));
+  });
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : '';
+};
+
+async function uploadMultipart(path, formData) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      data: { detail: 'Cannot connect to the server. Check that the backend is running and accessible.' },
+    };
+  }
+
+  const isAuthPath = path.startsWith('/auth/');
+  if (res.status === 401 && !isAuthPath) {
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { detail: 'Session expired. Please log in again.' };
+    }
+    clearToken();
+    clearUserData();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    return { ok: false, status: 401, data };
+  }
+
+  let data;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    data = { detail: await res.text() };
+  }
+
+  return { ok: res.ok, status: res.status, data };
+}
 
 const getCurrentFirebaseUid = () => getUserData()?.firebase_uid;
 
@@ -188,10 +257,13 @@ export function logout() {
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
-export const fetchUsers       = () => api.get('/users/');
+export const fetchUsers       = ({ includeInactive = false, role = null, pageSize = 200 } = {}) =>
+  api.get(`/users/${buildQuery({ include_inactive: includeInactive, role, page_size: pageSize })}`);
 export const fetchUser        = (id) => api.get(`/users/${id}`);
 export const updateUser       = (id, body) => api.put(`/users/${id}`, body);
 export const patchUser        = (id, body) => api.patch(`/users/${id}`, body);
+export const suspendUser      = (id, body) => api.post(`/users/${id}/suspend/`, body);
+export const activateUser     = (id) => api.post(`/users/${id}/activate/`, {});
 export const deleteUser       = (id) => api.delete(`/users/${id}`);
 
 // ---------------------------------------------------------------------------
@@ -203,6 +275,16 @@ export const updateCreator    = (id, body) => api.patch(`/creators/${id}`, body)
 export const fetchCreatorByUid = (uid) => api.get(`/creators/by-uid/${uid}`);
 export const deleteCreator    = (id) => api.delete(`/creators/${id}`);
 export const submitCreatorApplication = (body) => api.post('/creator-applications/', body);
+export const fetchCreatorApplications = ({ status = null, pageSize = 200 } = {}) =>
+  api.get(`/creator-applications/${buildQuery({ status, page_size: pageSize })}`);
+export const fetchCreatorApplication = (id) => api.get(`/creator-applications/${id}`);
+export const reviewCreatorApplication = (id, body) => api.patch(`/creator-applications/${id}/review/`, body);
+export const uploadIdVerificationImage = (file, filename = '') =>
+  uploadMultipart(`/uploads/id-verification${filename ? `?filename=${encodeURIComponent(filename)}` : ''}`, (() => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return formData;
+  })());
 
 // ---------------------------------------------------------------------------
 // Categories
@@ -363,10 +445,13 @@ export const fetchMyCreatorOrders = () => {
   });
 };
 
-export const fetchMyMessages = () => {
-  return fetchScopedCollection('/messages/', 'user_id', {
-    fallback: fetchMessages,
-  });
+export const fetchMyMessages = (pageSize = 100) => {
+  const firebaseUid = getCurrentFirebaseUid();
+  if (!firebaseUid) {
+    return fetchMessages();
+  }
+
+  return api.get(`/messages/?user_id=${encodeURIComponent(firebaseUid)}&page_size=${encodeURIComponent(pageSize)}`);
 };
 
 export const fetchMyServices = () => {

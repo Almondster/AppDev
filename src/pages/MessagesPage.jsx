@@ -1,8 +1,140 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { createMessage, fetchMyMessages as apiFetchMessages, fetchUser, getToken, getUserData, updateMessage } from '../api';
-import { Search, Paperclip, Send, MoreVertical } from 'lucide-react';
+import {
+    createMessage,
+    fetchMyMessages as apiFetchMessages,
+    fetchUser,
+    getToken,
+    getUserData,
+    updateMessage,
+} from '../api';
+import { Search, Paperclip, Send, MoreHorizontal, MoreVertical, PencilLine, Check, X } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 import './MessagesPage.css';
+
+const FALLBACK_SYNC_MS = 15000;
+const HEARTBEAT_MS = 20000;
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 10000;
+
+const getApiOrigin = () => {
+    const configuredBase = import.meta.env.VITE_API_BASE_URL;
+    if (configuredBase) {
+        try {
+            return new URL(configuredBase).origin;
+        } catch {
+            void 0;
+        }
+    }
+
+    const hostname = window.location.hostname || '127.0.0.1';
+    return `http://${hostname}:8000`;
+};
+
+const getSocketBase = () => {
+    return getApiOrigin().replace(/^http/, 'ws');
+};
+
+const getConversationPartnerId = (message, myUid) => {
+    const senderId = String(message.sender_id);
+    const receiverId = String(message.receiver_id);
+    return senderId === myUid ? receiverId : senderId;
+};
+
+const isPendingMessage = (message) => String(message?.id || '').startsWith('temp-') || message?.is_pending;
+
+const toTimestamp = (value) => {
+    const rawValue = typeof value === 'string' ? value.trim() : value;
+    const normalizedValue = typeof rawValue === 'string' && rawValue && !/[zZ]|[+\-]\d{2}:\d{2}$/.test(rawValue)
+        ? `${rawValue}Z`
+        : rawValue;
+    const timestamp = new Date(normalizedValue || '').getTime();
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const messagesMatch = (pendingMessage, confirmedMessage) => {
+    if (!isPendingMessage(pendingMessage) || isPendingMessage(confirmedMessage)) return false;
+    if (
+        pendingMessage?.client_message_id &&
+        confirmedMessage?.client_message_id &&
+        pendingMessage.client_message_id === confirmedMessage.client_message_id
+    ) {
+        return true;
+    }
+    if (String(pendingMessage.sender_id) !== String(confirmedMessage.sender_id)) return false;
+    if (String(pendingMessage.receiver_id) !== String(confirmedMessage.receiver_id)) return false;
+    if ((pendingMessage.content || '').trim() !== (confirmedMessage.content || '').trim()) return false;
+
+    const timeDelta = Math.abs(toTimestamp(pendingMessage.timestamp) - toTimestamp(confirmedMessage.timestamp));
+    return timeDelta <= 15000;
+};
+
+const getMessageDisplayText = (message, myUid) => {
+    if (!message) return '';
+    if (message.is_deleted) {
+        return String(message.sender_id) === String(myUid)
+            ? 'You unsent a message'
+            : 'This message was unsent';
+    }
+    return message.content || message.message || '';
+};
+
+const getConversationPreviewText = (message, myUid) => {
+    if (!message) return '...';
+    return getMessageDisplayText(message, myUid) || '...';
+};
+
+const getMessageMetaText = (message) => {
+    if (!message) return '';
+    const pieces = [];
+    if (message.edited_at && !message.is_deleted) {
+        pieces.push('edited');
+    }
+    if (message.timestamp) {
+        const date = new Date(message.timestamp);
+        pieces.push(date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+    return pieces.join(' · ');
+};
+
+const upsertMessages = (existingMessages, incomingMessages, replaceSnapshot = false) => {
+    const nextMessages = Array.isArray(incomingMessages) ? incomingMessages : [incomingMessages];
+    const working = replaceSnapshot
+        ? existingMessages.filter((message) => isPendingMessage(message))
+        : [...existingMessages];
+
+    nextMessages.forEach((incomingMessage) => {
+        if (!incomingMessage) return;
+
+        const pendingIndex = working.findIndex((message) => messagesMatch(message, incomingMessage));
+        if (pendingIndex >= 0) {
+            working.splice(pendingIndex, 1);
+        }
+
+        const existingIndex = working.findIndex((message) =>
+            String(message.id) === String(incomingMessage.id) ||
+            (
+                incomingMessage?.client_message_id &&
+                message?.client_message_id &&
+                message.client_message_id === incomingMessage.client_message_id
+            )
+        );
+        if (existingIndex >= 0) {
+            const existingMessage = working[existingIndex];
+            working[existingIndex] = {
+                ...existingMessage,
+                ...incomingMessage,
+                // Keep optimistic read state when a slower snapshot still says unread.
+                is_read: Boolean(existingMessage?.is_read || incomingMessage?.is_read),
+                is_pending: false,
+            };
+        } else {
+            working.push({ ...incomingMessage, is_pending: false });
+        }
+    });
+
+    return [...working].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+};
 
 const MessagesPage = () => {
     const [messages, setMessages] = useState([]);
@@ -11,16 +143,65 @@ const MessagesPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [newMsg, setNewMsg] = useState('');
     const [userNames, setUserNames] = useState({});
+    const [error, setError] = useState('');
+    const [sending, setSending] = useState(false);
+    const [unsendingMessageIds, setUnsendingMessageIds] = useState({});
+    const [openActionMenuId, setOpenActionMenuId] = useState(null);
+    const [unsendConfirm, setUnsendConfirm] = useState({ open: false, message: null });
+    const [editingMessage, setEditingMessage] = useState(null);
+
+    const deferredSearchTerm = useDeferredValue(searchTerm);
     const chatEndRef = useRef(null);
+    const composerInputRef = useRef(null);
     const userNamesRef = useRef({});
     const websocketRef = useRef(null);
     const pollingRef = useRef(false);
     const markingReadRef = useRef(new Set());
+    const reconnectTimerRef = useRef(null);
+    const heartbeatTimerRef = useRef(null);
+    const reconnectAttemptsRef = useRef(0);
+    const manualSocketCloseRef = useRef(false);
+    const autoSelectedRef = useRef(false);
+    const selectedChatRef = useRef(null);
+    const loadMessagesRef = useRef(null);
+    const inflightSendKeysRef = useRef(new Set());
+
     const [searchParams] = useSearchParams();
     const toParam = searchParams.get('to');
 
     const userData = getUserData();
     const myUid = String(userData?.firebase_uid || '');
+
+    useEffect(() => {
+        selectedChatRef.current = selectedChat;
+    }, [selectedChat]);
+
+    useEffect(() => {
+        setOpenActionMenuId(null);
+        setEditingMessage(null);
+    }, [selectedChat]);
+
+    useEffect(() => {
+        if (editingMessage) {
+            composerInputRef.current?.focus();
+        }
+    }, [editingMessage]);
+
+    useEffect(() => {
+        const handleDocumentClick = () => setOpenActionMenuId(null);
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') {
+                setOpenActionMenuId(null);
+            }
+        };
+
+        document.addEventListener('click', handleDocumentClick);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('click', handleDocumentClick);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, []);
 
     const getUserName = useCallback(async (userId) => {
         if (!userId) return null;
@@ -33,98 +214,136 @@ const MessagesPage = () => {
         }
     }, []);
 
-    const hydrateMessages = useCallback(async (msgs) => {
+    const hydrateMessages = useCallback(async (items) => {
+        const messageList = Array.isArray(items) ? items : [items];
         const ids = [...new Set(
-            msgs
-                .flatMap(msg => [
-                    msg.sender_name ? null : msg.sender_id,
-                    msg.receiver_name ? null : msg.receiver_id,
+            messageList
+                .flatMap((message) => [
+                    message.sender_name ? null : message.sender_id,
+                    message.receiver_name ? null : message.receiver_id,
                 ])
                 .filter(Boolean)
                 .map(String)
         )];
-        const entries = await Promise.all(ids.map(async id => [id, await getUserName(id)]));
+
+        const entries = await Promise.all(ids.map(async (id) => [id, await getUserName(id)]));
         const names = Object.fromEntries(entries.filter(([, name]) => Boolean(name)));
-        if (Object.keys(names).length) {
-            setUserNames(prev => {
+
+        if (Object.keys(names).length > 0) {
+            setUserNames((prev) => {
                 const next = { ...prev, ...names };
                 userNamesRef.current = next;
                 return next;
             });
         }
-        return msgs.map(msg => ({
-            ...msg,
-            sender_id: String(msg.sender_id),
-            receiver_id: String(msg.receiver_id),
-            sender_name: msg.sender_name || names[String(msg.sender_id)],
-            receiver_name: msg.receiver_name || names[String(msg.receiver_id)],
+
+        return messageList.map((message) => ({
+            ...message,
+            sender_id: String(message.sender_id),
+            receiver_id: String(message.receiver_id),
+            sender_name: message.sender_name || names[String(message.sender_id)] || userNamesRef.current[String(message.sender_id)],
+            receiver_name: message.receiver_name || names[String(message.receiver_id)] || userNamesRef.current[String(message.receiver_id)],
         }));
     }, [getUserName]);
 
     const mergeMessages = useCallback((incoming) => {
         const nextMessages = Array.isArray(incoming) ? incoming : [incoming];
-        setMessages(prev => {
-            const map = new Map(prev.map(message => [message.id, message]));
-            nextMessages.forEach(message => {
-                map.set(message.id, { ...map.get(message.id), ...message });
-            });
-            return [...map.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        startTransition(() => {
+            setMessages((prev) => upsertMessages(prev, nextMessages, false));
         });
     }, []);
 
-    useEffect(() => {
-        let cancelled = false;
+    const removeMessageById = useCallback((messageId) => {
+        startTransition(() => {
+            setMessages((prev) => prev.filter((message) => message.id !== messageId));
+        });
+    }, []);
 
-        const loadMessages = async (showInitialLoader = false) => {
-            if (pollingRef.current) return;
-            pollingRef.current = true;
-            if (showInitialLoader) setLoading(true);
-            try {
-                const { ok, data } = await apiFetchMessages();
-                if (ok) {
-                    const msgs = await hydrateMessages(data.results || data || []);
-                    if (cancelled) return;
-                    setMessages(msgs);
-                    // If ?to= param, auto-select that conversation
-                    if (toParam) {
-                        const targetId = String(toParam);
-                        if (!userNamesRef.current[targetId]) {
-                            const name = await getUserName(targetId);
-                            if (cancelled) return;
-                            if (name) {
-                                setUserNames(prev => {
-                                    const next = { ...prev, [targetId]: name };
-                                    userNamesRef.current = next;
-                                    return next;
-                                });
-                            }
-                        }
-                        setSelectedChat(targetId);
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to load messages:', err);
-            } finally {
-                if (!cancelled) setLoading(false);
-                pollingRef.current = false;
+    const ensureTargetChatSelection = useCallback(async (targetId) => {
+        if (!targetId) return;
+
+        const normalizedTargetId = String(targetId);
+        if (!userNamesRef.current[normalizedTargetId]) {
+            const name = await getUserName(normalizedTargetId);
+            if (name) {
+                setUserNames((prev) => {
+                    const next = { ...prev, [normalizedTargetId]: name };
+                    userNamesRef.current = next;
+                    return next;
+                });
             }
-        };
+        }
 
+        setSelectedChat(normalizedTargetId);
+        autoSelectedRef.current = true;
+    }, [getUserName]);
+
+    const loadMessages = useCallback(async (showInitialLoader = false) => {
+        if (!myUid || pollingRef.current) return;
+
+        pollingRef.current = true;
+        if (showInitialLoader) setLoading(true);
+
+        try {
+            const { ok, data } = await apiFetchMessages();
+            if (!ok) {
+                setError(data?.detail || 'Failed to load messages.');
+                return;
+            }
+
+            const hydratedMessages = await hydrateMessages(data.results || data || []);
+            startTransition(() => {
+                setMessages((prev) => upsertMessages(prev, hydratedMessages, false));
+            });
+            setError('');
+
+            if (toParam && !autoSelectedRef.current) {
+                await ensureTargetChatSelection(toParam);
+            } else if (!selectedChatRef.current && hydratedMessages.length > 0) {
+                setSelectedChat(getConversationPartnerId(hydratedMessages[hydratedMessages.length - 1], myUid));
+            }
+        } catch (loadError) {
+            console.error('Failed to load messages:', loadError);
+            setError('Failed to load messages.');
+        } finally {
+            setLoading(false);
+            pollingRef.current = false;
+        }
+    }, [ensureTargetChatSelection, hydrateMessages, myUid, toParam]);
+
+    useEffect(() => {
+        loadMessagesRef.current = loadMessages;
+    }, [loadMessages]);
+
+    useEffect(() => {
+        autoSelectedRef.current = false;
+    }, [toParam]);
+
+    useEffect(() => {
         loadMessages(true);
+
         const intervalId = window.setInterval(() => {
             if (document.visibilityState === 'visible') {
-                loadMessages(false);
+                loadMessagesRef.current?.(false);
             }
-        }, 2500);
-        const handleFocus = () => loadMessages(false);
+        }, FALLBACK_SYNC_MS);
+
+        const handleFocus = () => loadMessagesRef.current?.(false);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                loadMessagesRef.current?.(false);
+            }
+        };
+
         window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
-            cancelled = true;
             window.clearInterval(intervalId);
             window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [hydrateMessages, toParam, getUserName]);
+    }, [loadMessages]);
 
     useEffect(() => {
         if (!myUid) return undefined;
@@ -132,45 +351,130 @@ const MessagesPage = () => {
         const token = getToken();
         if (!token) return undefined;
 
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const socketUrl = `${protocol}://127.0.0.1:8000/api/messages/ws?token=${encodeURIComponent(token)}`;
-        const socket = new WebSocket(socketUrl);
-        websocketRef.current = socket;
+        let disposed = false;
+        manualSocketCloseRef.current = false;
 
-        socket.onmessage = async (event) => {
-            try {
-                const payload = JSON.parse(event.data);
-                if (!payload?.message) return;
-                const [hydrated] = await hydrateMessages([payload.message]);
-                mergeMessages(hydrated);
-            } catch (error) {
-                console.error('Failed to handle message update:', error);
+        const stopHeartbeat = () => {
+            if (heartbeatTimerRef.current) {
+                window.clearInterval(heartbeatTimerRef.current);
+                heartbeatTimerRef.current = null;
             }
         };
 
-        socket.onopen = () => {
-            socket.send('ping');
+        const scheduleReconnect = () => {
+            if (disposed || manualSocketCloseRef.current || reconnectTimerRef.current) return;
+
+            const attempt = reconnectAttemptsRef.current;
+            const delay = Math.min(RECONNECT_BASE_MS * (2 ** attempt), RECONNECT_MAX_MS);
+            reconnectAttemptsRef.current += 1;
+            reconnectTimerRef.current = window.setTimeout(() => {
+                reconnectTimerRef.current = null;
+                connectSocket();
+            }, delay);
         };
 
+        const connectSocket = () => {
+            if (disposed) return;
+
+            const currentSocket = websocketRef.current;
+            if (currentSocket && (currentSocket.readyState === WebSocket.OPEN || currentSocket.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            const socketUrl = `${getSocketBase()}/api/messages/ws?token=${encodeURIComponent(token)}`;
+            const socket = new WebSocket(socketUrl);
+            websocketRef.current = socket;
+
+            socket.onopen = () => {
+                reconnectAttemptsRef.current = 0;
+                setError('');
+                loadMessagesRef.current?.(false);
+
+                stopHeartbeat();
+                heartbeatTimerRef.current = window.setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send('ping');
+                    }
+                }, HEARTBEAT_MS);
+            };
+
+            socket.onmessage = async (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (!payload?.message) return;
+                    const [hydratedMessage] = await hydrateMessages([payload.message]);
+                    mergeMessages(hydratedMessage);
+                } catch (messageError) {
+                    console.error('Failed to handle message update:', messageError);
+                }
+            };
+
+            socket.onerror = () => {
+                setError('Realtime message connection failed. Messages may update more slowly.');
+            };
+
+            socket.onclose = () => {
+                stopHeartbeat();
+                if (websocketRef.current === socket) {
+                    websocketRef.current = null;
+                }
+                if (!disposed && !manualSocketCloseRef.current) {
+                    scheduleReconnect();
+                }
+            };
+        };
+
+        const handleOnline = () => {
+            loadMessagesRef.current?.(false);
+            connectSocket();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                loadMessagesRef.current?.(false);
+                connectSocket();
+            }
+        };
+
+        connectSocket();
+        window.addEventListener('online', handleOnline);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         return () => {
-            socket.close();
+            disposed = true;
+            manualSocketCloseRef.current = true;
+
+            stopHeartbeat();
+            if (reconnectTimerRef.current) {
+                window.clearTimeout(reconnectTimerRef.current);
+                reconnectTimerRef.current = null;
+            }
+
+            window.removeEventListener('online', handleOnline);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+            const socket = websocketRef.current;
             websocketRef.current = null;
+            if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+                socket.close();
+            }
         };
     }, [hydrateMessages, mergeMessages, myUid]);
 
-    // Group messages into conversations by the other user
-    const conversations = useMemo(() => messages.reduce((acc, msg) => {
-        const senderId = String(msg.sender_id);
-        const receiverId = String(msg.receiver_id);
+    const conversations = useMemo(() => messages.reduce((accumulator, message) => {
+        const senderId = String(message.sender_id);
+        const receiverId = String(message.receiver_id);
         const otherId = senderId === myUid ? receiverId : senderId;
         const otherName = senderId === myUid
-            ? (msg.receiver_name || userNames[receiverId] || 'Loading...')
-            : (msg.sender_name || userNames[senderId] || 'Loading...');
-        if (!acc[otherId]) {
-            acc[otherId] = { userId: otherId, userName: otherName, messages: [] };
+            ? (message.receiver_name || userNames[receiverId] || 'Loading...')
+            : (message.sender_name || userNames[senderId] || 'Loading...');
+
+        if (!accumulator[otherId]) {
+            accumulator[otherId] = { userId: otherId, userName: otherName, messages: [] };
         }
-        acc[otherId].messages.push(msg);
-        return acc;
+
+        accumulator[otherId].messages.push(message);
+        return accumulator;
     }, {}), [messages, myUid, userNames]);
 
     const convList = useMemo(() => [
@@ -184,16 +488,16 @@ const MessagesPage = () => {
         return new Date(bTime) - new Date(aTime);
     }), [conversations, selectedChat, userNames]);
 
-    const filteredConvs = useMemo(() => convList.filter(c =>
-        c.userName?.toLowerCase().includes(searchTerm.toLowerCase())
-    ), [convList, searchTerm]);
+    const filteredConvs = useMemo(() => convList.filter((conversation) =>
+        conversation.userName?.toLowerCase().includes(deferredSearchTerm.toLowerCase())
+    ), [convList, deferredSearchTerm]);
 
-    // If toParam set but no conversation exists, create a virtual entry
     const activeConv = useMemo(() => (
         selectedChat
             ? (conversations[selectedChat] || { userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] })
             : null
     ), [conversations, selectedChat, userNames]);
+
     const activeMessages = useMemo(() => (
         activeConv?.messages
             ? [...activeConv.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
@@ -207,49 +511,227 @@ const MessagesPage = () => {
     useEffect(() => {
         if (!selectedChat || activeMessages.length === 0) return;
 
-        const unreadIncoming = activeMessages.filter(msg =>
-            msg.id &&
-            !msg.is_read &&
-            String(msg.sender_id) === String(selectedChat) &&
-            String(msg.receiver_id) === myUid &&
-            !markingReadRef.current.has(msg.id)
+        const unreadIncoming = activeMessages.filter((message) =>
+            message.id &&
+            !message.is_read &&
+            String(message.sender_id) === String(selectedChat) &&
+            String(message.receiver_id) === myUid &&
+            !markingReadRef.current.has(message.id)
         );
 
         if (unreadIncoming.length === 0) return;
 
-        unreadIncoming.forEach(msg => markingReadRef.current.add(msg.id));
-        setMessages(prev => prev.map(msg =>
-            unreadIncoming.some(unread => unread.id === msg.id)
-                ? { ...msg, is_read: true }
-                : msg
+        unreadIncoming.forEach((message) => markingReadRef.current.add(message.id));
+        setMessages((prev) => prev.map((message) =>
+            unreadIncoming.some((unread) => unread.id === message.id)
+                ? { ...message, is_read: true }
+                : message
         ));
 
-        Promise.all(unreadIncoming.map(msg => updateMessage(msg.id, { is_read: true })))
-            .finally(() => {
-                unreadIncoming.forEach(msg => markingReadRef.current.delete(msg.id));
-            });
-    }, [activeMessages, selectedChat, myUid]);
+        Promise.all(unreadIncoming.map((message) => updateMessage(message.id, { is_read: true })))
+            .then(async (results) => {
+                const failedUpdate = results.find((result) => !result?.ok);
+                if (failedUpdate) {
+                    setError(failedUpdate.data?.detail || 'Failed to update message status.');
+                }
 
-    const handleSend = useCallback(async (e) => {
-        e.preventDefault();
-        if (!newMsg.trim() || !selectedChat) return;
+                const successfulUpdates = results
+                    .filter((result) => result?.ok && result?.data)
+                    .map((result) => result.data);
+
+                if (successfulUpdates.length > 0) {
+                    const hydratedUpdates = await hydrateMessages(successfulUpdates);
+                    mergeMessages(hydratedUpdates);
+                }
+            })
+            .finally(() => {
+                unreadIncoming.forEach((message) => markingReadRef.current.delete(message.id));
+            });
+    }, [activeMessages, hydrateMessages, mergeMessages, selectedChat, myUid]);
+
+    const handleSend = useCallback(async (event) => {
+        event.preventDefault();
+        if (!newMsg.trim() || !selectedChat || sending) return;
+
+        const content = newMsg.trim();
+
+        if (editingMessage?.id) {
+            if (editingMessage.is_deleted) {
+                setEditingMessage(null);
+                setNewMsg('');
+                return;
+            }
+
+            if (content === (editingMessage.content || '').trim()) {
+                setEditingMessage(null);
+                setNewMsg('');
+                return;
+            }
+
+            setSending(true);
+            setError('');
+            try {
+                const { ok, data } = await updateMessage(editingMessage.id, { content });
+                if (!ok) {
+                    setError(data?.detail || 'Failed to edit message.');
+                    return;
+                }
+
+                const [hydratedMessage] = await hydrateMessages([data]);
+                mergeMessages(hydratedMessage);
+                setEditingMessage(null);
+                setNewMsg('');
+                if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                    loadMessagesRef.current?.(false);
+                }
+            } catch {
+                setError('Failed to edit message.');
+            } finally {
+                setSending(false);
+            }
+            return;
+        }
+
+        const sendKey = `${myUid}:${selectedChat}:${content}`;
+        if (inflightSendKeysRef.current.has(sendKey)) return;
+
+        const clientMessageId = `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const optimisticId = `temp-${Date.now()}`;
+        const optimisticMessage = {
+            id: optimisticId,
+            client_message_id: clientMessageId,
+            order_id: null,
+            sender_id: myUid,
+            receiver_id: String(selectedChat),
+            sender_name: userData?.full_name || userData?.username || 'You',
+            receiver_name: userNamesRef.current[String(selectedChat)] || activeConv?.userName || 'Loading...',
+            content,
+            is_read: false,
+            media_url: null,
+            timestamp: new Date().toISOString(),
+            is_pending: true,
+        };
+
+        inflightSendKeysRef.current.add(sendKey);
+        setSending(true);
+        mergeMessages(optimisticMessage);
+        setNewMsg('');
+        setError('');
+
         try {
             const { ok, data } = await createMessage({
+                client_message_id: clientMessageId,
                 receiver_id: selectedChat,
-                content: newMsg.trim(),
+                content,
             });
-            if (ok) {
-                const hydrated = await hydrateMessages([data]);
-                mergeMessages(hydrated[0]);
+
+            if (!ok) {
+                removeMessageById(optimisticId);
+                setError(data?.detail || 'Failed to send message.');
+                return;
+            }
+
+            const confirmedMessage = {
+                ...data,
+                sender_id: String(data.sender_id ?? myUid),
+                receiver_id: String(data.receiver_id ?? selectedChat),
+                sender_name: data.sender_name || optimisticMessage.sender_name,
+                receiver_name: data.receiver_name || optimisticMessage.receiver_name,
+                is_pending: false,
+            };
+            mergeMessages(confirmedMessage);
+            if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                loadMessagesRef.current?.(false);
+            }
+            setError('');
+        } catch {
+            removeMessageById(optimisticId);
+            setError('Failed to send message.');
+        } finally {
+            inflightSendKeysRef.current.delete(sendKey);
+            setSending(false);
+        }
+    }, [activeConv?.userName, editingMessage, hydrateMessages, mergeMessages, myUid, newMsg, removeMessageById, selectedChat, sending, userData?.full_name, userData?.username]);
+
+    const handleStartEdit = useCallback((message) => {
+        if (!message?.id || isPendingMessage(message) || message.is_deleted) return;
+        if (String(message.sender_id) !== myUid) return;
+        setEditingMessage(message);
+        setNewMsg(message.content || '');
+        setError('');
+        setOpenActionMenuId(null);
+    }, [myUid]);
+
+    const handleUnsend = useCallback(async (message) => {
+        if (!message?.id || isPendingMessage(message) || message.is_deleted) return false;
+        if (String(message.sender_id) !== myUid) return false;
+        if (unsendingMessageIds[message.id]) return false;
+
+        const previousMessage = {
+            ...message,
+            sender_id: String(message.sender_id),
+            receiver_id: String(message.receiver_id),
+        };
+
+        setUnsendingMessageIds((prev) => ({ ...prev, [message.id]: true }));
+        startTransition(() => {
+            setMessages((prev) => prev.map((item) => (
+                String(item.id) === String(message.id)
+                    ? {
+                        ...item,
+                        content: '',
+                        media_url: null,
+                        service_data: null,
+                        is_deleted: true,
+                    }
+                    : item
+            )));
+        });
+        setError('');
+
+        try {
+            const { ok, data } = await updateMessage(message.id, { is_deleted: true });
+            if (!ok) {
+                startTransition(() => {
+                    setMessages((prev) => prev.map((item) => (
+                        String(item.id) === String(message.id) ? previousMessage : item
+                    )));
+                });
+                setError(data?.detail || 'Failed to unsend message.');
+                return false;
+            }
+
+            const [hydratedMessage] = await hydrateMessages([data]);
+            mergeMessages(hydratedMessage);
+            if (editingMessage?.id === message.id) {
+                setEditingMessage(null);
                 setNewMsg('');
             }
-        } catch { /* ignore */ }
-    }, [hydrateMessages, mergeMessages, newMsg, selectedChat]);
+            if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                loadMessagesRef.current?.(false);
+            }
+            return true;
+        } catch {
+            startTransition(() => {
+                setMessages((prev) => prev.map((item) => (
+                    String(item.id) === String(message.id) ? previousMessage : item
+                )));
+            });
+            setError('Failed to unsend message.');
+            return false;
+        } finally {
+            setUnsendingMessageIds((prev) => {
+                const next = { ...prev };
+                delete next[message.id];
+                return next;
+            });
+        }
+    }, [editingMessage?.id, hydrateMessages, mergeMessages, myUid, unsendingMessageIds]);
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';
-        const d = new Date(dateStr);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
     const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
@@ -257,13 +739,14 @@ const MessagesPage = () => {
     const getAvatarColor = (name) => {
         const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6', '#f59e0b'];
         let hash = 0;
-        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        for (let i = 0; i < (name || '').length; i += 1) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
         return colors[Math.abs(hash) % colors.length];
     };
 
     return (
         <main className="msg-page">
-            {/* Breadcrumb */}
             <div className="msg-breadcrumb">
                 <span className="msg-bc-muted">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
                 <span className="msg-bc-sep">/</span>
@@ -271,47 +754,72 @@ const MessagesPage = () => {
             </div>
 
             <div className="msg-container">
-                {/* ── Left Panel: Conversation List ── */}
                 <div className="msg-sidebar">
+                    {error && (
+                        <div style={{
+                            margin: '0.75rem',
+                            padding: '0.75rem 0.9rem',
+                            borderRadius: '10px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#fca5a5',
+                            fontSize: '0.9rem',
+                        }}>
+                            {error}
+                        </div>
+                    )}
+
                     <div className="msg-search">
                         <Search size={14} className="msg-search-icon" />
-                        <input type="text" placeholder="Search messages..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        <input
+                            type="text"
+                            placeholder="Search messages..."
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                        />
                     </div>
+
                     <div className="msg-conv-list">
                         {loading ? (
-                            Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="msg-conv-item" style={{ pointerEvents: 'none' }}>
+                            Array.from({ length: 6 }).map((_, index) => (
+                                <div key={index} className="msg-conv-item" style={{ pointerEvents: 'none' }}>
                                     <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }}></div>
                                     <div className="msg-conv-info" style={{ flex: 1 }}>
                                         <div className="skeleton-row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-                                            <div className="skeleton" style={{ width: `${70 + (i%3)*25}px`, height: 16 }}></div>
+                                            <div className="skeleton" style={{ width: `${70 + (index % 3) * 25}px`, height: 16 }}></div>
                                             <div className="skeleton" style={{ width: 42, height: 14 }}></div>
                                         </div>
-                                        <div className="skeleton" style={{ width: `${60 + (i%4)*12}%`, height: 14 }}></div>
+                                        <div className="skeleton" style={{ width: `${60 + (index % 4) * 12}%`, height: 14 }}></div>
                                     </div>
                                 </div>
                             ))
                         ) : filteredConvs.length === 0 ? (
                             <p className="msg-empty-text">No conversations yet.</p>
                         ) : (
-                            filteredConvs.map(conv => {
-                                const lastMsg = conv.messages[conv.messages.length - 1];
-                                const unread = conv.messages.some(m => !m.is_read && String(m.sender_id) !== myUid);
+                            filteredConvs.map((conversation) => {
+                                const lastMessage = conversation.messages[conversation.messages.length - 1];
+                                const unread = conversation.messages.some(
+                                    (message) => !message.is_read && String(message.sender_id) !== myUid,
+                                );
+
                                 return (
                                     <div
-                                        key={conv.userId}
-                                        className={`msg-conv-item ${selectedChat === conv.userId ? 'active' : ''}`}
-                                        onClick={() => setSelectedChat(conv.userId)}
+                                        key={conversation.userId}
+                                        className={`msg-conv-item ${selectedChat === conversation.userId ? 'active' : ''}`}
+                                        onClick={() => setSelectedChat(conversation.userId)}
                                     >
-                                        <div className="msg-conv-avatar" style={{ background: getAvatarColor(conv.userName) }}>
-                                            {getInitial(conv.userName)}
+                                        <div className="msg-conv-avatar" style={{ background: getAvatarColor(conversation.userName) }}>
+                                            {getInitial(conversation.userName)}
                                         </div>
                                         <div className="msg-conv-info">
                                             <div className="msg-conv-top">
-                                                <span className="msg-conv-name">{conv.userName}</span>
-                                                <span className="msg-conv-time">{formatTime(lastMsg?.timestamp)}</span>
+                                                <span className="msg-conv-name">{conversation.userName}</span>
+                                                <span className="msg-conv-time">{formatTime(lastMessage?.timestamp)}</span>
                                             </div>
-                                            <p className="msg-conv-preview">{lastMsg?.content?.slice(0, 45) || '...'}{(lastMsg?.content?.length || 0) > 45 ? '...' : ''}</p>
+                                            <p className={`msg-conv-preview ${lastMessage?.is_deleted ? 'msg-conv-preview--deleted' : ''}`}>
+                                                {getConversationPreviewText(lastMessage, myUid).slice(0, 45) || '...'}
+                                                {(getConversationPreviewText(lastMessage, myUid).length || 0) > 45 ? '...' : ''}
+                                            </p>
                                         </div>
                                         {unread && <span className="msg-unread-dot"></span>}
                                     </div>
@@ -321,13 +829,15 @@ const MessagesPage = () => {
                     </div>
                 </div>
 
-                {/* ── Right Panel: Chat View ── */}
                 <div className="msg-chat">
                     {selectedChat && activeConv ? (
                         <>
                             <div className="msg-chat-header">
                                 <div className="msg-chat-header-user">
-                                    <div className="msg-conv-avatar msg-conv-avatar--sm" style={{ background: getAvatarColor(activeConv.userName) }}>
+                                    <div
+                                        className="msg-conv-avatar msg-conv-avatar--sm"
+                                        style={{ background: getAvatarColor(activeConv.userName) }}
+                                    >
                                         {getInitial(activeConv.userName)}
                                     </div>
                                     <span className="msg-chat-header-name">{activeConv.userName}</span>
@@ -337,26 +847,118 @@ const MessagesPage = () => {
                                     <button className="msg-icon-btn"><MoreVertical size={16} /></button>
                                 </div>
                             </div>
+
                             <div className="msg-chat-body">
-                                {activeMessages.map(msg => (
-                                    <div key={msg.id} className={`msg-bubble-row ${String(msg.sender_id) === myUid ? 'mine' : 'theirs'}`}>
-                                        <div className={`msg-bubble ${String(msg.sender_id) === myUid ? 'msg-bubble--mine' : 'msg-bubble--theirs'}`}>
-                                            <p>{msg.content || msg.message || ''}</p>
-                                            <span className="msg-bubble-time">{formatTime(msg.timestamp)}</span>
+                                {activeMessages.map((message) => {
+                                    const isMine = String(message.sender_id) === myUid;
+                                    const isDeleted = Boolean(message.is_deleted);
+                                    const displayText = getMessageDisplayText(message, myUid);
+                                    const isActionMenuOpen = openActionMenuId === message.id;
+
+                                    return (
+                                        <div
+                                            key={message.id}
+                                            className={`msg-bubble-row ${isMine ? 'mine' : 'theirs'}`}
+                                        >
+                                            {isMine && !isDeleted && !isPendingMessage(message) && (
+                                                <div
+                                                    className={`msg-bubble-rail ${isActionMenuOpen ? 'is-open' : ''}`}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        className="msg-bubble-menu-btn"
+                                                        aria-label="Message options"
+                                                        aria-expanded={isActionMenuOpen}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            setOpenActionMenuId((current) => (
+                                                                current === message.id ? null : message.id
+                                                            ));
+                                                        }}
+                                                    >
+                                                        <MoreHorizontal size={16} />
+                                                    </button>
+
+                                                    {isActionMenuOpen && (
+                                                        <div className="msg-bubble-menu">
+                                                            <button
+                                                                type="button"
+                                                                className="msg-bubble-menu__item"
+                                                                onClick={() => handleStartEdit(message)}
+                                                            >
+                                                                <PencilLine size={14} />
+                                                                Edit message
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="msg-bubble-menu__item msg-bubble-menu__item--danger"
+                                                                disabled={Boolean(unsendingMessageIds[message.id])}
+                                                                onClick={() => {
+                                                                    setOpenActionMenuId(null);
+                                                                    setUnsendConfirm({ open: true, message });
+                                                                }}
+                                                            >
+                                                                {unsendingMessageIds[message.id] ? 'Unsending...' : 'Unsend'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <div className={`msg-bubble-stack ${isMine ? 'mine' : 'theirs'}`}>
+                                                <div
+                                                    className={`msg-bubble ${
+                                                        isMine ? 'msg-bubble--mine' : 'msg-bubble--theirs'
+                                                    } ${isDeleted ? 'msg-bubble--deleted' : ''} ${message.is_pending ? 'msg-bubble--pending' : ''}`}
+                                                >
+                                                    <p>{displayText}</p>
+                                                    <span className="msg-bubble-time">{getMessageMetaText(message)}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 <div ref={chatEndRef}></div>
                             </div>
-                            <form className="msg-chat-input" onSubmit={handleSend}>
-                                <button type="button" className="msg-icon-btn"><Paperclip size={18} /></button>
-                                <input type="text" placeholder="Type a message..." value={newMsg} onChange={e => setNewMsg(e.target.value)} />
-                                <button type="submit" className="msg-send-btn" disabled={!newMsg.trim()}><Send size={18} /></button>
+
+                            <form className={`msg-chat-input ${editingMessage ? 'is-editing' : ''}`} onSubmit={handleSend}>
+                                {editingMessage && (
+                                    <div className="msg-compose-mode">
+                                        <div className="msg-compose-mode__copy">
+                                            <span className="msg-compose-mode__eyebrow">Editing message</span>
+                                            <strong>{editingMessage.receiver_name || activeConv.userName}</strong>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="msg-compose-mode__cancel"
+                                            onClick={() => {
+                                                setEditingMessage(null);
+                                                setNewMsg('');
+                                            }}
+                                        >
+                                            <X size={14} />
+                                            Cancel
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="msg-chat-input__row">
+                                    <button type="button" className="msg-icon-btn" disabled={Boolean(editingMessage)}><Paperclip size={18} /></button>
+                                    <input
+                                        ref={composerInputRef}
+                                        type="text"
+                                        placeholder={editingMessage ? 'Edit your message...' : 'Type a message...'}
+                                        value={newMsg}
+                                        onChange={(event) => setNewMsg(event.target.value)}
+                                    />
+                                    <button type="submit" className="msg-send-btn" disabled={!newMsg.trim() || sending}>
+                                        {editingMessage ? <Check size={18} /> : <Send size={18} />}
+                                    </button>
+                                </div>
                             </form>
                         </>
                     ) : loading ? (
                         <>
-                            {/* Skeleton Chat Header */}
                             <div className="msg-chat-header">
                                 <div className="msg-chat-header-user">
                                     <div className="skeleton skeleton-avatar"></div>
@@ -367,7 +969,7 @@ const MessagesPage = () => {
                                     <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
                                 </div>
                             </div>
-                            {/* Skeleton Chat Bubbles */}
+
                             <div className="msg-chat-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
                                 <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '40%' }}>
                                     <div className="skeleton" style={{ width: '90%', height: 18, marginBottom: 8 }}></div>
@@ -392,7 +994,7 @@ const MessagesPage = () => {
                                     <div className="skeleton" style={{ width: '45%', height: 14 }}></div>
                                 </div>
                             </div>
-                            {/* Skeleton Input Bar */}
+
                             <div className="msg-chat-input" style={{ pointerEvents: 'none' }}>
                                 <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }}></div>
                                 <div className="skeleton" style={{ flex: 1, height: 42, borderRadius: 8 }}></div>
@@ -406,6 +1008,24 @@ const MessagesPage = () => {
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                open={unsendConfirm.open}
+                title="Unsend message?"
+                message="This will remove the message from both sides of the conversation."
+                variant="danger"
+                confirmLabel="Unsend"
+                loading={Boolean(unsendConfirm.message?.id && unsendingMessageIds[unsendConfirm.message.id])}
+                onConfirm={async () => {
+                    const targetMessage = unsendConfirm.message;
+                    if (!targetMessage) return;
+                    const ok = await handleUnsend(targetMessage);
+                    if (ok) {
+                        setUnsendConfirm({ open: false, message: null });
+                    }
+                }}
+                onCancel={() => setUnsendConfirm({ open: false, message: null })}
+            />
         </main>
     );
 };

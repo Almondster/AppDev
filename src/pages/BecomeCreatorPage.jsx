@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Briefcase, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
-import { fetchMe, getUserData, setUserData, submitCreatorApplication } from '../api';
+import { ArrowLeft, Briefcase, CheckCircle2, Eye, ImagePlus, ShieldCheck, Sparkles, Trash2, UploadCloud } from 'lucide-react';
+import { getUserData, setUserData, submitCreatorApplication, uploadIdVerificationImage } from '../api';
 import {
     CREATOR_MAIN_CATEGORIES,
     CREATOR_SUBCATEGORY_MAP,
@@ -12,12 +12,53 @@ import './BecomeCreatorPage.css';
 const STEP_LABELS = [
     { number: 1, title: 'Identity', description: 'Tell us who you are.' },
     { number: 2, title: 'Services', description: 'Define what you offer.' },
-    { number: 3, title: 'Review', description: 'Confirm and activate.' },
+    { number: 3, title: 'Review', description: 'Confirm and submit for review.' },
 ];
+
+const MAX_ID_UPLOAD_BYTES = 5 * 1024 * 1024;
+const UPLOAD_PREVIEW_ORIGIN = import.meta.env.DEV
+    ? 'http://127.0.0.1:8000'
+    : (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/api\/?$/, '');
+const ID_UPLOAD_META = {
+    id_front_url: {
+        label: 'Government ID Front',
+        description: 'Upload a clear photo of the front of your valid government ID.',
+        suffix: 'id-front',
+        required: true,
+    },
+    id_back_url: {
+        label: 'Government ID Back',
+        description: 'Upload a clear photo of the back of your valid government ID.',
+        suffix: 'id-back',
+        required: true,
+    },
+    id_selfie_url: {
+        label: 'Selfie With ID',
+        description: 'Optional, but recommended if the admin needs extra verification.',
+        suffix: 'id-selfie',
+        required: false,
+    },
+};
 
 const digitsOnly = (value, maxLength = null) => {
     const sanitized = String(value || '').replace(/\D/g, '');
     return typeof maxLength === 'number' ? sanitized.slice(0, maxLength) : sanitized;
+};
+
+const resolveUploadPreviewUrl = (value) => {
+    if (!value) return '';
+    return /^https?:\/\//i.test(value) ? value : `${UPLOAD_PREVIEW_ORIGIN}${value}`;
+};
+
+const getUploadFileName = (value) => {
+    if (!value) return '';
+    const resolved = resolveUploadPreviewUrl(value);
+    try {
+        const pathname = new URL(resolved).pathname;
+        return decodeURIComponent(pathname.split('/').pop() || '');
+    } catch {
+        return decodeURIComponent(String(value).split('/').pop() || '');
+    }
 };
 
 const BecomeCreatorPage = () => {
@@ -25,7 +66,9 @@ const BecomeCreatorPage = () => {
     const userData = getUserData();
     const [step, setStep] = useState(1);
     const [submitting, setSubmitting] = useState(false);
+    const [uploadingField, setUploadingField] = useState('');
     const [error, setError] = useState('');
+    const [submittedApplication, setSubmittedApplication] = useState(null);
     const [creatorForm, setCreatorForm] = useState(() => createInitialCreatorForm(userData?.full_name || ''));
 
     const isExistingCreator = userData?.role && userData.role !== 'client';
@@ -35,6 +78,7 @@ const BecomeCreatorPage = () => {
     );
 
     const updateField = (key, value) => {
+        setError('');
         setCreatorForm((prev) => ({ ...prev, [key]: value }));
     };
 
@@ -69,6 +113,10 @@ const BecomeCreatorPage = () => {
                 setError('Street address and city are required.');
                 return false;
             }
+            if (!creatorForm.id_front_url || !creatorForm.id_back_url) {
+                setError('Upload the front and back images of a valid government ID before continuing.');
+                return false;
+            }
         }
 
         if (step === 2) {
@@ -87,7 +135,7 @@ const BecomeCreatorPage = () => {
         }
 
         if (step === 3 && !creatorForm.agreed) {
-            setError('You must confirm the information before activation.');
+            setError('You must confirm the information before submitting your application.');
             return false;
         }
 
@@ -105,6 +153,34 @@ const BecomeCreatorPage = () => {
         setStep((prev) => Math.max(1, prev - 1));
     };
 
+    const handleIdUpload = async (fieldKey, file) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setError('Only image files are allowed for ID verification.');
+            return;
+        }
+        if (file.size > MAX_ID_UPLOAD_BYTES) {
+            setError('ID verification images must be 5 MB or smaller.');
+            return;
+        }
+
+        setError('');
+        setUploadingField(fieldKey);
+        try {
+            const fileName = `${userData?.firebase_uid || 'user'}-${ID_UPLOAD_META[fieldKey].suffix}-${Date.now()}-${file.name}`.replace(/\s+/g, '-');
+            const { ok, data } = await uploadIdVerificationImage(file, fileName);
+            if (!ok) {
+                setError(data?.detail || `Failed to upload ${ID_UPLOAD_META[fieldKey].label.toLowerCase()}.`);
+                return;
+            }
+            updateField(fieldKey, data?.url || '');
+        } catch (uploadError) {
+            setError(uploadError?.message || `Failed to upload ${ID_UPLOAD_META[fieldKey].label.toLowerCase()}.`);
+        } finally {
+            setUploadingField('');
+        }
+    };
+
     const handleSubmit = async () => {
         if (!validateStep()) return;
 
@@ -116,6 +192,9 @@ const BecomeCreatorPage = () => {
                 last_name: creatorForm.last_name.trim(),
                 phone: creatorForm.phone.trim() || null,
                 id_number: creatorForm.id_number.trim() || null,
+                id_front_url: creatorForm.id_front_url || null,
+                id_back_url: creatorForm.id_back_url || null,
+                id_selfie_url: creatorForm.id_selfie_url || null,
                 street_address: creatorForm.street_address.trim() || null,
                 barangay: creatorForm.barangay.trim() || null,
                 city: creatorForm.city.trim() || null,
@@ -138,18 +217,12 @@ const BecomeCreatorPage = () => {
                 return;
             }
 
-            const me = await fetchMe();
-            if (me.ok) {
-                setUserData({
-                    ...getUserData(),
-                    ...me.data,
-                    firebase_uid: String(me.data.firebase_uid || me.data.id || userData?.firebase_uid),
-                    full_name: me.data.full_name || me.data.username || `${payload.first_name} ${payload.last_name}`.trim(),
-                    role: me.data.role || 'creator',
-                });
-            }
-
-            window.location.href = '/';
+            setUserData({
+                ...getUserData(),
+                creator_application_status: data?.status || 'pending',
+                creator_application_id: data?.id || null,
+            });
+            setSubmittedApplication(data);
         } catch (submitError) {
             setError(submitError?.message || 'Failed to submit creator application.');
         } finally {
@@ -200,6 +273,103 @@ const BecomeCreatorPage = () => {
                     <span>Country</span>
                     <input value={creatorForm.country} onChange={(event) => updateField('country', event.target.value)} />
                 </label>
+            </div>
+
+            <div className="bc-section bc-section--upload">
+                <div className="bc-section__header">
+                    <h3>Valid ID Uploads</h3>
+                    <p>Upload clear images of your ID. Front and back are required. Maximum file size is 5 MB per image.</p>
+                </div>
+
+                <div className="bc-upload-grid">
+                    {Object.entries(ID_UPLOAD_META).map(([fieldKey, meta]) => {
+                        const hasUpload = Boolean(creatorForm[fieldKey]);
+                        const previewUrl = resolveUploadPreviewUrl(creatorForm[fieldKey]);
+                        const fileName = getUploadFileName(creatorForm[fieldKey]);
+                        const isUploading = uploadingField === fieldKey;
+
+                        return (
+                            <div
+                                key={fieldKey}
+                                className={`bc-upload-card ${hasUpload ? 'is-complete' : ''} ${isUploading ? 'is-uploading' : ''}`}
+                            >
+                                <div className="bc-upload-card__top">
+                                    <div>
+                                        <span className="bc-upload-card__title">{meta.label}</span>
+                                        <span className="bc-upload-card__copy">{meta.description}</span>
+                                    </div>
+                                    <span className={`bc-upload-card__badge ${meta.required ? 'is-required' : 'is-optional'}`}>
+                                        {meta.required ? 'Required' : 'Optional'}
+                                    </span>
+                                </div>
+
+                                <div className={`bc-upload-card__preview ${hasUpload ? 'has-image' : ''}`}>
+                                    {hasUpload ? (
+                                        <img src={previewUrl} alt={meta.label} />
+                                    ) : (
+                                        <div className="bc-upload-card__placeholder">
+                                            <ImagePlus size={24} />
+                                            <strong>{meta.required ? 'No image uploaded yet' : 'Optional upload'}</strong>
+                                            <span>Use a bright, readable photo with all edges visible.</span>
+                                        </div>
+                                    )}
+
+                                    {isUploading && (
+                                        <div className="bc-upload-card__overlay">
+                                            <UploadCloud size={18} />
+                                            Uploading image...
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="bc-upload-card__status-row">
+                                    <span className={`bc-upload-card__status ${hasUpload ? 'is-complete' : ''}`}>
+                                        {isUploading ? 'Uploading...' : hasUpload ? 'Upload complete' : meta.required ? 'Waiting for upload' : 'Not uploaded'}
+                                    </span>
+                                    {fileName && <span className="bc-upload-card__file">{fileName}</span>}
+                                </div>
+
+                                <div className="bc-upload-card__actions">
+                                    <label className={`bc-upload-card__trigger ${isUploading ? 'is-disabled' : ''}`}>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={isUploading}
+                                            onClick={(event) => {
+                                                event.target.value = null;
+                                            }}
+                                            onChange={(event) => handleIdUpload(fieldKey, event.target.files?.[0] || null)}
+                                        />
+                                        <UploadCloud size={16} />
+                                        {hasUpload ? 'Replace image' : 'Choose image'}
+                                    </label>
+
+                                    {hasUpload && (
+                                        <>
+                                            <a
+                                                href={previewUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="bc-upload-card__link"
+                                            >
+                                                <Eye size={16} />
+                                                Preview
+                                            </a>
+                                            <button
+                                                type="button"
+                                                className="bc-upload-card__remove"
+                                                onClick={() => updateField(fieldKey, '')}
+                                            >
+                                                <Trash2 size={16} />
+                                                Remove
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
 
             <label className="bc-field">
@@ -329,6 +499,16 @@ const BecomeCreatorPage = () => {
                         <dd>{creatorForm.phone || 'Not provided'}</dd>
                     </div>
                     <div>
+                        <dt>ID Verification</dt>
+                        <dd>
+                            {creatorForm.id_front_url && creatorForm.id_back_url
+                                ? creatorForm.id_selfie_url
+                                    ? 'Front, back, and selfie uploaded'
+                                    : 'Front and back uploaded'
+                                : 'Missing required ID uploads'}
+                        </dd>
+                    </div>
+                    <div>
                         <dt>Category</dt>
                         <dd>{creatorForm.category || 'Not selected'}</dd>
                     </div>
@@ -353,10 +533,30 @@ const BecomeCreatorPage = () => {
                     checked={creatorForm.agreed}
                     onChange={(event) => updateField('agreed', event.target.checked)}
                 />
-                <span>I confirm that the information above is accurate and I want to activate my creator account now.</span>
+                <span>I confirm that the information above is accurate and I want to submit this creator application for admin review.</span>
             </label>
         </div>
     );
+
+    if (submittedApplication) {
+        return (
+            <main className="become-creator-page page-fade">
+                <section className="bc-hero bc-hero--compact">
+                    <div className="bc-hero__copy">
+                        <span className="bc-kicker">Application Submitted</span>
+                        <h1>Your creator application is now pending admin review.</h1>
+                        <p>
+                            Your valid ID details and creator profile were submitted successfully. An admin must approve the
+                            application before creator access is enabled on your account.
+                        </p>
+                    </div>
+                    <button type="button" className="bc-primary-btn" onClick={() => navigate('/')}>
+                        Return to Workspace
+                    </button>
+                </section>
+            </main>
+        );
+    }
 
     if (isExistingCreator) {
         return (
@@ -370,9 +570,9 @@ const BecomeCreatorPage = () => {
                 <section className="bc-hero bc-hero--compact">
                     <div className="bc-hero__copy">
                         <span className="bc-kicker">Creator Access Active</span>
-                        <h1>Your account is already set up for creator access.</h1>
-                        <p>You can go straight to your dashboard and manage your creator workspace from there.</p>
-                    </div>
+                    <h1>Your account is already set up for creator access.</h1>
+                    <p>You can go straight to your dashboard and manage your creator workspace from there.</p>
+                </div>
                     <button type="button" className="bc-primary-btn" onClick={() => navigate('/')}>
                         Go to Dashboard
                     </button>
@@ -399,12 +599,12 @@ const BecomeCreatorPage = () => {
                 <div className="bc-hero__copy">
                     <span className="bc-kicker">Creator Onboarding</span>
                     <h1>Build your creator profile without leaving the app flow.</h1>
-                    <p>Complete identity, service setup, and final activation in one place. No redirect to your profile page, no hidden modal steps.</p>
+                    <p>Complete identity, service setup, and submit your creator application for admin review in one place.</p>
                 </div>
                 <div className="bc-hero__badges">
                     <span><ShieldCheck size={16} /> Verified identity details</span>
                     <span><Briefcase size={16} /> Service-ready profile</span>
-                    <span><Sparkles size={16} /> Instant creator activation</span>
+                    <span><Sparkles size={16} /> Admin approval before creator access</span>
                 </div>
             </section>
 
@@ -471,7 +671,7 @@ const BecomeCreatorPage = () => {
                                 </button>
                             ) : (
                                 <button type="button" className="bc-primary-btn" disabled={submitting} onClick={handleSubmit}>
-                                    {submitting ? 'Activating...' : 'Activate Creator Account'}
+                                    {submitting ? 'Submitting...' : 'Submit Creator Application'}
                                 </button>
                             )}
                         </div>
