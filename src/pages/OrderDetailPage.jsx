@@ -706,7 +706,7 @@ const OrderDetailPage = () => {
               </button>
 
               {/* File Dispute */}
-              {['pending', 'accepted', 'in_progress', 'partial_submitted', 'final_submitted', 'delivered'].includes(order.status) && (
+              {['pending', 'accepted', 'in_progress', 'partial_submitted', 'final_submitted', 'delivered', 'completed'].includes(order.status) && (
                 <button 
                   onClick={() => setDisputeModalOpen(true)}
                   className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"

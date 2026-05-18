@@ -257,8 +257,8 @@ export const changeEmail = (body) => request('/auth/change-email/', { method: 'P
 // ── Users ──────────────────────────────────────────────────────────────────
 
 export const fetchUsers = (params, options) => request('/users/', { params, ...options });
-export const fetchUser = (id, options) => request(`/users/${id}/`, options);
-export const updateUser = (id, body) => request(`/users/${id}/`, { method: 'PATCH', body });
+export const fetchUser = (id, options) => request(`/users/${id}`, options);
+export const updateUser = (id, body) => request(`/users/${id}`, { method: 'PATCH', body });
 export const suspendUser = (id) => request(`/users/${id}/suspend/`, { method: 'POST' });
 export const activateUser = (id) => request(`/users/${id}/activate/`, { method: 'POST' });
 
@@ -267,30 +267,30 @@ export const activateUser = (id) => request(`/users/${id}/activate/`, { method: 
 export const fetchCreators = (params, options) => request('/creators/', { params, ...options });
 export const fetchCreatorByUid = (uid) => request(`/creators/by-uid/${uid}/`);
 export const createCreator = (body) => request('/creators/', { method: 'POST', body });
-export const updateCreator = (id, body) => request(`/creators/${id}/`, { method: 'PATCH', body });
+export const updateCreator = (id, body) => request(`/creators/${id}`, { method: 'PATCH', body });
 
 // ── Categories ─────────────────────────────────────────────────────────────
 
 export const fetchCategories = (params, options) => request('/categories/', { params, ...options });
 export const createCategory = (body) => request('/categories/', { method: 'POST', body });
-export const deleteCategory = (id) => request(`/categories/${id}/`, { method: 'DELETE' });
+export const deleteCategory = (id) => request(`/categories/${id}`, { method: 'DELETE' });
 
 // ── Services ───────────────────────────────────────────────────────────────
 
 export const fetchServices = (params, options) => request('/services/', { params, ...options });
-export const fetchService = (id) => request(`/services/${id}/`);
+export const fetchService = (id) => request(`/services/${id}`);
 export const createService = (body) => request('/services/', { method: 'POST', body });
-export const updateService = (id, body) => request(`/services/${id}/`, { method: 'PATCH', body });
-export const deleteService = (id) => request(`/services/${id}/`, { method: 'DELETE' });
+export const updateService = (id, body) => request(`/services/${id}`, { method: 'PATCH', body });
+export const deleteService = (id) => request(`/services/${id}`, { method: 'DELETE' });
 
 // ── Orders ─────────────────────────────────────────────────────────────────
 
 export const fetchOrders = (params, options) => request('/orders/', { params, ...options });
-export const fetchOrder = (id) => request(`/orders/${id}/`);
+export const fetchOrder = (id) => request(`/orders/${id}`);
 export const createOrder = (body) => request('/orders/', { method: 'POST', body });
 export const updateOrder = async (id, body) => {
   try {
-    const data = await request(`/orders/${id}/`, { method: 'PATCH', body });
+    const data = await request(`/orders/${id}`, { method: 'PATCH', body });
     return { ok: true, data };
   } catch (err) {
     return { ok: false, data: { detail: err.message || 'Failed to update order' } };
@@ -346,7 +346,7 @@ export const fetchOrderTimeline = (params, options) => request('/order-timeline/
 
 export const fetchReviews = (params, options) => request('/reviews/', { params, ...options });
 export const createReview = (body) => request('/reviews/', { method: 'POST', body });
-export const updateReview = (id, body) => request(`/reviews/${id}/`, { method: 'PATCH', body });
+export const updateReview = (id, body) => request(`/reviews/${id}`, { method: 'PATCH', body });
 
 // ── Messages ───────────────────────────────────────────────────────────────
 
@@ -357,7 +357,7 @@ export const sendMessage = (body) => request('/messages/', { method: 'POST', bod
 
 export const fetchFollows = (params, options) => request('/follows/', { params, ...options });
 export const createFollow = (body) => request('/follows/', { method: 'POST', body });
-export const deleteFollow = (id) => request(`/follows/${id}/`, { method: 'DELETE' });
+export const deleteFollow = (id) => request(`/follows/${id}`, { method: 'DELETE' });
 
 // ── Blocks ─────────────────────────────────────────────────────────────────
 
@@ -368,7 +368,7 @@ export const createBlock = (body) => request('/blocks/', { method: 'POST', body 
 
 export const fetchReports = (params, options) => request('/reports/', { params, ...options });
 export const createReport = (body) => request('/reports/', { method: 'POST', body });
-export const updateReport = (id, body) => request(`/reports/${id}/`, { method: 'PATCH', body });
+export const updateReport = (id, body) => request(`/reports/${id}`, { method: 'PATCH', body });
 
 // ── Matches ────────────────────────────────────────────────────────────────
 
@@ -384,7 +384,7 @@ export const createPaymentMethod = (body) => request('/payment-methods/', { meth
 
 export const fetchSupportTickets = (params, options) => request('/support-tickets/', { params, ...options });
 export const createSupportTicket = (body) => request('/support-tickets/', { method: 'POST', body });
-export const updateSupportTicket = (id, body) => request(`/support-tickets/${id}/`, { method: 'PATCH', body });
+export const updateSupportTicket = (id, body) => request(`/support-tickets/${id}`, { method: 'PATCH', body });
 
 // ── Wallets ────────────────────────────────────────────────────────────────
 
@@ -452,11 +452,11 @@ export const reviewCreatorApplication = (id, data) =>
 // ── Disputes ──────────────────────────────────────────────────────────────
 
 export const fetchDisputes = (params, options) => request('/disputes/', { params, ...options });
-export const fetchDispute = (id) => request(`/disputes/${id}/`);
+export const fetchDispute = (id) => request(`/disputes/${id}`);
 export const createDispute = (body) => request('/disputes/', { method: 'POST', body });
 export const resolveDispute = (id, body) => request(`/disputes/${id}/resolve`, { method: 'PATCH', body });
 export const escalateDispute = (id) => request(`/disputes/${id}/escalate`, { method: 'POST' });
-export const deleteDispute = (id) => request(`/disputes/${id}/`, { method: 'DELETE' });
+export const deleteDispute = (id) => request(`/disputes/${id}`, { method: 'DELETE' });
 
 // ── Refunds ────────────────────────────────────────────────────────────────
 
@@ -468,7 +468,7 @@ export const fetchOrderNotifications = (params, options) => request('/order-noti
 export const getUnreadNotificationCount = (options) => request('/order-notifications/unread-count', { skipCache: true, ...options });
 export const markNotificationRead = (id) => request(`/order-notifications/${id}/mark-read`, { method: 'POST' });
 export const markAllNotificationsRead = () => request('/order-notifications/mark-all-read', { method: 'POST' });
-export const deleteNotification = (id) => request(`/order-notifications/${id}/`, { method: 'DELETE' });
+export const deleteNotification = (id) => request(`/order-notifications/${id}`, { method: 'DELETE' });
 export const clearAllNotifications = () => request('/order-notifications/clear-all', { method: 'DELETE' });
 
 // ── Convenience: getUserData (stored user from localStorage) ───────────────
@@ -516,12 +516,12 @@ export const fetchMyWallets = (options) => request('/wallets/', options);
 export const fetchMyWithdrawals = (options) => request('/withdrawals/', options);
 export const fetchTimeline = (params, options) => request('/order-timeline/', { params, ...options });
 export const createMessage = (body) => request('/messages/', { method: 'POST', body });
-export const updateMessage = (id, body) => request(`/messages/${id}/`, { method: 'PATCH', body });
-export const deleteBlock = (id) => request(`/blocks/${id}/`, { method: 'DELETE' });
-export const deleteWallet = (id) => request(`/wallets/${id}/`, { method: 'DELETE' });
-export const deletePaymentMethod = (id) => request(`/payment-methods/${id}/`, { method: 'DELETE' });
-export const patchUser = (id, body) => request(`/users/${id}/`, { method: 'PATCH', body });
-export const deleteOrder = (id) => request(`/orders/${id}/`, { method: 'DELETE' });
+export const updateMessage = (id, body) => request(`/messages/${id}`, { method: 'PATCH', body });
+export const deleteBlock = (id) => request(`/blocks/${id}`, { method: 'DELETE' });
+export const deleteWallet = (id) => request(`/wallets/${id}`, { method: 'DELETE' });
+export const deletePaymentMethod = (id) => request(`/payment-methods/${id}`, { method: 'DELETE' });
+export const patchUser = (id, body) => request(`/users/${id}`, { method: 'PATCH', body });
+export const deleteOrder = (id) => request(`/orders/${id}`, { method: 'DELETE' });
 export const createMatch = (body) => request('/matches/', { method: 'POST', body });
 export const fetchDeadlines = (options) => request('/deadline-notifications/', options);
 
@@ -555,6 +555,6 @@ export const uploadFinalFiles = async (orderId, url) => {
 export const fetchMyFollowers = (options) => request('/follows/', { params: { following_id: getStoredUser()?.id }, ...options });
 export const fetchMyFollowing = (options) => request('/follows/', { params: { follower_id: getStoredUser()?.id }, ...options });
 export const fetchNotifications = (options) => request('/deadline-notifications/', options);
-export const deleteBlock2 = (id) => request(`/blocks/${id}/`, { method: 'DELETE' });
+export const deleteBlock2 = (id) => request(`/blocks/${id}`, { method: 'DELETE' });
 export const createCreatorProfile = (body) => request('/creators/', { method: 'POST', body });
 export const fetchMyReviews = (options) => request('/reviews/', options);
