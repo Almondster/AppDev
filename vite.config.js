@@ -1,14 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const DEFAULT_API_PROXY_TARGET = 'https://createch-backend-fastapi.onrender.com'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: DEFAULT_API_PROXY_TARGET,
         changeOrigin: true,
+        ws: true,
+        secure: true,
       },
     },
   },

@@ -1,14 +1,32 @@
-/**
- * Backward-compatibility shim.
- * The canonical API module is at `services/api.js` and returns raw data.
- * 
- * The origin/main UI pages expect every fetch helper to return { ok, data }.
- * This file wraps each exported function to produce that shape while
- * keeping the underlying services/api.js untouched (AdminDashboardPage
- * imports from services/api.js directly and expects raw data).
- */
+// Createch API Helper — connects web UI to FastAPI backend
+// All requests include JWT Bearer tokens when available.
+// 401 responses trigger auto-logout; 403 returns clear permission errors.
+const DEFAULT_API_ORIGIN = 'https://createch-backend-fastapi.onrender.com';
 
-import * as raw from './services/api';
+const stripTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '');
+
+const stripApiSuffix = (value) => stripTrailingSlash(value).replace(/\/api$/i, '');
+
+const buildApiBase = (value) => {
+  const origin = stripApiSuffix(value || DEFAULT_API_ORIGIN);
+  return `${origin}/api`;
+};
+
+export const API_ORIGIN = stripApiSuffix(DEFAULT_API_ORIGIN);
+export const API_BASE = import.meta.env.DEV
+  ? '/api'
+  : buildApiBase(DEFAULT_API_ORIGIN);
+const REQUEST_TIMEOUT_MS = 12000;
+
+export const getApiOrigin = () => API_ORIGIN;
+
+// ---------------------------------------------------------------------------
+// Token helpers
+// ---------------------------------------------------------------------------
+export const getToken = () => localStorage.getItem('createch_token');
+const emitAuthStateChanged = () => {
+  window.dispatchEvent(new Event('createch-auth-changed'));
+};
 
 // ── Helper: wrap a raw-data async function into { ok, data } ───────────────
 
@@ -46,6 +64,87 @@ export const changeEmail = wrapFetch(raw.changeEmail);
 
 // ── Wrapped fetch helpers ──────────────────────────────────────────────────
 
+  let data;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    data = { detail: await res.text() };
+  }
+
+  return { ok: res.ok, status: res.status, data };
+}
+
+const getCurrentFirebaseUid = () => getUserData()?.firebase_uid;
+
+const fetchScopedCollection = (path, queryKey, options = {}) => {
+  const {
+    fallback = () => api.get(path),
+    transform = (value) => value,
+  } = options;
+  const firebaseUid = getCurrentFirebaseUid();
+
+  if (!firebaseUid) {
+    return fallback();
+  }
+
+  return api.get(`${path}?${queryKey}=${encodeURIComponent(transform(firebaseUid))}`);
+};
+
+const fetchEmptyCollection = () => Promise.resolve({ ok: true, data: [] });
+
+// ---------------------------------------------------------------------------
+// Auth endpoints (public — no token required)
+// ---------------------------------------------------------------------------
+export async function login(email, password) {
+  const { ok, data } = await api.post('/auth/login/', { email, password });
+  if (ok && data.access) {
+    setToken(data.access);
+    setUserData({
+      firebase_uid: data.firebase_uid,
+      email: data.email,
+      role: data.role,
+      full_name: data.full_name,
+    });
+  }
+  return { ok, data };
+}
+
+export async function register({ email, password, confirm_password, first_name, last_name, phone, role }) {
+  const { ok, data } = await api.post('/auth/register/', {
+    email, password, confirm_password, first_name, last_name, phone, role,
+  });
+  if (ok && data.access) {
+    setToken(data.access);
+    setUserData({
+      firebase_uid: data.firebase_uid,
+      email: data.email,
+      role: data.role,
+      full_name: data.full_name,
+    });
+  }
+  return { ok, data };
+}
+
+export async function fetchMe() {
+  return api.get('/auth/me/');
+}
+
+export async function forgotPassword(email) {
+  return api.post('/auth/forgot-password/', { email });
+}
+
+export function logout() {
+  // Clear user-scoped notification read state
+  const user = getUserData();
+  if (user?.firebase_uid) {
+    localStorage.removeItem(`createch_read_notifs_${user.firebase_uid}`);
+  }
+  clearToken();
+  clearUserData();
+}
+
+// ---------------------------------------------------------------------------
 // Users
 export const fetchUsers   = wrapFetch(raw.fetchUsers);
 export const fetchUser    = wrapFetch(raw.fetchUser);

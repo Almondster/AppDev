@@ -1,7 +1,96 @@
-import { useState, useEffect } from 'react';
-import { Users as UsersIcon, Search, MoreVertical, Shield, Ban, CheckCircle } from 'lucide-react';
-import { fetchUsers as apiFetchUsers, patchUser, suspendUser, activateUser } from '../api';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { BadgeCheck, Clock3, Search, ShieldCheck, Trash2, UserRoundX } from 'lucide-react';
+import {
+    activateUser,
+    deleteUser,
+    fetchCreatorApplications,
+    fetchUsers as apiFetchUsers,
+    getApiOrigin,
+    reviewCreatorApplication,
+    suspendUser,
+} from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import RoleBadge from '../components/RoleBadge';
+import '../styles/UsersPage.css';
+import { readCollection } from '../utils/collections';
+import { humanizeLabel } from '../utils/text';
+
+const API_UPLOAD_ORIGIN = getApiOrigin();
+
+const emptyConfirmModal = { open: false, id: null, action: '', userName: '' };
+const emptyBanModal = { open: false, id: null, userName: '', suspendedUntil: '', reason: '' };
+
+const parseApiDate = (value) => {
+    if (!value) return null;
+    const normalized = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? value : `${value}Z`;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDate = (value, options) => {
+    const parsed = parseApiDate(value);
+    if (!parsed) return '—';
+    return parsed.toLocaleString('en-US', options);
+};
+
+const toAssetUrl = (path) => {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) return path;
+    return `${API_UPLOAD_ORIGIN}${path}`;
+};
+
+const getUserStatus = (user) => {
+    if (user.is_active === false) {
+        return {
+            label: 'Deleted',
+            detail: 'Account deleted',
+            tone: 'deleted',
+        };
+    }
+
+    const suspendedUntil = parseApiDate(user.suspended_until);
+    if (suspendedUntil && suspendedUntil > new Date()) {
+        return {
+            label: 'Banned',
+            detail: `Until ${suspendedUntil.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+            })}`,
+            tone: 'banned',
+        };
+    }
+
+    return {
+        label: 'Active',
+        detail: 'Can access account',
+        tone: 'active',
+    };
+};
+
+const statusPillStyle = (tone) => {
+    if (tone === 'banned') {
+        return {
+            backgroundColor: 'rgba(245, 158, 11, 0.14)',
+            color: '#f59e0b',
+            border: '1px solid rgba(245, 158, 11, 0.22)',
+        };
+    }
+    if (tone === 'deleted') {
+        return {
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            color: '#f87171',
+            border: '1px solid rgba(239, 68, 68, 0.22)',
+        };
+    }
+    return {
+        backgroundColor: 'rgba(34, 197, 94, 0.12)',
+        color: '#4ade80',
+        border: '1px solid rgba(34, 197, 94, 0.18)',
+    };
+};
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
@@ -17,8 +106,8 @@ const UsersPage = () => {
     const [actionLoading, setActionLoading] = useState(false);
 
     useEffect(() => {
-        loadUsers();
-    }, []);
+        loadAdminData();
+    }, [loadAdminData]);
 
     useEffect(() => {
         const handleClickOutside = () => setOpenMenuId(null);
@@ -26,7 +115,7 @@ const UsersPage = () => {
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    const loadUsers = async () => {
+    const loadAdminData = useCallback(async () => {
         setLoading(true);
         try {
             const { ok, data } = await apiFetchUsers();
@@ -48,7 +137,7 @@ const UsersPage = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     const filtered = users.filter(u => {
         const matchSearch = u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||

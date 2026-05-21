@@ -1,7 +1,127 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { fetchMyMessages as apiFetchMessages, createMessage, getUserData, fetchUser, updateMessage } from '../api';
-import { Search, Paperclip, Send, MoreVertical } from 'lucide-react';
+import {
+    createMessage,
+    fetchMyMessages as apiFetchMessages,
+    fetchUser,
+    getApiOrigin,
+    getToken,
+    getUserData,
+    updateMessage,
+} from '../api';
+import { Search, Paperclip, Send, MoreHorizontal, MoreVertical, PencilLine, Check, X } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import './MessagesPage.css';
+
+const FALLBACK_SYNC_MS = 15000;
+const HEARTBEAT_MS = 20000;
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 10000;
+
+const getSocketBase = () => {
+    return getApiOrigin().replace(/^http/, 'ws');
+};
+
+const getConversationPartnerId = (message, myUid) => {
+    const senderId = String(message.sender_id);
+    const receiverId = String(message.receiver_id);
+    return senderId === myUid ? receiverId : senderId;
+};
+
+const isPendingMessage = (message) => String(message?.id || '').startsWith('temp-') || message?.is_pending;
+
+const toTimestamp = (value) => {
+    const rawValue = typeof value === 'string' ? value.trim() : value;
+    const normalizedValue = typeof rawValue === 'string' && rawValue && !/[zZ]|[+-]\d{2}:\d{2}$/.test(rawValue)
+        ? `${rawValue}Z`
+        : rawValue;
+    const timestamp = new Date(normalizedValue || '').getTime();
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const messagesMatch = (pendingMessage, confirmedMessage) => {
+    if (!isPendingMessage(pendingMessage) || isPendingMessage(confirmedMessage)) return false;
+    if (
+        pendingMessage?.client_message_id &&
+        confirmedMessage?.client_message_id &&
+        pendingMessage.client_message_id === confirmedMessage.client_message_id
+    ) {
+        return true;
+    }
+    if (String(pendingMessage.sender_id) !== String(confirmedMessage.sender_id)) return false;
+    if (String(pendingMessage.receiver_id) !== String(confirmedMessage.receiver_id)) return false;
+    if ((pendingMessage.content || '').trim() !== (confirmedMessage.content || '').trim()) return false;
+
+    const timeDelta = Math.abs(toTimestamp(pendingMessage.timestamp) - toTimestamp(confirmedMessage.timestamp));
+    return timeDelta <= 15000;
+};
+
+const getMessageDisplayText = (message, myUid) => {
+    if (!message) return '';
+    if (message.is_deleted) {
+        return String(message.sender_id) === String(myUid)
+            ? 'You unsent a message'
+            : 'This message was unsent';
+    }
+    return message.content || message.message || '';
+};
+
+const getConversationPreviewText = (message, myUid) => {
+    if (!message) return '...';
+    return getMessageDisplayText(message, myUid) || '...';
+};
+
+const getMessageMetaText = (message) => {
+    if (!message) return '';
+    const pieces = [];
+    if (message.edited_at && !message.is_deleted) {
+        pieces.push('edited');
+    }
+    if (message.timestamp) {
+        const date = new Date(message.timestamp);
+        pieces.push(date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+    return pieces.join(' · ');
+};
+
+const upsertMessages = (existingMessages, incomingMessages, replaceSnapshot = false) => {
+    const nextMessages = Array.isArray(incomingMessages) ? incomingMessages : [incomingMessages];
+    const working = replaceSnapshot
+        ? existingMessages.filter((message) => isPendingMessage(message))
+        : [...existingMessages];
+
+    nextMessages.forEach((incomingMessage) => {
+        if (!incomingMessage) return;
+
+        const pendingIndex = working.findIndex((message) => messagesMatch(message, incomingMessage));
+        if (pendingIndex >= 0) {
+            working.splice(pendingIndex, 1);
+        }
+
+        const existingIndex = working.findIndex((message) =>
+            String(message.id) === String(incomingMessage.id) ||
+            (
+                incomingMessage?.client_message_id &&
+                message?.client_message_id &&
+                message.client_message_id === incomingMessage.client_message_id
+            )
+        );
+        if (existingIndex >= 0) {
+            const existingMessage = working[existingIndex];
+            working[existingIndex] = {
+                ...existingMessage,
+                ...incomingMessage,
+                // Keep optimistic read state when a slower snapshot still says unread.
+                is_read: Boolean(existingMessage?.is_read || incomingMessage?.is_read),
+                is_pending: false,
+            };
+        } else {
+            working.push({ ...incomingMessage, is_pending: false });
+        }
+    });
+
+    return [...working].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+};
 
 const MessagesPage = () => {
     const [messages, setMessages] = useState([]);

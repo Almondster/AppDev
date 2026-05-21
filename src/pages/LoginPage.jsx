@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button } from '../components/Button';
-import { GlassCard } from '../components/GlassCard';
-import { ArrowLeft, Star, Quote, Eye, EyeOff } from 'lucide-react';
-import { login, register, googleLoginAPI } from '../api';
-import { signInWithGooglePopup } from '../lib/firebase';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { forgotPassword, login, register } from '../api';
+import AuthBrandPanel from '../components/AuthBrandPanel';
+import GoogleIcon from '../components/GoogleIcon';
+import './LoginPage.css';
 
 const GoogleIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24">
@@ -85,9 +85,42 @@ const LoginPage = ({ onLogin }) => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!validateForm()) return;
+  const handleGoogleAuth = () => {
+    setApiSuccess('');
+    setApiError('Google sign-in is not configured in this build yet. Use your email and password.');
+  };
+
+  const handleForgotPassword = async () => {
+    const email = form.email.trim();
+    if (!email) {
+      setErrors((prev) => ({ ...prev, email: 'Enter your account email first' }));
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setErrors((prev) => ({ ...prev, email: 'Invalid email format' }));
+      return;
+    }
+
+    setLoading(true);
+    setApiError('');
+    setApiSuccess('');
+    try {
+      const { ok, data } = await forgotPassword(email);
+      if (!ok) {
+        setApiError(data?.error || data?.detail || 'Could not start password reset.');
+        return;
+      }
+      setApiSuccess(`If ${email} is registered, a reset link has been sent.`);
+    } catch {
+      setApiError('Cannot reach the server to start password reset.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="auth-page page-fade">
+      <AuthBrandPanel />
 
         setIsLoading(true);
         setAuthError(null);
@@ -104,10 +137,10 @@ const LoginPage = ({ onLogin }) => {
                     role: searchParams.get('role') || 'client',
                 });
 
-                if (!ok) {
-                    setAuthError(data?.error || data?.detail || 'Registration failed');
-                    return;
-                }
+          <button type="button" className="auth-google" onClick={handleGoogleAuth}>
+            <GoogleIcon />
+            {isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
+          </button>
 
                 setTimeout(() => {
                     onLogin();
@@ -189,26 +222,29 @@ const LoginPage = ({ onLogin }) => {
                         Join thousands of creators and clients building the future. Secure payments, smart matching, and zero friction.
                     </p>
 
-                    <div className="pt-8">
-                        <GlassCard className="p-6 border-white/5 bg-white/5 backdrop-blur-xl">
-                            <div className="flex gap-1 text-yellow-500 mb-4">
-                                {[1, 2, 3, 4, 5].map(i => <Star key={i} size={16} fill="currentColor" />)}
-                            </div>
-                            <p className="text-zinc-300 italic mb-6 relative">
-                                <Quote size={40} className="absolute -top-4 -left-2 text-white/5 -z-10" />
-                                "CREATECH transformed how we scale our design operations. The talent quality is unmatched."
-                            </p>
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-zinc-800 border border-white/10 overflow-hidden">
-                                    <img src="https://picsum.photos/id/1005/80/80" className="w-full h-full object-cover" alt="" />
-                                </div>
-                                <div>
-                                    <div className="text-white font-medium text-sm">Fel Kirstian Raut</div>
-                                    <div className="text-zinc-500 text-xs">Product Director, GORRP Tech</div>
-                                </div>
-                            </div>
-                        </GlassCard>
-                    </div>
+            <label>
+              <span>Email Address</span>
+              <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" />
+              {errors.email && <small>{errors.email}</small>}
+            </label>
+
+            <div className={isSignUp ? 'auth-form__grid auth-form__grid--two' : ''}>
+              <label>
+                <span>
+                  Password
+                  {!isSignUp && <button type="button" onClick={handleForgotPassword}>Forgot password?</button>}
+                </span>
+                <div className="auth-password">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={form.password}
+                    onChange={handleChange}
+                    placeholder={isSignUp ? '' : 'Enter your password'}
+                  />
+                  <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
             </div>
 
