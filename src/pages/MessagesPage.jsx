@@ -4,6 +4,7 @@ import {
     createMessage,
     fetchMyMessages as apiFetchMessages,
     fetchUser,
+    getApiOrigin,
     getToken,
     getUserData,
     updateMessage,
@@ -16,20 +17,6 @@ const FALLBACK_SYNC_MS = 15000;
 const HEARTBEAT_MS = 20000;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 10000;
-
-const getApiOrigin = () => {
-    const configuredBase = import.meta.env.VITE_API_BASE_URL;
-    if (configuredBase) {
-        try {
-            return new URL(configuredBase).origin;
-        } catch {
-            void 0;
-        }
-    }
-
-    const hostname = window.location.hostname || '127.0.0.1';
-    return `http://${hostname}:8000`;
-};
 
 const getSocketBase = () => {
     return getApiOrigin().replace(/^http/, 'ws');
@@ -45,7 +32,7 @@ const isPendingMessage = (message) => String(message?.id || '').startsWith('temp
 
 const toTimestamp = (value) => {
     const rawValue = typeof value === 'string' ? value.trim() : value;
-    const normalizedValue = typeof rawValue === 'string' && rawValue && !/[zZ]|[+\-]\d{2}:\d{2}$/.test(rawValue)
+    const normalizedValue = typeof rawValue === 'string' && rawValue && !/[zZ]|[+-]\d{2}:\d{2}$/.test(rawValue)
         ? `${rawValue}Z`
         : rawValue;
     const timestamp = new Date(normalizedValue || '').getTime();

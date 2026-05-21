@@ -1,10 +1,24 @@
 // Createch API Helper — connects web UI to FastAPI backend
 // All requests include JWT Bearer tokens when available.
 // 401 responses trigger auto-logout; 403 returns clear permission errors.
-const API_BASE = import.meta.env.DEV
+const DEFAULT_API_ORIGIN = 'https://createch-backend-fastapi.onrender.com';
+
+const stripTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '');
+
+const stripApiSuffix = (value) => stripTrailingSlash(value).replace(/\/api$/i, '');
+
+const buildApiBase = (value) => {
+  const origin = stripApiSuffix(value || DEFAULT_API_ORIGIN);
+  return `${origin}/api`;
+};
+
+export const API_ORIGIN = stripApiSuffix(DEFAULT_API_ORIGIN);
+export const API_BASE = import.meta.env.DEV
   ? '/api'
-  : (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api');
+  : buildApiBase(DEFAULT_API_ORIGIN);
 const REQUEST_TIMEOUT_MS = 12000;
+
+export const getApiOrigin = () => API_ORIGIN;
 
 // ---------------------------------------------------------------------------
 // Token helpers
@@ -242,6 +256,10 @@ export async function register({ email, password, confirm_password, first_name, 
 
 export async function fetchMe() {
   return api.get('/auth/me/');
+}
+
+export async function forgotPassword(email) {
+  return api.post('/auth/forgot-password/', { email });
 }
 
 export function logout() {

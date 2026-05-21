@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BadgeCheck, Clock3, Search, ShieldCheck, Trash2, UserRoundX } from 'lucide-react';
 import {
     activateUser,
     deleteUser,
     fetchCreatorApplications,
     fetchUsers as apiFetchUsers,
+    getApiOrigin,
     reviewCreatorApplication,
     suspendUser,
 } from '../api';
@@ -14,9 +15,7 @@ import '../styles/UsersPage.css';
 import { readCollection } from '../utils/collections';
 import { humanizeLabel } from '../utils/text';
 
-const API_UPLOAD_ORIGIN = import.meta.env.DEV
-    ? 'http://127.0.0.1:8000'
-    : (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/api\/?$/, '');
+const API_UPLOAD_ORIGIN = getApiOrigin();
 
 const emptyConfirmModal = { open: false, id: null, action: '', userName: '' };
 const emptyBanModal = { open: false, id: null, userName: '', suspendedUntil: '', reason: '' };
@@ -107,14 +106,14 @@ const UsersPage = () => {
 
     useEffect(() => {
         loadAdminData();
-    }, []);
+    }, [loadAdminData]);
 
     const showToast = (message) => {
         setToast(message);
         window.setTimeout(() => setToast(''), 3500);
     };
 
-    const loadAdminData = async () => {
+    const loadAdminData = useCallback(async () => {
         setLoading(true);
         try {
             const [usersRes, appsRes] = await Promise.all([
@@ -134,7 +133,7 @@ const UsersPage = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     const filteredUsers = useMemo(() => {
         const needle = searchTerm.trim().toLowerCase();

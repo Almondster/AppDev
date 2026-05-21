@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Briefcase, CheckCircle2, Eye, ImagePlus, ShieldCheck, Sparkles, Trash2, UploadCloud } from 'lucide-react';
-import { getUserData, setUserData, submitCreatorApplication, uploadIdVerificationImage } from '../api';
+import { getApiOrigin, getUserData, setUserData, submitCreatorApplication, uploadIdVerificationImage } from '../api';
 import {
     CREATOR_MAIN_CATEGORIES,
     CREATOR_SUBCATEGORY_MAP,
@@ -16,9 +16,7 @@ const STEP_LABELS = [
 ];
 
 const MAX_ID_UPLOAD_BYTES = 5 * 1024 * 1024;
-const UPLOAD_PREVIEW_ORIGIN = import.meta.env.DEV
-    ? 'http://127.0.0.1:8000'
-    : (import.meta.env.VITE_API_BASE_URL || window.location.origin).replace(/\/api\/?$/, '');
+const UPLOAD_PREVIEW_ORIGIN = getApiOrigin();
 const ID_UPLOAD_META = {
     id_front_url: {
         label: 'Government ID Front',

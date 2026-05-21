@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import { login, register } from '../api';
+import { forgotPassword, login, register } from '../api';
 import AuthBrandPanel from '../components/AuthBrandPanel';
 import GoogleIcon from '../components/GoogleIcon';
 import './LoginPage.css';
@@ -139,6 +139,39 @@ const LoginPage = ({ onLogin }) => {
     setForm(initialForm);
   };
 
+  const handleGoogleAuth = () => {
+    setApiSuccess('');
+    setApiError('Google sign-in is not configured in this build yet. Use your email and password.');
+  };
+
+  const handleForgotPassword = async () => {
+    const email = form.email.trim();
+    if (!email) {
+      setErrors((prev) => ({ ...prev, email: 'Enter your account email first' }));
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setErrors((prev) => ({ ...prev, email: 'Invalid email format' }));
+      return;
+    }
+
+    setLoading(true);
+    setApiError('');
+    setApiSuccess('');
+    try {
+      const { ok, data } = await forgotPassword(email);
+      if (!ok) {
+        setApiError(data?.error || data?.detail || 'Could not start password reset.');
+        return;
+      }
+      setApiSuccess(`If ${email} is registered, a reset link has been sent.`);
+    } catch {
+      setApiError('Cannot reach the server to start password reset.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="auth-page page-fade">
       <AuthBrandPanel />
@@ -155,7 +188,7 @@ const LoginPage = ({ onLogin }) => {
             <p>{isSignUp ? 'Enter your details to get started.' : 'Please enter your details to sign in.'}</p>
           </div>
 
-          <button type="button" className="auth-google">
+          <button type="button" className="auth-google" onClick={handleGoogleAuth}>
             <GoogleIcon />
             {isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
           </button>
@@ -213,7 +246,7 @@ const LoginPage = ({ onLogin }) => {
               <label>
                 <span>
                   Password
-                  {!isSignUp && <button type="button">Forgot password?</button>}
+                  {!isSignUp && <button type="button" onClick={handleForgotPassword}>Forgot password?</button>}
                 </span>
                 <div className="auth-password">
                   <input
