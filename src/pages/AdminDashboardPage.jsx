@@ -167,7 +167,7 @@ const AdminDashboardPage = () => {
                                         <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.9rem' }}>{c.label || c.name}</p>
                                         {(c.icon || c.description) && <p style={{ color: '#71717a', fontSize: '0.8rem', margin: '2px 0 0' }}>{c.icon || c.description}</p>}
                                     </div>
-                                    <button onClick={() => setDeleteConfirm({ open: true, id: c.id, name: c.name })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
+                                    <button onClick={() => setDeleteConfirm({ open: true, id: c.id, name: c.label || c.name || 'Category' })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
                                 </div>
                             ))}
                         </div>

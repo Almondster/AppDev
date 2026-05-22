@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
+import AdminProjectsPage from './pages/AdminProjectsPage';
 import MyGigsPage from './pages/MyGigsPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
@@ -120,8 +121,8 @@ function App() {
           <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
-            <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
-            <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/projects" element={userRole === 'admin' ? <AdminProjectsPage /> : <ProjectsPage userRole={userRole} />} />
+            <Route path="/orders" element={userRole === 'admin' ? <Navigate to="/projects" replace /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />
             <Route path="/become-creator" element={<BecomeCreatorPage />} />
 

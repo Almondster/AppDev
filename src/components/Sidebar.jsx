@@ -39,7 +39,7 @@ const Sidebar = ({ userRole, onLogout }) => {
 
     const adminMenu = [
         { to: '/', label: 'Dashboard', icon: <ShieldCheck size={18} /> },
-        { to: '/projects', label: 'All Projects', icon: <Briefcase size={18} /> },
+        { to: '/projects', label: 'All Services', icon: <Briefcase size={18} /> },
         { to: '/users', label: 'Manage Users', icon: <Users size={18} /> },
         { to: '/disputes', label: 'Disputes', icon: <AlertTriangle size={18} /> },
         { to: '/settings', label: 'Platform Settings', icon: <Settings size={18} /> },

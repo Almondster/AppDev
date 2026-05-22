@@ -155,7 +155,9 @@ const buildQuery = (params = {}) => {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || value === undefined || value === '') return;
-    query.set(key, String(value));
+    // Convert camelCase to snake_case for backend compatibility
+    const snakeKey = key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
+    query.set(snakeKey, String(value));
   });
   const serialized = query.toString();
   return serialized ? `?${serialized}` : '';
