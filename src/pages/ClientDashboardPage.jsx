@@ -45,6 +45,15 @@ const ClientDashboardPage = () => {
                 const [oRes, sRes, cRes, rRes, catRes] = await Promise.all([
                     apiFetchOrders(), fetchServices(), fetchCreators(), fetchReviews(), fetchCategories()
                 ]);
+                const failedResponse = [oRes, sRes, cRes, rRes, catRes].find((response) => !response?.ok);
+
+                if (failedResponse) {
+                    setError(
+                        failedResponse?.status === 401
+                            ? 'Your session is no longer valid. Please sign in again.'
+                            : failedResponse?.data?.detail || 'Failed to load marketplace data. Please try again.'
+                    );
+                }
                 if (oRes.ok) setOrders(readCollection(oRes));
                 if (sRes.ok) setServices(readCollection(sRes));
                 if (cRes.ok) setCreators(readCollection(cRes));

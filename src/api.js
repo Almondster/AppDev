@@ -2,6 +2,7 @@
 // All requests include JWT Bearer tokens when available.
 // 401 responses trigger auto-logout; 403 returns clear permission errors.
 const DEFAULT_API_ORIGIN = 'https://createch-backend-fastapi.onrender.com';
+const DEFAULT_DEV_API_ORIGIN = 'http://127.0.0.1:8000';
 
 const stripTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -12,10 +13,14 @@ const buildApiBase = (value) => {
   return `${origin}/api`;
 };
 
-export const API_ORIGIN = stripApiSuffix(DEFAULT_API_ORIGIN);
+const CONFIGURED_API_ORIGIN = import.meta.env.DEV
+  ? stripApiSuffix(import.meta.env.VITE_DEV_API_ORIGIN || DEFAULT_DEV_API_ORIGIN)
+  : stripApiSuffix(import.meta.env.VITE_API_BASE_URL || DEFAULT_API_ORIGIN);
+
+export const API_ORIGIN = CONFIGURED_API_ORIGIN;
 export const API_BASE = import.meta.env.DEV
   ? '/api'
-  : buildApiBase(DEFAULT_API_ORIGIN);
+  : buildApiBase(CONFIGURED_API_ORIGIN);
 const REQUEST_TIMEOUT_MS = 12000;
 
 export const getApiOrigin = () => API_ORIGIN;
@@ -316,7 +321,7 @@ export const deleteCategory   = (id) => api.delete(`/categories/${id}`);
 // ---------------------------------------------------------------------------
 // Services
 // ---------------------------------------------------------------------------
-export const fetchServices    = () => api.get('/services/');
+export const fetchServices    = (params = {}) => api.get(`/services/${buildQuery(params)}`);
 export const fetchService     = (id) => api.get(`/services/${id}`);
 export const createService    = (body) => api.post('/services/', body);
 export const updateService    = (id, body) => api.put(`/services/${id}`, body);

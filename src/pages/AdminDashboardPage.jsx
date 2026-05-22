@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, BarChart3, AlertTriangle, ShieldCheck, Tag, Plus, Trash2, X } from 'lucide-react';
+import { Users, BarChart3, AlertTriangle, ShieldCheck, Tag, Plus, Trash2, Package } from 'lucide-react';
 import { fetchUsers as apiFetchUsers, fetchOrders as apiFetchOrders, fetchSupportTickets as apiFetchTickets, fetchCategories, createCategory, deleteCategory, fetchServices } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -22,7 +22,13 @@ const AdminDashboardPage = () => {
     useEffect(() => {
         (async () => {
             try {
-                const [uRes, oRes, tRes, cRes, sRes] = await Promise.all([apiFetchUsers(), apiFetchOrders(), apiFetchTickets(), fetchCategories(), fetchServices()]);
+                const [uRes, oRes, tRes, cRes, sRes] = await Promise.all([
+                    apiFetchUsers({ includeInactive: true }),
+                    apiFetchOrders(),
+                    apiFetchTickets(),
+                    fetchCategories(),
+                    fetchServices({ include_deleted: true }),
+                ]);
                 if (uRes.ok) {
                     const users = uRes.data.results || uRes.data || [];
                     setUserCount(users.length);

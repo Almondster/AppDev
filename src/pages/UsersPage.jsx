@@ -104,14 +104,10 @@ const UsersPage = () => {
     const [banModal, setBanModal] = useState(emptyBanModal);
     const [actionLoading, setActionLoading] = useState(false);
 
-    useEffect(() => {
-        loadAdminData();
-    }, [loadAdminData]);
-
-    const showToast = (message) => {
+    const showToast = useCallback((message) => {
         setToast(message);
         window.setTimeout(() => setToast(''), 3500);
-    };
+    }, []);
 
     const loadAdminData = useCallback(async () => {
         setLoading(true);
@@ -133,7 +129,11 @@ const UsersPage = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [showToast]);
+
+    useEffect(() => {
+        loadAdminData();
+    }, [loadAdminData]);
 
     const filteredUsers = useMemo(() => {
         const needle = searchTerm.trim().toLowerCase();
