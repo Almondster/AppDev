@@ -74,11 +74,11 @@ const AdminDashboardPage = () => {
             const { ok } = await deleteCategory(deleteConfirm.id);
             if (ok) setCategories(prev => prev.filter(c => c.id !== deleteConfirm.id));
         } catch (err) {
-            console.error('Failed to delete category:', err);
-        }
-        setDeleting(false);
-        setDeleteConfirm({ open: false, id: null, name: '' });
-    };;
+                console.error('Failed to delete category:', err);
+            }
+            setDeleting(false);
+            setDeleteConfirm({ open: false, id: null, name: '' });
+        };
 
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
