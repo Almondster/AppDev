@@ -17,8 +17,8 @@ import {
 import { getUserData } from '../api';
 import { useTheme } from '../context/hooks/useTheme.js';
 
-const Sidebar = ({ userRole, onLogout }) => {
-    const userData = getUserData();
+const Sidebar = ({ userRole, onLogout, userData: propUserData }) => {
+    const userData = propUserData || getUserData();
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
@@ -62,7 +62,15 @@ const Sidebar = ({ userRole, onLogout }) => {
 
             <div className="sidebar-user">
                 <div className="sidebar-avatar">
-                    {(userData?.full_name || userRole || 'U').charAt(0).toUpperCase()}
+                    {userData?.avatar_url ? (
+                        <img
+                            src={userData.avatar_url}
+                            alt={userData?.full_name || userData?.email || 'User'}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                        />
+                    ) : (
+                        (userData?.full_name || userRole || 'U').charAt(0).toUpperCase()
+                    )}
                 </div>
                 <div className="sidebar-user-info">
                     <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>

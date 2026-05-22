@@ -13,7 +13,8 @@ import { Search, Paperclip, Send, MoreHorizontal, MoreVertical, PencilLine, Chec
 import ConfirmModal from '../components/ConfirmModal';
 import './MessagesPage.css';
 
-const FALLBACK_SYNC_MS = 15000;
+const FALLBACK_SYNC_MS = 5000;
+const POST_SEND_SYNC_DELAYS_MS = [800, 2500, 6000];
 const HEARTBEAT_MS = 20000;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 10000;
@@ -37,6 +38,57 @@ const toTimestamp = (value) => {
         : rawValue;
     const timestamp = new Date(normalizedValue || '').getTime();
     return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const toDate = (value) => {
+    const timestamp = toTimestamp(value);
+    return timestamp ? new Date(timestamp) : null;
+};
+
+const sameCalendarDay = (left, right) =>
+    left?.getFullYear?.() === right?.getFullYear?.() &&
+    left?.getMonth?.() === right?.getMonth?.() &&
+    left?.getDate?.() === right?.getDate?.();
+
+const formatClockTime = (value) => {
+    const date = toDate(value);
+    if (!date) return '';
+    return new Intl.DateTimeFormat(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+};
+
+const formatConversationTime = (value) => {
+    const date = toDate(value);
+    if (!date) return '';
+
+    const now = new Date();
+    if (sameCalendarDay(date, now)) {
+        return formatClockTime(value);
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+    }).format(date);
+};
+
+const formatMessageTimestamp = (value) => {
+    const date = toDate(value);
+    if (!date) return '';
+
+    const now = new Date();
+    if (sameCalendarDay(date, now)) {
+        return formatClockTime(value);
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
 };
 
 const messagesMatch = (pendingMessage, confirmedMessage) => {
@@ -74,12 +126,14 @@ const getConversationPreviewText = (message, myUid) => {
 const getMessageMetaText = (message) => {
     if (!message) return '';
     const pieces = [];
+    if (message.is_pending) {
+        pieces.push('Sending...');
+    }
     if (message.edited_at && !message.is_deleted) {
         pieces.push('edited');
     }
     if (message.timestamp) {
-        const date = new Date(message.timestamp);
-        pieces.push(date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        pieces.push(formatMessageTimestamp(message.timestamp));
     }
     return pieces.join(' · ');
 };
@@ -120,7 +174,7 @@ const upsertMessages = (existingMessages, incomingMessages, replaceSnapshot = fa
         }
     });
 
-    return [...working].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    return [...working].sort((a, b) => toTimestamp(a.timestamp) - toTimestamp(b.timestamp));
 };
 
 const MessagesPage = () => {
@@ -302,6 +356,14 @@ const MessagesPage = () => {
         loadMessagesRef.current = loadMessages;
     }, [loadMessages]);
 
+    const schedulePostSendSync = useCallback(() => {
+        POST_SEND_SYNC_DELAYS_MS.forEach((delay) => {
+            window.setTimeout(() => {
+                loadMessagesRef.current?.(false);
+            }, delay);
+        });
+    }, []);
+
     useEffect(() => {
         autoSelectedRef.current = false;
     }, [toParam]);
@@ -472,7 +534,7 @@ const MessagesPage = () => {
     ].sort((a, b) => {
         const aTime = a.messages[a.messages.length - 1]?.timestamp || '';
         const bTime = b.messages[b.messages.length - 1]?.timestamp || '';
-        return new Date(bTime) - new Date(aTime);
+        return toTimestamp(bTime) - toTimestamp(aTime);
     }), [conversations, selectedChat, userNames]);
 
     const filteredConvs = useMemo(() => convList.filter((conversation) =>
@@ -487,7 +549,7 @@ const MessagesPage = () => {
 
     const activeMessages = useMemo(() => (
         activeConv?.messages
-            ? [...activeConv.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            ? [...activeConv.messages].sort((a, b) => toTimestamp(a.timestamp) - toTimestamp(b.timestamp))
             : []
     ), [activeConv]);
 
@@ -622,11 +684,13 @@ const MessagesPage = () => {
                 ...data,
                 sender_id: String(data.sender_id ?? myUid),
                 receiver_id: String(data.receiver_id ?? selectedChat),
+                client_message_id: data.client_message_id || clientMessageId,
                 sender_name: data.sender_name || optimisticMessage.sender_name,
                 receiver_name: data.receiver_name || optimisticMessage.receiver_name,
                 is_pending: false,
             };
             mergeMessages(confirmedMessage);
+            schedulePostSendSync();
             if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
                 loadMessagesRef.current?.(false);
             }
@@ -638,7 +702,7 @@ const MessagesPage = () => {
             inflightSendKeysRef.current.delete(sendKey);
             setSending(false);
         }
-    }, [activeConv?.userName, editingMessage, hydrateMessages, mergeMessages, myUid, newMsg, removeMessageById, selectedChat, sending, userData?.full_name, userData?.username]);
+    }, [activeConv?.userName, editingMessage, hydrateMessages, mergeMessages, myUid, newMsg, removeMessageById, schedulePostSendSync, selectedChat, sending, userData?.full_name, userData?.username]);
 
     const handleStartEdit = useCallback((message) => {
         if (!message?.id || isPendingMessage(message) || message.is_deleted) return;
@@ -714,12 +778,6 @@ const MessagesPage = () => {
             });
         }
     }, [editingMessage?.id, hydrateMessages, mergeMessages, myUid, unsendingMessageIds]);
-
-    const formatTime = (dateStr) => {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    };
 
     const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
 
@@ -801,7 +859,7 @@ const MessagesPage = () => {
                                         <div className="msg-conv-info">
                                             <div className="msg-conv-top">
                                                 <span className="msg-conv-name">{conversation.userName}</span>
-                                                <span className="msg-conv-time">{formatTime(lastMessage?.timestamp)}</span>
+                                                <span className="msg-conv-time">{formatConversationTime(lastMessage?.timestamp)}</span>
                                             </div>
                                             <p className={`msg-conv-preview ${lastMessage?.is_deleted ? 'msg-conv-preview--deleted' : ''}`}>
                                                 {getConversationPreviewText(lastMessage, myUid).slice(0, 45) || '...'}
