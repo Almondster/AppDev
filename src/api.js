@@ -2,6 +2,7 @@
 // All requests include JWT Bearer tokens when available.
 // 401 responses trigger auto-logout; 403 returns clear permission errors.
 const DEFAULT_API_ORIGIN = 'https://createch-backend-fastapi.onrender.com';
+const DEFAULT_DEV_API_ORIGIN = 'http://127.0.0.1:8000';
 
 const stripTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -12,10 +13,14 @@ const buildApiBase = (value) => {
   return `${origin}/api`;
 };
 
-export const API_ORIGIN = stripApiSuffix(DEFAULT_API_ORIGIN);
+const CONFIGURED_API_ORIGIN = import.meta.env.DEV
+  ? stripApiSuffix(import.meta.env.VITE_DEV_API_ORIGIN || DEFAULT_DEV_API_ORIGIN)
+  : stripApiSuffix(import.meta.env.VITE_API_BASE_URL || DEFAULT_API_ORIGIN);
+
+export const API_ORIGIN = CONFIGURED_API_ORIGIN;
 export const API_BASE = import.meta.env.DEV
   ? '/api'
-  : buildApiBase(DEFAULT_API_ORIGIN);
+  : buildApiBase(CONFIGURED_API_ORIGIN);
 const REQUEST_TIMEOUT_MS = 12000;
 
 export const getApiOrigin = () => API_ORIGIN;
@@ -28,41 +33,169 @@ const emitAuthStateChanged = () => {
   window.dispatchEvent(new Event('createch-auth-changed'));
 };
 
-// ── Helper: wrap a raw-data async function into { ok, data } ───────────────
+export const setToken = (token) => {
+  localStorage.setItem('createch_token', token);
+  emitAuthStateChanged();
+};
+export const clearToken = () => {
+  localStorage.removeItem('createch_token');
+  emitAuthStateChanged();
+};
 
-function wrapFetch(fn) {
-  return async (...args) => {
-    try {
-      const data = await fn(...args);
-      return { ok: true, data };
-    } catch (err) {
-      console.error('[api.js shim] request failed:', err);
-      return { ok: false, data: { detail: err.message || 'Request failed' } };
+export const getUserData = () => {
+  try {
+    return JSON.parse(localStorage.getItem('createch_user'));
+  } catch {
+    return null;
+  }
+};
+export const setUserData = (data) => {
+  localStorage.setItem('createch_user', JSON.stringify(data));
+  emitAuthStateChanged();
+};
+export const clearUserData = () => {
+  localStorage.removeItem('createch_user');
+  emitAuthStateChanged();
+};
+
+// ---------------------------------------------------------------------------
+// Core fetch wrapper with auth error handling
+// ---------------------------------------------------------------------------
+async function request(method, path, body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const opts = { method, headers, signal: controller.signal };
+  if (body) opts.body = JSON.stringify(body);
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, opts);
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return {
+        ok: false,
+        status: 408,
+        data: {
+          detail: 'The server took too long to respond. Check that the backend is running and try again.',
+        },
+      };
     }
-  };
+
+    return {
+      ok: false,
+      status: 0,
+      data: {
+        detail: 'Cannot connect to the server. Check that the backend is running and accessible.',
+      },
+    };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  // Handle 401 — token expired or invalid → auto-logout
+  // Skip for auth endpoints (login/register return 401 for invalid credentials)
+  const isAuthPath = path.startsWith('/auth/');
+  if (res.status === 401 && !isAuthPath) {
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { detail: 'Session expired. Please log in again.' };
+    }
+    clearToken();
+    clearUserData();
+    // Redirect to login if not already there
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    return {
+      ok: false,
+      status: 401,
+      data: {
+        detail: data?.detail || 'Session expired. Please log in again.',
+      },
+    };
+  }
+
+  // Handle 403 — insufficient permissions
+  if (res.status === 403) {
+    let data;
+    try { data = await res.json(); } catch { data = { detail: 'Access denied.' }; }
+    return { ok: false, status: 403, data: { detail: data.detail || 'You do not have permission to perform this action.' } };
+  }
+
+  // Try to parse JSON; fall back to text
+  let data;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    data = { detail: await res.text() };
+  }
+
+  return { ok: res.ok, status: res.status, data };
 }
 
-// ── Re-export synchronous / non-fetch helpers as-is ────────────────────────
+// ---------------------------------------------------------------------------
+// Public API methods
+// ---------------------------------------------------------------------------
+const api = {
+  get:    (path) => request('GET', path),
+  post:   (path, body) => request('POST', path, body),
+  put:    (path, body) => request('PUT', path, body),
+  patch:  (path, body) => request('PATCH', path, body),
+  delete: (path) => request('DELETE', path),
+};
 
-export const getToken       = raw.getToken;
-export const setToken       = raw.setToken;
-export const clearToken     = raw.clearToken;
-export const getUserData    = raw.getUserData;
-export const getStoredUser  = raw.getStoredUser;
-export const setStoredUser  = raw.setStoredUser;
-export const invalidateCache = raw.invalidateCache;
-export const clearAllCache  = raw.clearAllCache;
+const buildQuery = (params = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return;
+    query.set(key, String(value));
+  });
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : '';
+};
 
-// ── Auth (already wrapped in services/api.js) ──────────────────────────────
+async function uploadMultipart(path, formData) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
-export const login    = raw.login;
-export const register = raw.register;
-export const logout   = raw.logout;
-export const googleLoginAPI = raw.googleLoginAPI;
-export const changePassword = wrapFetch(raw.changePassword);
-export const changeEmail = wrapFetch(raw.changeEmail);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      data: { detail: 'Cannot connect to the server. Check that the backend is running and accessible.' },
+    };
+  }
 
-// ── Wrapped fetch helpers ──────────────────────────────────────────────────
+  const isAuthPath = path.startsWith('/auth/');
+  if (res.status === 401 && !isAuthPath) {
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { detail: 'Session expired. Please log in again.' };
+    }
+    clearToken();
+    clearUserData();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    return { ok: false, status: 401, data };
+  }
 
   let data;
   const contentType = res.headers.get('content-type') || '';
@@ -146,152 +279,238 @@ export function logout() {
 
 // ---------------------------------------------------------------------------
 // Users
-export const fetchUsers   = wrapFetch(raw.fetchUsers);
-export const fetchUser    = wrapFetch(raw.fetchUser);
-export const updateUser   = wrapFetch(raw.updateUser);
-export const patchUser    = wrapFetch(raw.patchUser);
-export const suspendUser  = wrapFetch(raw.suspendUser);
-export const activateUser = wrapFetch(raw.activateUser);
+// ---------------------------------------------------------------------------
+export const fetchUsers       = ({ includeInactive = false, role = null, pageSize = 200 } = {}) =>
+  api.get(`/users/${buildQuery({ include_inactive: includeInactive, role, page_size: pageSize })}`);
+export const fetchUser        = (id) => api.get(`/users/${id}`);
+export const updateUser       = (id, body) => api.put(`/users/${id}`, body);
+export const patchUser        = (id, body) => api.patch(`/users/${id}`, body);
+export const suspendUser      = (id, body) => api.post(`/users/${id}/suspend/`, body);
+export const activateUser     = (id) => api.post(`/users/${id}/activate/`, {});
+export const deleteUser       = (id) => api.delete(`/users/${id}`);
 
+// ---------------------------------------------------------------------------
 // Creators
-export const fetchCreators    = wrapFetch(raw.fetchCreators);
-export const fetchCreatorByUid = wrapFetch(raw.fetchCreatorByUid);
-export const createCreator    = wrapFetch(raw.createCreator);
-export const updateCreator    = wrapFetch(raw.updateCreator);
-export const createCreatorProfile = wrapFetch(raw.createCreatorProfile);
+// ---------------------------------------------------------------------------
+export const fetchCreators    = () => api.get('/creators/');
+export const fetchCreator     = (id) => api.get(`/creators/${id}`);
+export const updateCreator    = (id, body) => api.patch(`/creators/${id}`, body);
+export const fetchCreatorByUid = (uid) => api.get(`/creators/by-uid/${uid}`);
+export const deleteCreator    = (id) => api.delete(`/creators/${id}`);
+export const submitCreatorApplication = (body) => api.post('/creator-applications/', body);
+export const fetchCreatorApplications = ({ status = null, pageSize = 200 } = {}) =>
+  api.get(`/creator-applications/${buildQuery({ status, page_size: pageSize })}`);
+export const fetchCreatorApplication = (id) => api.get(`/creator-applications/${id}`);
+export const reviewCreatorApplication = (id, body) => api.patch(`/creator-applications/${id}/review/`, body);
+export const uploadIdVerificationImage = (file, filename = '') =>
+  uploadMultipart(`/uploads/id-verification${filename ? `?filename=${encodeURIComponent(filename)}` : ''}`, (() => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return formData;
+  })());
 
+// ---------------------------------------------------------------------------
 // Categories
-export const fetchCategories = wrapFetch(raw.fetchCategories);
-export const createCategory = wrapFetch(raw.createCategory);
-export const deleteCategory = wrapFetch(raw.deleteCategory);
+// ---------------------------------------------------------------------------
+export const fetchCategories  = () => api.get('/categories/');
+export const fetchCategory    = (id) => api.get(`/categories/${id}`);
+export const createCategory   = (body) => api.post('/categories/', body);
+export const updateCategory   = (id, body) => api.put(`/categories/${id}`, body);
+export const deleteCategory   = (id) => api.delete(`/categories/${id}`);
 
+// ---------------------------------------------------------------------------
 // Services
-export const fetchServices  = wrapFetch(raw.fetchServices);
-export const fetchService   = wrapFetch(raw.fetchService);
-export const createService  = wrapFetch(raw.createService);
-export const updateService  = wrapFetch(raw.updateService);
-export const deleteService  = wrapFetch(raw.deleteService);
-export const fetchMyServices = wrapFetch(raw.fetchMyServices);
+// ---------------------------------------------------------------------------
+export const fetchServices    = (params = {}) => api.get(`/services/${buildQuery(params)}`);
+export const fetchService     = (id) => api.get(`/services/${id}`);
+export const createService    = (body) => api.post('/services/', body);
+export const updateService    = (id, body) => api.put(`/services/${id}`, body);
+export const deleteService    = (id) => api.delete(`/services/${id}`);
 
+// ---------------------------------------------------------------------------
 // Orders
-export const fetchOrders         = wrapFetch(raw.fetchOrders);
-export const fetchOrder          = wrapFetch(raw.fetchOrder);
-export const createOrder         = wrapFetch(raw.createOrder);
-export const updateOrder         = wrapFetch(raw.updateOrder);
-export const deleteOrder         = wrapFetch(raw.deleteOrder);
-export const updateOrderStatus   = wrapFetch(raw.updateOrderStatus);
-export const acceptOrder         = wrapFetch(raw.acceptOrder);
-export const rejectOrder         = wrapFetch(raw.rejectOrder);
-export const payOrder            = wrapFetch(raw.payOrder);
-export const submitPartialOutput = wrapFetch(raw.submitPartialOutput);
-export const submitFinalOutput   = wrapFetch(raw.submitFinalOutput);
-export const fetchMyOrders       = wrapFetch(raw.fetchMyOrders);
-export const fetchMyCreatorOrders = wrapFetch(raw.fetchMyCreatorOrders);
+// ---------------------------------------------------------------------------
+export const fetchOrders      = () => api.get('/orders/');
+export const fetchOrder       = (id) => api.get(`/orders/${id}`);
+export const createOrder      = (body) => api.post('/orders/', body);
+export const updateOrder      = (id, body) => api.patch(`/orders/${id}`, body);
+export const deleteOrder      = (id) => api.delete(`/orders/${id}`);
+export const acceptOrder      = (id) => api.post(`/orders/${id}/accept/`);
+export const rejectOrder      = (id, reason) => api.post(`/orders/${id}/reject/`, { reason });
+export const submitPartialOutput = (id, body) => api.post(`/orders/${id}/partial-output/`, body);
+export const submitFinalOutput   = (id, body) => api.post(`/orders/${id}/final-output/`, body);
+export const payOrder            = (id) => api.post(`/orders/${id}/pay/`);
+export const updateOrderStatus = (id, status) =>
+  api.post(`/orders/${id}/update_status/`, { status });
 
-// Order Timeline
-export const fetchOrderTimeline = wrapFetch(raw.fetchOrderTimeline);
-export const fetchTimeline      = wrapFetch(raw.fetchTimeline);
-export const logOrderEvent      = raw.logOrderEvent; // already has its own try/catch
-
+// ---------------------------------------------------------------------------
 // Reviews
-export const fetchReviews  = wrapFetch(raw.fetchReviews);
-export const createReview  = wrapFetch(raw.createReview);
-export const updateReview  = wrapFetch(raw.updateReview);
-export const fetchMyReviews = wrapFetch(raw.fetchMyReviews);
+// ---------------------------------------------------------------------------
+export const fetchReviews     = () => api.get('/reviews/');
+export const fetchReview      = (id) => api.get(`/reviews/${id}`);
+export const createReview     = (body) => api.post('/reviews/', body);
+export const updateReview     = (id, body) => api.put(`/reviews/${id}`, body);
+export const deleteReview     = (id) => api.delete(`/reviews/${id}`);
 
+// ---------------------------------------------------------------------------
 // Messages
-export const fetchMessages  = wrapFetch(raw.fetchMessages);
-export const sendMessage    = wrapFetch(raw.sendMessage);
-export const createMessage  = wrapFetch(raw.createMessage);
-export const updateMessage  = wrapFetch(raw.updateMessage);
-export const fetchMyMessages = wrapFetch(raw.fetchMyMessages);
+// ---------------------------------------------------------------------------
+export const fetchMessages    = () => api.get('/messages/');
+export const fetchMessage     = (id) => api.get(`/messages/${id}`);
+export const createMessage    = (body) => api.post('/messages/', body);
+export const patchMessage     = (id, body) => api.patch(`/messages/${id}`, body);
+export const updateMessage    = (id, body) => api.patch(`/messages/${id}`, body);
+export const deleteMessage    = (id) => api.delete(`/messages/${id}`);
 
+// ---------------------------------------------------------------------------
 // Follows
-export const fetchFollows  = wrapFetch(raw.fetchFollows);
-export const createFollow  = wrapFetch(raw.createFollow);
-export const deleteFollow  = wrapFetch(raw.deleteFollow);
-export const fetchMyFollowers = wrapFetch(raw.fetchMyFollowers);
-export const fetchMyFollowing = wrapFetch(raw.fetchMyFollowing);
+// ---------------------------------------------------------------------------
+export const fetchFollows     = () => api.get('/follows/');
+export const createFollow     = (body) => api.post('/follows/', body);
+export const deleteFollow     = (id) => api.delete(`/follows/${id}`);
 
+// ---------------------------------------------------------------------------
 // Blocks
-export const fetchBlocks  = wrapFetch(raw.fetchBlocks);
-export const createBlock  = wrapFetch(raw.createBlock);
-export const deleteBlock  = wrapFetch(raw.deleteBlock);
-export const deleteBlock2 = wrapFetch(raw.deleteBlock2);
+// ---------------------------------------------------------------------------
+export const fetchBlocks      = () => api.get('/blocks/');
+export const createBlock      = (body) => api.post('/blocks/', body);
+export const deleteBlock      = (id) => api.delete(`/blocks/${id}`);
 
+// ---------------------------------------------------------------------------
 // Reports
-export const fetchReports = wrapFetch(raw.fetchReports);
-export const createReport = wrapFetch(raw.createReport);
-export const updateReport = wrapFetch(raw.updateReport);
+// ---------------------------------------------------------------------------
+export const fetchReports     = () => api.get('/reports/');
+export const fetchReport      = (id) => api.get(`/reports/${id}`);
+export const createReport     = (body) => api.post('/reports/', body);
+export const deleteReport     = (id) => api.delete(`/reports/${id}`);
 
+// ---------------------------------------------------------------------------
 // Matches
-export const fetchMatches = wrapFetch(raw.fetchMatches);
-export const createMatch  = wrapFetch(raw.createMatch);
-export const fetchSmartMatches = wrapFetch(raw.fetchSmartMatches);
+// ---------------------------------------------------------------------------
+export const fetchMatches     = () => api.get('/matches/');
+export const fetchMatch       = (id) => api.get(`/matches/${id}`);
+export const createMatch      = (body) => api.post('/matches/', body);
+export const updateMatch      = (id, body) => api.put(`/matches/${id}`, body);
+export const deleteMatch      = (id) => api.delete(`/matches/${id}`);
+export const fetchSmartMatches = (body) => api.post('/smart-match/', body);
 
+// ---------------------------------------------------------------------------
 // Payment Methods
-export const fetchPaymentMethods   = wrapFetch(raw.fetchPaymentMethods);
-export const createPaymentMethod   = wrapFetch(raw.createPaymentMethod);
-export const deletePaymentMethod   = wrapFetch(raw.deletePaymentMethod);
-export const fetchMyPaymentMethods = wrapFetch(raw.fetchMyPaymentMethods);
+// ---------------------------------------------------------------------------
+export const fetchPaymentMethods = () => api.get('/payment-methods/');
+export const fetchPaymentMethod  = (id) => api.get(`/payment-methods/${id}`);
+export const createPaymentMethod = (body) => api.post('/payment-methods/', body);
+export const deletePaymentMethod = (id) => api.delete(`/payment-methods/${id}`);
 
+// ---------------------------------------------------------------------------
 // Support Tickets
-export const fetchSupportTickets  = wrapFetch(raw.fetchSupportTickets);
-export const createSupportTicket  = wrapFetch(raw.createSupportTicket);
-export const updateSupportTicket  = wrapFetch(raw.updateSupportTicket);
+// ---------------------------------------------------------------------------
+export const fetchSupportTickets = () => api.get('/support-tickets/');
+export const fetchSupportTicket  = (id) => api.get(`/support-tickets/${id}`);
+export const createSupportTicket = (body) => api.post('/support-tickets/', body);
+export const updateSupportTicket = (id, body) => api.patch(`/support-tickets/${id}`, body);
+export const deleteSupportTicket = (id) => api.delete(`/support-tickets/${id}`);
 
+// ---------------------------------------------------------------------------
 // Wallets
-export const fetchWallets    = wrapFetch(raw.fetchWallets);
-export const createWallet    = wrapFetch(raw.createWallet);
-export const deleteWallet    = wrapFetch(raw.deleteWallet);
-export const fetchMyWallets  = wrapFetch(raw.fetchMyWallets);
+// ---------------------------------------------------------------------------
+export const fetchWallets     = () => api.get('/wallets/');
+export const fetchWallet      = (id) => api.get(`/wallets/${id}`);
+export const createWallet     = (body) => api.post('/wallets/', body);
+export const patchWallet      = (id, body) => api.patch(`/wallets/${id}`, body);
+export const deleteWallet     = (id) => api.delete(`/wallets/${id}`);
 
+// ---------------------------------------------------------------------------
 // Withdrawals
-export const fetchWithdrawals   = wrapFetch(raw.fetchWithdrawals);
-export const createWithdrawal   = wrapFetch(raw.createWithdrawal);
-export const fetchMyWithdrawals = wrapFetch(raw.fetchMyWithdrawals);
+// ---------------------------------------------------------------------------
+export const fetchWithdrawals = () => api.get('/withdrawals/');
+export const fetchWithdrawal  = (id) => api.get(`/withdrawals/${id}`);
+export const createWithdrawal = (body) => api.post('/withdrawals/', body);
+export const updateWithdrawal = (id, body) => api.put(`/withdrawals/${id}`, body);
+export const deleteWithdrawal = (id) => api.delete(`/withdrawals/${id}`);
 
-// Notifications / Deadlines
-export const fetchDeadlineNotifications = wrapFetch(raw.fetchDeadlineNotifications);
-export const fetchDeadlines     = wrapFetch(raw.fetchDeadlines);
-export const fetchNotifications = wrapFetch(raw.fetchNotifications);
+// ---------------------------------------------------------------------------
+// Order Timeline
+// ---------------------------------------------------------------------------
+export const fetchTimeline    = (orderId) => api.get(`/order-timeline/?order_id=${orderId}`);
+export const createTimelineEntry = (body) => api.post('/order-timeline/', body);
+export const deleteTimelineEntry = (id) => api.delete(`/order-timeline/${id}`);
 
-// Analytics
-export const fetchDailyAnalytics = wrapFetch(raw.fetchDailyAnalytics);
+// ---------------------------------------------------------------------------
+// Daily Analytics
+// ---------------------------------------------------------------------------
+export const fetchAnalytics   = () => api.get('/daily-analytics/');
+export const createAnalytics  = (body) => api.post('/daily-analytics/', body);
+export const deleteAnalytics  = (id) => api.delete(`/daily-analytics/${id}`);
 
-// Dashboard
-export const fetchCreatorStats     = wrapFetch(raw.fetchCreatorStats);
-export const fetchAdminStats       = wrapFetch(raw.fetchAdminStats);
-export const fetchEarningsOverview = wrapFetch(raw.fetchEarningsOverview);
+// ---------------------------------------------------------------------------
+// Deadline Notifications
+// ---------------------------------------------------------------------------
+export const fetchDeadlines   = () => api.get('/deadline-notifications/');
+export const createDeadline   = (body) => api.post('/deadline-notifications/', body);
+export const markDeadlineRead = (id) => api.put(`/deadline-notifications/${id}/read`);
+export const deleteDeadline   = (id) => api.delete(`/deadline-notifications/${id}`);
 
-// Creator Applications
-export const submitCreatorApplication  = wrapFetch(raw.submitCreatorApplication);
-export const fetchCreatorApplications  = wrapFetch(raw.fetchCreatorApplications);
-export const fetchCreatorApplication   = wrapFetch(raw.fetchCreatorApplication);
-export const reviewCreatorApplication  = wrapFetch(raw.reviewCreatorApplication);
+// ---------------------------------------------------------------------------
+// User-scoped fetchers — filter data belonging to the logged-in user
+// ---------------------------------------------------------------------------
+export const fetchMyOrders = () => {
+  return fetchScopedCollection('/orders/', 'client_id', {
+    fallback: fetchOrders,
+    transform: Number,
+  });
+};
 
-// File uploads (already have their own try/catch)
-export const uploadPreviewFile = raw.uploadPreviewFile;
-export const uploadFinalFiles  = raw.uploadFinalFiles;
+export const fetchMyCreatorOrders = () => {
+  return fetchScopedCollection('/orders/', 'creator_id', {
+    fallback: fetchOrders,
+    transform: Number,
+  });
+};
 
-// Auth helpers
-export const fetchMe = wrapFetch(raw.fetchMe);
+export const fetchMyMessages = (pageSize = 100) => {
+  const firebaseUid = getCurrentFirebaseUid();
+  if (!firebaseUid) {
+    return fetchMessages();
+  }
 
-// Disputes
-export const fetchDisputes = wrapFetch(raw.fetchDisputes);
-export const fetchDispute = wrapFetch(raw.fetchDispute);
-export const createDispute = wrapFetch(raw.createDispute);
-export const resolveDispute = wrapFetch(raw.resolveDispute);
-export const escalateDispute = wrapFetch(raw.escalateDispute);
-export const deleteDispute = wrapFetch(raw.deleteDispute);
+  return api.get(`/messages/?user_id=${encodeURIComponent(firebaseUid)}&page_size=${encodeURIComponent(pageSize)}`);
+};
 
-// Refunds
-export const refundOrder = wrapFetch(raw.refundOrder);
+export const fetchMyServices = () => {
+  return fetchScopedCollection('/services/', 'creator_id', {
+    fallback: fetchServices,
+  });
+};
 
-// Order Notifications
-export const fetchOrderNotifications = wrapFetch(raw.fetchOrderNotifications);
-export const getUnreadNotificationCount = wrapFetch(raw.getUnreadNotificationCount);
-export const markNotificationRead = wrapFetch(raw.markNotificationRead);
-export const markAllNotificationsRead = wrapFetch(raw.markAllNotificationsRead);
-export const deleteNotification = wrapFetch(raw.deleteNotification);
-export const clearAllNotifications = wrapFetch(raw.clearAllNotifications);
+export const fetchMyWallets = () => {
+  return fetchScopedCollection('/wallets/', 'user_id', {
+    fallback: fetchWallets,
+  });
+};
+
+export const fetchMyWithdrawals = () => {
+  return fetchScopedCollection('/withdrawals/', 'user_id', {
+    fallback: fetchWithdrawals,
+  });
+};
+
+export const fetchMyPaymentMethods = () => {
+  return fetchScopedCollection('/payment-methods/', 'user_id', {
+    fallback: fetchPaymentMethods,
+  });
+};
+
+export const fetchMyFollowers = () => {
+  return fetchScopedCollection('/follows/', 'following_id', {
+    fallback: fetchEmptyCollection,
+  });
+};
+
+export const fetchMyFollowing = () => {
+  return fetchScopedCollection('/follows/', 'follower_id', {
+    fallback: fetchEmptyCollection,
+  });
+};
+
+export default api;

@@ -94,389 +94,480 @@ const statusPillStyle = (tone) => {
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
+    const [applications, setApplications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterRole, setFilterRole] = useState('all');
-    const [filterStatus, setFilterStatus] = useState('all');
-    const [toast, setToast] = useState(null);
-    const [openMenuId, setOpenMenuId] = useState(null);
-
-    // Confirm modal
-    const [confirmModal, setConfirmModal] = useState({ open: false, id: null, action: '', userName: '' });
+    const [toast, setToast] = useState('');
+    const [reviewNotes, setReviewNotes] = useState({});
+    const [reviewingId, setReviewingId] = useState(null);
+    const [confirmModal, setConfirmModal] = useState(emptyConfirmModal);
+    const [banModal, setBanModal] = useState(emptyBanModal);
     const [actionLoading, setActionLoading] = useState(false);
 
-    useEffect(() => {
-        loadAdminData();
-    }, [loadAdminData]);
-
-    useEffect(() => {
-        const handleClickOutside = () => setOpenMenuId(null);
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
+    const showToast = useCallback((message) => {
+        setToast(message);
+        window.setTimeout(() => setToast(''), 3500);
     }, []);
 
     const loadAdminData = useCallback(async () => {
         setLoading(true);
         try {
-            const { ok, data } = await apiFetchUsers();
-            if (ok) {
-                const list = data.results || data || [];
-                setUsers(list.map(u => ({
-                    id: u.id,
-                    firebase_uid: u.firebase_uid,
-                    username: u.username || u.email,
-                    email: u.email,
-                    role: u.role || 'client',
-                    is_active: u.is_active !== false,
-                    created_at: u.created_at,
-                })));
+            const [usersRes, appsRes] = await Promise.all([
+                apiFetchUsers({ includeInactive: true, pageSize: 200 }),
+                fetchCreatorApplications({ status: 'pending', pageSize: 100 }),
+            ]);
+
+            if (usersRes.ok) {
+                setUsers(readCollection(usersRes));
             }
-        } catch (err) {
-            console.error('Failed to load users:', err);
-            showToast('Failed to load users', 'error');
+            if (appsRes.ok) {
+                setApplications(readCollection(appsRes));
+            }
+        } catch (error) {
+            console.error('Failed to load admin data:', error);
+            showToast('Failed to load admin data.');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [showToast]);
 
-    const filtered = users.filter(u => {
-        const matchSearch = u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          u.email.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchRole = filterRole === 'all' || u.role === filterRole;
-        const matchStatus = filterStatus === 'all' || 
-                          (filterStatus === 'active' && u.is_active) ||
-                          (filterStatus === 'suspended' && !u.is_active);
-        return matchSearch && matchRole && matchStatus;
-    });
+    useEffect(() => {
+        loadAdminData();
+    }, [loadAdminData]);
 
-    const showToast = (msg, type = 'success') => {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 4000);
-    };
-
-    const handleMenuClick = (e, userId) => {
-        e.stopPropagation();
-        setOpenMenuId(openMenuId === userId ? null : userId);
-    };
-
-    const handleAction = (action, user) => {
-        setOpenMenuId(null);
-        setConfirmModal({ 
-            open: true, 
-            id: user.id, 
-            action, 
-            userName: user.username 
+    const filteredUsers = useMemo(() => {
+        const needle = searchTerm.trim().toLowerCase();
+        if (!needle) return users;
+        return users.filter((user) => {
+            const status = getUserStatus(user);
+            return [
+                user.username,
+                user.email,
+                user.role,
+                status.label,
+            ]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(needle));
         });
+    }, [searchTerm, users]);
+
+    const stats = useMemo(() => {
+        const active = users.filter((user) => getUserStatus(user).tone === 'active').length;
+        const banned = users.filter((user) => getUserStatus(user).tone === 'banned').length;
+        const deleted = users.filter((user) => getUserStatus(user).tone === 'deleted').length;
+        return {
+            total: users.length,
+            pendingApplications: applications.length,
+            active,
+            banned,
+            deleted,
+        };
+    }, [applications.length, users]);
+
+    const handleReview = async (applicationId, status) => {
+        setReviewingId(applicationId);
+        try {
+            const { ok, data } = await reviewCreatorApplication(applicationId, {
+                status,
+                admin_notes: reviewNotes[applicationId]?.trim() || null,
+            });
+            if (!ok) {
+                showToast(data?.detail || `Failed to ${status} application.`);
+                return;
+            }
+
+            setApplications((prev) => prev.filter((application) => application.id !== applicationId));
+            setUsers((prev) => prev.map((user) => (
+                String(user.id) === String(data.user_id) && status === 'approved'
+                    ? { ...user, role: 'creator' }
+                    : user
+            )));
+            setReviewNotes((prev) => ({ ...prev, [applicationId]: '' }));
+            showToast(`Application ${status}.`);
+        } catch (error) {
+            console.error('Failed to review application:', error);
+            showToast(`Failed to ${status} application.`);
+        } finally {
+            setReviewingId(null);
+        }
+    };
+
+    const handleBanSubmit = async () => {
+        const suspendedDate = banModal.suspendedUntil ? new Date(banModal.suspendedUntil) : null;
+        if (!suspendedDate || Number.isNaN(suspendedDate.getTime())) {
+            showToast('Choose a valid ban end date and time.');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            const { ok, data } = await suspendUser(banModal.id, {
+                suspended_until: suspendedDate.toISOString(),
+                suspension_reason: banModal.reason.trim() || null,
+            });
+            if (!ok) {
+                showToast(data?.detail || 'Failed to ban user.');
+                return;
+            }
+
+            setUsers((prev) => prev.map((user) => (
+                String(user.id) === String(banModal.id)
+                    ? { ...user, suspended_until: data.suspended_until, suspension_reason: data.suspension_reason, is_active: data.is_active }
+                    : user
+            )));
+            setBanModal(emptyBanModal);
+            showToast(`${banModal.userName} is now banned until ${suspendedDate.toLocaleString('en-US')}.`);
+        } catch (error) {
+            console.error('Failed to ban user:', error);
+            showToast('Failed to ban user.');
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const handleConfirmAction = async () => {
         const { id, action, userName } = confirmModal;
         setActionLoading(true);
         try {
-            let ok = false;
-            
-            if (action === 'suspend') {
-                const result = await suspendUser(id);
-                ok = result.ok;
-            } else if (action === 'activate') {
-                const result = await activateUser(id);
-                ok = result.ok;
-            } else if (action === 'delete') {
-                // For now, we'll just suspend the user
-                const result = await suspendUser(id);
-                ok = result.ok;
-            } else if (action === 'make_admin') {
-                const result = await patchUser(id, { role: 'admin' });
-                ok = result.ok;
-            } else if (action === 'make_creator') {
-                const result = await patchUser(id, { role: 'creator' });
-                ok = result.ok;
-            } else if (action === 'make_client') {
-                const result = await patchUser(id, { role: 'client' });
-                ok = result.ok;
+            if (action === 'activate') {
+                const { ok, data } = await activateUser(id);
+                if (!ok) {
+                    showToast(data?.detail || 'Failed to lift ban.');
+                    return;
+                }
+                setUsers((prev) => prev.map((user) => (
+                    String(user.id) === String(id)
+                        ? { ...user, is_active: data.is_active, suspended_until: data.suspended_until, suspension_reason: data.suspension_reason }
+                        : user
+                )));
+                showToast(`${userName} can access the account again.`);
             }
 
-            if (ok) {
-                await loadUsers();
-                showToast(`${userName} has been ${getActionMessage(action)}.`, 'success');
-            } else {
-                showToast(`Failed to ${action} user.`, 'error');
+            if (action === 'delete') {
+                const { ok, data } = await deleteUser(id);
+                if (!ok) {
+                    showToast(data?.detail || 'Failed to delete user.');
+                    return;
+                }
+                setUsers((prev) => prev.map((user) => (
+                        String(user.id) === String(id)
+                        ? {
+                            ...user,
+                            username: `Deleted User ${id}`,
+                            email: 'Deleted account',
+                            is_active: false,
+                            suspended_until: null,
+                            suspension_reason: null,
+                        }
+                        : user
+                )));
+                await loadAdminData();
+                showToast(`${userName} was deleted.`);
             }
-        } catch (err) {
-            console.error('Action failed:', err);
-            showToast(`Failed to ${action} user.`, 'error');
+        } catch (error) {
+            console.error('Failed to perform admin action:', error);
+            showToast(`Failed to ${action} user.`);
+        } finally {
+            setActionLoading(false);
+            setConfirmModal(emptyConfirmModal);
         }
-        setActionLoading(false);
-        setConfirmModal({ open: false, id: null, action: '', userName: '' });
-    };
-
-    const getActionMessage = (action) => {
-        const messages = {
-            suspend: 'suspended',
-            activate: 'activated',
-            delete: 'deleted',
-            make_admin: 'promoted to admin',
-            make_creator: 'changed to creator',
-            make_client: 'changed to client',
-        };
-        return messages[action] || action;
-    };
-
-    const getRoleBadgeColor = (role) => {
-        const colors = {
-            admin: { bg: 'rgba(239, 68, 68, 0.1)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' },
-            creator: { bg: 'rgba(168, 85, 247, 0.1)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.3)' },
-            client: { bg: 'rgba(59, 130, 246, 0.1)', text: '#60a5fa', border: 'rgba(59, 130, 246, 0.3)' },
-        };
-        return colors[role] || colors.client;
-    };
-
-    const stats = {
-        total: users.length,
-        active: users.filter(u => u.is_active).length,
-        suspended: users.filter(u => !u.is_active).length,
-        admins: users.filter(u => u.role === 'admin').length,
-        creators: users.filter(u => u.role === 'creator').length,
-        clients: users.filter(u => u.role === 'client').length,
     };
 
     return (
-        <div className="p-6 md:p-8 space-y-6 overflow-y-auto h-full pb-20">
-            {/* Toast */}
-            {toast && (
-                <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-lg backdrop-blur-md shadow-lg ${
-                    toast.type === 'success' 
-                        ? 'bg-green-500/10 border border-green-500/30 text-green-400' 
-                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
-                }`}>
-                    <p className="text-sm">{toast.msg}</p>
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
+
+            <header className="glass-card hero-gradient" style={{ padding: '2.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Platform Users</h1>
+                        <BadgeCheck size={28} color="#3b82f6" />
+                    </div>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>
+                        Review creator applications, ban users for a fixed period, and permanently delete accounts.
+                    </p>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 1fr))', gap: '0.85rem', minWidth: 'min(100%, 360px)' }}>
+                    {[
+                        ['Users', stats.total],
+                        ['Pending Applications', stats.pendingApplications],
+                        ['Active', stats.active],
+                        ['Banned / Deleted', stats.banned + stats.deleted],
+                    ].map(([label, value]) => (
+                        <div key={label} style={{ background: 'var(--bg-secondary)', padding: '1rem 1.15rem', borderRadius: '14px', border: '1px solid var(--border)' }}>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}> {label} </p>
+                            <h2 style={{ fontSize: '1.7rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0.35rem 0 0' }}>{value}</h2>
+                        </div>
+                    ))}
+                </div>
+            </header>
+
+            <section className="glass-card" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <ShieldCheck size={18} color="#818cf8" />
+                    <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.05rem' }}>Pending Creator Applications</h2>
+                </div>
+
+                {loading ? (
+                    <div style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>Loading applications...</div>
+                ) : applications.length === 0 ? (
+                    <div style={{ color: 'var(--text-muted)', padding: '0.4rem 0 0.2rem' }}>No pending creator applications.</div>
+                ) : (
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                        {applications.map((application) => (
+                            <article key={application.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                                    <div>
+                                        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>
+                                            {application.applicant_name || `${application.first_name} ${application.last_name}`}
+                                        </h3>
+                                        <p style={{ margin: '0.35rem 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                                            {application.applicant_email || 'No email'} • {application.category || 'No category selected'}
+                                        </p>
+                                    </div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                        Submitted {formatDate(application.created_at, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.9rem', marginBottom: '0.95rem' }}>
+                                    <div>
+                                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Identity</p>
+                                        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                            {application.phone || 'No phone'}<br />
+                                            ID #{application.id_number || 'N/A'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location</p>
+                                        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                            {[application.street_address, application.barangay, application.city, application.province, application.postal_code]
+                                                .filter(Boolean)
+                                                .join(', ') || 'Not provided'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Profile</p>
+                                        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                            {application.experience_years || '0'} yrs exp • PHP {application.starting_price || '0'}<br />
+                                            {application.turnaround_time || 'No turnaround provided'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.95rem' }}>
+                                    {[
+                                        ['ID Front', application.id_front_url],
+                                        ['ID Back', application.id_back_url],
+                                        ['Selfie With ID', application.id_selfie_url],
+                                    ].filter(([, url]) => Boolean(url)).map(([label, url]) => (
+                                        <a
+                                            key={label}
+                                            href={toAssetUrl(url)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ padding: '0.65rem 0.8rem', borderRadius: '12px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-primary)', textDecoration: 'none', fontSize: '0.84rem', fontWeight: 600 }}
+                                        >
+                                            {label}
+                                        </a>
+                                    ))}
+                                </div>
+
+                                <textarea
+                                    value={reviewNotes[application.id] || ''}
+                                    onChange={(event) => setReviewNotes((prev) => ({ ...prev, [application.id]: event.target.value }))}
+                                    placeholder="Admin notes (optional)"
+                                    rows="3"
+                                    style={{ width: '100%', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', padding: '0.85rem 0.9rem', resize: 'vertical', marginBottom: '0.95rem' }}
+                                />
+
+                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                    <button
+                                        type="button"
+                                        disabled={reviewingId === application.id}
+                                        onClick={() => handleReview(application.id, 'rejected')}
+                                        style={{ padding: '0.7rem 1rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                                    >
+                                        {reviewingId === application.id ? 'Processing...' : 'Reject'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={reviewingId === application.id}
+                                        onClick={() => handleReview(application.id, 'approved')}
+                                        style={{ padding: '0.7rem 1rem', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                                    >
+                                        {reviewingId === application.id ? 'Processing...' : 'Approve'}
+                                    </button>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div className="glass-card" style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', gap: '0.5rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                    <Search size={18} color="var(--text-muted)" />
+                    <label htmlFor="usersSearch" className="sr-only">Search users</label>
+                    <input
+                        id="usersSearch"
+                        type="text"
+                        placeholder="Search users by name, email, role, or status..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none' }}
+                    />
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading users...</div>
+            ) : (
+                <div className="glass-card" style={{ overflow: 'hidden' }}>
+                    <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.6fr', gap: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span>User</span>
+                        <span>Role</span>
+                        <span>Status</span>
+                        <span>Joined</span>
+                        <span>Actions</span>
+                    </div>
+                    {filteredUsers.map((user) => {
+                        const status = getUserStatus(user);
+                        return (
+                            <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.6fr', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '0.95rem' }}>
+                                        {(user.username || user.email || '?').charAt(0).toUpperCase()}
+                                    </div>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ color: 'var(--text-primary)', fontWeight: '600', wordBreak: 'break-word' }}>
+                                            {user.username || user.email}
+                                        </div>
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.84rem', wordBreak: 'break-word' }}>{user.email}</div>
+                                    </div>
+                                </div>
+
+                                <RoleBadge role={humanizeLabel(user.role || 'client')} />
+
+                                <div>
+                                    <span style={{ ...statusPillStyle(status.tone), padding: '5px 10px', borderRadius: '999px', fontSize: '0.76rem', fontWeight: 700 }}>
+                                        {status.label}
+                                    </span>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.45rem' }}>
+                                        {status.detail}
+                                        {user.suspension_reason && status.tone === 'banned' ? ` • ${user.suspension_reason}` : ''}
+                                    </div>
+                                </div>
+
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                    {formatDate(user.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.55rem', flexWrap: 'wrap' }}>
+                                    {status.tone === 'active' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setBanModal({ open: true, id: user.id, userName: user.username || user.email, suspendedUntil: '', reason: '' })}
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.8rem', borderRadius: '10px', border: '1px solid rgba(245, 158, 11, 0.22)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', cursor: 'pointer' }}
+                                        >
+                                            <Clock3 size={15} />
+                                            Ban
+                                        </button>
+                                    )}
+                                    {status.tone === 'banned' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmModal({ open: true, id: user.id, action: 'activate', userName: user.username || user.email })}
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.8rem', borderRadius: '10px', border: '1px solid rgba(34, 197, 94, 0.22)', background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', cursor: 'pointer' }}
+                                        >
+                                            <ShieldCheck size={15} />
+                                            Lift Ban
+                                        </button>
+                                    )}
+                                    {status.tone !== 'deleted' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfirmModal({ open: true, id: user.id, action: 'delete', userName: user.username || user.email })}
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.8rem', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.22)', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', cursor: 'pointer' }}
+                                        >
+                                            <Trash2 size={15} />
+                                            Delete
+                                        </button>
+                                    )}
+                                    {status.tone === 'deleted' && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 0.8rem', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.16)', background: 'rgba(239, 68, 68, 0.06)', color: '#fca5a5' }}>
+                                            <UserRoundX size={15} />
+                                            Deleted
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {filteredUsers.length === 0 && (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No users found.</div>
+                    )}
                 </div>
             )}
 
-            {/* Header with Admin Theme */}
-            <div className="rounded-2xl p-6 md:p-8" style={{ 
-                background: 'linear-gradient(135deg, rgba(244,63,94,0.08), rgba(168,85,247,0.08))',
-                border: '1px solid rgba(255,255,255,0.05)'
-            }}>
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{
-                        background: 'rgba(244,63,94,0.1)',
-                        border: '1px solid rgba(244,63,94,0.2)'
-                    }}>
-                        <UsersIcon size={22} className="text-rose-400" />
-                    </div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-white">Platform Users</h1>
-                </div>
-                <p className="text-zinc-400 text-sm">Manage accounts, roles, and user permissions.</p>
-            </div>
-
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Total</p>
-                    <p className="text-2xl font-bold text-white">{stats.total}</p>
-                </div>
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Active</p>
-                    <p className="text-2xl font-bold text-green-400">{stats.active}</p>
-                </div>
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Suspended</p>
-                    <p className="text-2xl font-bold text-red-400">{stats.suspended}</p>
-                </div>
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Admins</p>
-                    <p className="text-2xl font-bold text-red-400">{stats.admins}</p>
-                </div>
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Creators</p>
-                    <p className="text-2xl font-bold text-purple-400">{stats.creators}</p>
-                </div>
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Clients</p>
-                    <p className="text-2xl font-bold text-blue-400">{stats.clients}</p>
-                </div>
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
-                    <input
-                        type="text"
-                        placeholder="Search by username or email..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg pl-11 pr-4 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-white/20"
-                    />
-                </div>
-                <select
-                    value={filterRole}
-                    onChange={e => setFilterRole(e.target.value)}
-                    className="px-4 py-2.5 bg-white/5 border border-white/10 text-white rounded-lg focus:outline-none focus:border-white/20"
-                >
-                    <option value="all">All Roles</option>
-                    <option value="admin">Admin</option>
-                    <option value="creator">Creator</option>
-                    <option value="client">Client</option>
-                </select>
-                <select
-                    value={filterStatus}
-                    onChange={e => setFilterStatus(e.target.value)}
-                    className="px-4 py-2.5 bg-white/5 border border-white/10 text-white rounded-lg focus:outline-none focus:border-white/20"
-                >
-                    <option value="all">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
-                </select>
-            </div>
-
-            {/* Users Table */}
-            <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
-                {loading ? (
-                    <div className="p-12 text-center text-zinc-500">Loading users...</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b border-white/5">
-                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">User</th>
-                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Email</th>
-                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Role</th>
-                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
-                                    <th className="text-left p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Joined</th>
-                                    <th className="text-right p-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {filtered.map((user) => {
-                                    const roleColor = getRoleBadgeColor(user.role);
-                                    return (
-                                        <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
-                                                        {user.username.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <span className="text-white font-medium">{user.username}</span>
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-zinc-400 text-sm">{user.email}</td>
-                                            <td className="p-4">
-                                                <span 
-                                                    className="px-3 py-1 rounded-full text-xs font-semibold uppercase"
-                                                    style={{ 
-                                                        background: roleColor.bg, 
-                                                        color: roleColor.text,
-                                                        border: `1px solid ${roleColor.border}`
-                                                    }}
-                                                >
-                                                    {user.role}
-                                                </span>
-                                            </td>
-                                            <td className="p-4">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                                    user.is_active 
-                                                        ? 'bg-green-500/10 text-green-400 border border-green-500/30' 
-                                                        : 'bg-red-500/10 text-red-400 border border-red-500/30'
-                                                }`}>
-                                                    {user.is_active ? 'Active' : 'Suspended'}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-zinc-400 text-sm">
-                                                {user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <div className="relative inline-block">
-                                                    <button
-                                                        onClick={(e) => handleMenuClick(e, user.id)}
-                                                        className="p-2 hover:bg-white/10 rounded-lg transition-colors text-zinc-400 hover:text-white"
-                                                    >
-                                                        <MoreVertical size={18} />
-                                                    </button>
-                                                    
-                                                    {openMenuId === user.id && (
-                                                        <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-50 py-1">
-                                                            {/* Change Role */}
-                                                            <div className="px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/5">
-                                                                Change Role
-                                                            </div>
-                                                            {user.role !== 'admin' && (
-                                                                <button
-                                                                    onClick={() => handleAction('make_admin', user)}
-                                                                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2"
-                                                                >
-                                                                    <Shield size={14} className="text-red-400" />
-                                                                    Make Admin
-                                                                </button>
-                                                            )}
-                                                            {user.role !== 'creator' && (
-                                                                <button
-                                                                    onClick={() => handleAction('make_creator', user)}
-                                                                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2"
-                                                                >
-                                                                    <CheckCircle size={14} className="text-purple-400" />
-                                                                    Make Creator
-                                                                </button>
-                                                            )}
-                                                            {user.role !== 'client' && (
-                                                                <button
-                                                                    onClick={() => handleAction('make_client', user)}
-                                                                    className="w-full px-4 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2"
-                                                                >
-                                                                    <CheckCircle size={14} className="text-blue-400" />
-                                                                    Make Client
-                                                                </button>
-                                                            )}
-                                                            
-                                                            <div className="border-t border-white/5 my-1" />
-                                                            
-                                                            {/* Status Actions */}
-                                                            {user.is_active ? (
-                                                                <button
-                                                                    onClick={() => handleAction('suspend', user)}
-                                                                    className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
-                                                                >
-                                                                    <Ban size={14} />
-                                                                    Suspend User
-                                                                </button>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => handleAction('activate', user)}
-                                                                    className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-green-500/10 flex items-center gap-2"
-                                                                >
-                                                                    <CheckCircle size={14} />
-                                                                    Activate User
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                        {filtered.length === 0 && (
-                            <div className="p-12 text-center text-zinc-500">No users found.</div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Confirm Modal */}
             <ConfirmModal
                 open={confirmModal.open}
-                title={`${confirmModal.action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} User?`}
-                message={<>Are you sure you want to {getActionMessage(confirmModal.action)} <strong className="text-white">{confirmModal.userName}</strong>?</>}
-                variant={confirmModal.action === 'suspend' || confirmModal.action === 'delete' ? 'danger' : 'info'}
-                confirmLabel={confirmModal.action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                title={confirmModal.action === 'delete' ? 'Delete User?' : 'Lift Ban?'}
+                message={
+                    confirmModal.action === 'delete'
+                        ? <>Delete <strong>{confirmModal.userName}</strong>? This permanently disables the account and removes access.</>
+                        : <>Lift the current ban for <strong>{confirmModal.userName}</strong>?</>
+                }
+                variant={confirmModal.action === 'delete' ? 'danger' : 'success'}
+                confirmLabel={confirmModal.action === 'delete' ? 'Delete User' : 'Lift Ban'}
                 loading={actionLoading}
                 onConfirm={handleConfirmAction}
-                onCancel={() => setConfirmModal({ open: false, id: null, action: '', userName: '' })}
+                onCancel={() => setConfirmModal(emptyConfirmModal)}
             />
-        </div>
+
+            {banModal.open && (
+                <div className="confirm-overlay" onClick={() => !actionLoading && setBanModal(emptyBanModal)}>
+                    <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="confirm-modal__icon confirm-modal__icon--warning">
+                            <Clock3 size={24} />
+                        </div>
+                        <h3 className="confirm-modal__title">Ban User For A Specific Period</h3>
+                        <div className="confirm-modal__message">
+                            <p style={{ marginTop: 0 }}>
+                                Set when <strong>{banModal.userName}</strong> can access the account again.
+                            </p>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '0.85rem', textAlign: 'left' }}>
+                                <span>Ban Until</span>
+                                <input
+                                    type="datetime-local"
+                                    value={banModal.suspendedUntil}
+                                    onChange={(event) => setBanModal((prev) => ({ ...prev, suspendedUntil: event.target.value }))}
+                                    style={{ width: '100%', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', padding: '0.75rem 0.85rem' }}
+                                />
+                            </label>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', textAlign: 'left' }}>
+                                <span>Reason (optional)</span>
+                                <textarea
+                                    rows="3"
+                                    value={banModal.reason}
+                                    onChange={(event) => setBanModal((prev) => ({ ...prev, reason: event.target.value }))}
+                                    placeholder="Explain why the account is being banned."
+                                    style={{ width: '100%', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', padding: '0.75rem 0.85rem', resize: 'vertical' }}
+                                />
+                            </label>
+                        </div>
+                        <div className="confirm-modal__actions">
+                            <button className="confirm-modal__btn confirm-modal__btn--cancel" disabled={actionLoading} onClick={() => setBanModal(emptyBanModal)}>
+                                Cancel
+                            </button>
+                            <button className="confirm-modal__btn confirm-modal__btn--confirm" disabled={actionLoading} onClick={handleBanSubmit}>
+                                {actionLoading ? 'Processing...' : 'Ban User'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </main>
     );
 };
 

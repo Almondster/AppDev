@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSupportTickets as apiFetchTickets, fetchReports as apiFetchReports, updateSupportTicket, updateReport } from '../api';
+import { fetchSupportTickets as apiFetchTickets, fetchReports as apiFetchReports, updateSupportTicket } from '../api';
 import { AlertOctagon, CheckCircle, MessageSquare, Send } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -76,16 +76,9 @@ const DisputesPage = () => {
                     showToast('Ticket resolved.');
                 }
             } else {
-                const { ok } = await updateReport(id, {
-                    status: 'resolved',
-                    admin_notes: 'Resolved by admin',
-                });
-                if (ok) {
-                    setDisputes(prev => prev.map(d => d.id === id && d.type === 'report' ? { ...d, status: 'resolved' } : d));
-                    showToast('Report marked as resolved.');
-                } else {
-                    showToast('Failed to resolve report.');
-                }
+                // For reports, just update local state (backend doesn't have status update for reports)
+                setDisputes(prev => prev.map(d => d.id === id && d.type === 'report' ? { ...d, status: 'resolved' } : d));
+                showToast('Report marked as resolved.');
             }
         } catch { showToast('Failed to resolve.'); }
         setResolving(false);
@@ -115,10 +108,10 @@ const DisputesPage = () => {
     };
 
     return (
-        <main className="dashboard-content page-fade role-page">
+        <main className="dashboard-content page-fade" style={{ padding: '2rem 0' }}>
             {toast && <div className="global-toast global-toast--success">{toast}</div>}
 
-            <header className="glass-card" style={{ padding: '2rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 24, 27, 0.6))', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+            <header className="glass-card" style={{ padding: '2.5rem', marginBottom: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(24, 24, 27, 0.6))', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Active Disputes</h1>
@@ -137,7 +130,7 @@ const DisputesPage = () => {
             ) : disputes.length === 0 ? (
                 <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No disputes or support tickets found.</div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     {disputes.map((dispute) => {
                         const st = getStatusStyle(dispute.status);
                         return (

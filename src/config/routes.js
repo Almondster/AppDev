@@ -11,6 +11,7 @@ const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const OrdersPage = lazy(() => import('../pages/OrdersPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
 const WalletPage = lazy(() => import('../pages/WalletPage'));
+const BecomeCreatorPage = lazy(() => import('../pages/BecomeCreatorPage'));
 const CreatorProfilePage = lazy(() => import('../pages/CreatorProfilePage'));
 const UsersPage = lazy(() => import('../pages/UsersPage'));
 const DisputesPage = lazy(() => import('../pages/DisputesPage'));
@@ -82,6 +83,11 @@ export const PROTECTED_ROUTES = [
     component: WalletPage,
     name: 'Earnings/Billing',
     props: ['userRole'],
+  },
+  {
+    path: '/become-creator',
+    component: BecomeCreatorPage,
+    name: 'Become a Creator',
   },
   {
     path: '/creator-profile',

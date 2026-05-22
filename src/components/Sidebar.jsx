@@ -52,31 +52,31 @@ const Sidebar = ({ userRole, onLogout }) => {
     else if (userRole === 'admin') currentMenu = adminMenu;
 
     return (
-        <aside className="w-64 bg-white/[0.02] border-r border-white/5 flex flex-col h-screen sticky top-0">
-            <div className="flex items-center gap-3 p-6 border-b border-white/5">
-                <div className="w-10 h-10 flex-shrink-0">
-                    <img src="/assets/splash-icon-light-resized.png" alt="Createch Logo" className="w-full h-full object-contain" />
+        <aside className="sidebar glass-panel">
+            <div className="sidebar-brand">
+                <div className="sidebar-logo">
+                    <img src="/assets/splash-icon-light-resized.png" alt="Createch Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
-                <span className="text-xl font-bold text-white tracking-wider">CREATECH</span>
+                <span className="sidebar-title">CREATECH</span>
             </div>
 
-            <div className="flex items-center gap-3 p-4 mx-4 my-4 bg-white/5 rounded-xl border border-white/10">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
+            <div className="sidebar-user">
+                <div className="sidebar-avatar">
                     {(userData?.full_name || userRole || 'U').charAt(0).toUpperCase()}
                 </div>
-                <div className="flex-1 min-w-0">
-                    <span className="block text-white font-medium text-sm truncate">{userData?.full_name || userData?.email || 'User'}</span>
-                    <span className="block text-zinc-400 text-xs capitalize">{userRole}</span>
+                <div className="sidebar-user-info">
+                    <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>
+                    <span className="sidebar-user-role">{userRole}</span>
                 </div>
             </div>
 
-            <nav className="flex-1 px-4 py-2 overflow-y-auto">
+            <nav className="sidebar-nav">
                 {currentMenu.map((item) => (
                     <NavLink
                         key={item.to}
                         to={item.to}
                         end={item.to === '/'}
-                        className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all mb-1 ${isActive ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
+                        className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}
                     >
                         {item.icon}
                         <span>{item.label}</span>
@@ -84,18 +84,18 @@ const Sidebar = ({ userRole, onLogout }) => {
                 ))}
             </nav>
 
-            <div className="p-4 border-t border-white/5 space-y-1">
-                <button className="flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm font-medium text-zinc-400 hover:bg-white/5 hover:text-white transition-all" type="button" onClick={toggleTheme}>
+            <div className="sidebar-footer">
+                <button className="nav-item" type="button" onClick={toggleTheme}>
                     {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />}
-                    <span className="flex-1 text-left ml-3">{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>
+                    <span>{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
                 {userRole !== 'admin' && (
-                    <NavLink to="/settings" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}>
+                    <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
                         <Settings size={18} />
                         <span>Settings</span>
                     </NavLink>
                 )}
-                <button className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all" onClick={onLogout}>
+                <button className="nav-item nav-item--logout" onClick={onLogout}>
                     <LogOut size={18} />
                     <span>Log Out</span>
                 </button>

@@ -13,6 +13,7 @@ export const ROUTES = {
     ORDERS: '/orders',
     SETTINGS: '/settings',
     WALLET: '/wallet',
+    BECOME_CREATOR: '/become-creator',
     CREATOR_PROFILE: '/creator-profile',
     USERS: '/users',
     DISPUTES: '/disputes',

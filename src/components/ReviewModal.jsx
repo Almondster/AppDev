@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Star, X } from 'lucide-react';
+import './ReviewModal.css';
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
@@ -12,31 +13,11 @@ const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
  *  - loading (bool)
  *  - onSubmit({ rating, comment })
  *  - onClose()
- *  - initialRating (number) - for edit mode
- *  - initialComment (string) - for edit mode
- *  - isEdit (bool) - whether this is edit mode
  */
-const ReviewModal = ({ 
-  open, 
-  revieweeName = 'this creator', 
-  loading = false, 
-  onSubmit, 
-  onClose,
-  initialRating = 0,
-  initialComment = '',
-  isEdit = false
-}) => {
-  const [rating, setRating] = useState(initialRating);
+const ReviewModal = ({ open, revieweeName = 'this creator', loading = false, onSubmit, onClose }) => {
+  const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
-  const [comment, setComment] = useState(initialComment);
-
-  // Update state when initial values change (for edit mode)
-  useEffect(() => {
-    if (open) {
-      setRating(initialRating);
-      setComment(initialComment);
-    }
-  }, [open, initialRating, initialComment]);
+  const [comment, setComment] = useState('');
 
   if (!open) return null;
 
@@ -47,30 +28,28 @@ const ReviewModal = ({
   };
 
   const handleClose = () => {
-    if (!isEdit) {
-      setRating(0);
-      setHover(0);
-      setComment('');
-    }
+    setRating(0);
+    setHover(0);
+    setComment('');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={handleClose}>
-      <div className="bg-[#18181b] border border-white/10 rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-white">{isEdit ? 'Edit Review' : `Review ${revieweeName}`}</h3>
-          <button className="text-zinc-400 hover:text-white transition-colors" onClick={handleClose}><X size={20} /></button>
+    <div className="review-modal-overlay" onClick={handleClose}>
+      <div className="review-modal" onClick={e => e.stopPropagation()}>
+        <div className="review-modal__header">
+          <h3 className="review-modal__title">Review {revieweeName}</h3>
+          <button className="review-modal__close" onClick={handleClose}><X size={20} /></button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <span className="block text-sm font-medium text-zinc-400 mb-3">Your Rating</span>
-          <div className="flex gap-2 justify-center mb-2">
+          <span className="review-modal__label">Your Rating</span>
+          <div className="review-modal__stars">
             {[1, 2, 3, 4, 5].map(star => (
               <button
                 key={star}
                 type="button"
-                className="transition-transform hover:scale-110"
+                className="review-modal__star"
                 onClick={() => setRating(star)}
                 onMouseEnter={() => setHover(star)}
                 onMouseLeave={() => setHover(0)}
@@ -83,34 +62,23 @@ const ReviewModal = ({
               </button>
             ))}
           </div>
-          <p className="text-center text-sm font-medium text-amber-400 mb-6">
+          <p className="review-modal__rating-text">
             {RATING_LABELS[hover || rating] || 'Click to rate'}
           </p>
 
-          <span className="block text-sm font-medium text-zinc-400 mb-3">Comment (optional)</span>
+          <span className="review-modal__label">Comment (optional)</span>
           <textarea
             placeholder="Share your experience..."
             value={comment}
             onChange={e => setComment(e.target.value)}
-            className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-white/20 resize-none mb-6"
-            rows={4}
           />
 
-          <div className="flex gap-3">
-            <button 
-              type="button" 
-              className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl font-semibold transition-colors disabled:opacity-50" 
-              onClick={handleClose} 
-              disabled={loading}
-            >
+          <div className="review-modal__actions">
+            <button type="button" className="review-modal__btn review-modal__btn--cancel" onClick={handleClose} disabled={loading}>
               Cancel
             </button>
-            <button 
-              type="submit" 
-              className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors disabled:opacity-50" 
-              disabled={loading || rating === 0}
-            >
-              {loading ? 'Saving...' : isEdit ? 'Update Review' : 'Submit Review'}
+            <button type="submit" className="review-modal__btn review-modal__btn--submit" disabled={loading || rating === 0}>
+              {loading ? 'Submitting...' : 'Submit Review'}
             </button>
           </div>
         </form>

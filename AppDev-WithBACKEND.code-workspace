@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../MobAppUI"
+		},
+		{
+			"path": "../Createch-backend"
+		},
+		{
+			"path": "../CREATECH-BACKEND-FASTAPI"
+		},
+		{
+			"path": "../createch-web-app"
+		}
+	],
+	"settings": {}
+}

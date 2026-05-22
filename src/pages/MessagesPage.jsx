@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
     createMessage,
@@ -130,19 +130,67 @@ const MessagesPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [newMsg, setNewMsg] = useState('');
     const [userNames, setUserNames] = useState({});
-    const [isUploading, setIsUploading] = useState(false);
+    const [error, setError] = useState('');
+    const [sending, setSending] = useState(false);
+    const [unsendingMessageIds, setUnsendingMessageIds] = useState({});
+    const [openActionMenuId, setOpenActionMenuId] = useState(null);
+    const [unsendConfirm, setUnsendConfirm] = useState({ open: false, message: null });
+    const [editingMessage, setEditingMessage] = useState(null);
+
+    const deferredSearchTerm = useDeferredValue(searchTerm);
     const chatEndRef = useRef(null);
+    const composerInputRef = useRef(null);
     const userNamesRef = useRef({});
+    const websocketRef = useRef(null);
     const pollingRef = useRef(false);
     const markingReadRef = useRef(new Set());
-    const fileInputRef = useRef(null);
+    const reconnectTimerRef = useRef(null);
+    const heartbeatTimerRef = useRef(null);
+    const reconnectAttemptsRef = useRef(0);
+    const manualSocketCloseRef = useRef(false);
+    const autoSelectedRef = useRef(false);
+    const selectedChatRef = useRef(null);
+    const loadMessagesRef = useRef(null);
+    const inflightSendKeysRef = useRef(new Set());
+
     const [searchParams] = useSearchParams();
     const toParam = searchParams.get('to');
 
     const userData = getUserData();
     const myUid = String(userData?.firebase_uid || '');
 
-    const getUserName = async (userId) => {
+    useEffect(() => {
+        selectedChatRef.current = selectedChat;
+    }, [selectedChat]);
+
+    useEffect(() => {
+        setOpenActionMenuId(null);
+        setEditingMessage(null);
+    }, [selectedChat]);
+
+    useEffect(() => {
+        if (editingMessage) {
+            composerInputRef.current?.focus();
+        }
+    }, [editingMessage]);
+
+    useEffect(() => {
+        const handleDocumentClick = () => setOpenActionMenuId(null);
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') {
+                setOpenActionMenuId(null);
+            }
+        };
+
+        document.addEventListener('click', handleDocumentClick);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('click', handleDocumentClick);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, []);
+
+    const getUserName = useCallback(async (userId) => {
         if (!userId) return null;
         const key = String(userId);
         try {
@@ -151,107 +199,272 @@ const MessagesPage = () => {
         } catch {
             return null;
         }
-    };
+    }, []);
 
-    const hydrateMessages = async (msgs) => {
+    const hydrateMessages = useCallback(async (items) => {
+        const messageList = Array.isArray(items) ? items : [items];
         const ids = [...new Set(
-            msgs
-                .flatMap(msg => [
-                    msg.sender_name ? null : msg.sender_id,
-                    msg.receiver_name ? null : msg.receiver_id,
+            messageList
+                .flatMap((message) => [
+                    message.sender_name ? null : message.sender_id,
+                    message.receiver_name ? null : message.receiver_id,
                 ])
                 .filter(Boolean)
                 .map(String)
         )];
-        const entries = await Promise.all(ids.map(async id => [id, await getUserName(id)]));
+
+        const entries = await Promise.all(ids.map(async (id) => [id, await getUserName(id)]));
         const names = Object.fromEntries(entries.filter(([, name]) => Boolean(name)));
-        if (Object.keys(names).length) {
-            setUserNames(prev => {
+
+        if (Object.keys(names).length > 0) {
+            setUserNames((prev) => {
                 const next = { ...prev, ...names };
                 userNamesRef.current = next;
                 return next;
             });
         }
-        return msgs.map(msg => ({
-            ...msg,
-            sender_id: String(msg.sender_id),
-            receiver_id: String(msg.receiver_id),
-            sender_name: msg.sender_name || names[String(msg.sender_id)],
-            receiver_name: msg.receiver_name || names[String(msg.receiver_id)],
-            media_url: msg.media_url || null,
+
+        return messageList.map((message) => ({
+            ...message,
+            sender_id: String(message.sender_id),
+            receiver_id: String(message.receiver_id),
+            sender_name: message.sender_name || names[String(message.sender_id)] || userNamesRef.current[String(message.sender_id)],
+            receiver_name: message.receiver_name || names[String(message.receiver_id)] || userNamesRef.current[String(message.receiver_id)],
         }));
-    };
+    }, [getUserName]);
+
+    const mergeMessages = useCallback((incoming) => {
+        const nextMessages = Array.isArray(incoming) ? incoming : [incoming];
+        startTransition(() => {
+            setMessages((prev) => upsertMessages(prev, nextMessages, false));
+        });
+    }, []);
+
+    const removeMessageById = useCallback((messageId) => {
+        startTransition(() => {
+            setMessages((prev) => prev.filter((message) => message.id !== messageId));
+        });
+    }, []);
+
+    const ensureTargetChatSelection = useCallback(async (targetId) => {
+        if (!targetId) return;
+
+        const normalizedTargetId = String(targetId);
+        if (!userNamesRef.current[normalizedTargetId]) {
+            const name = await getUserName(normalizedTargetId);
+            if (name) {
+                setUserNames((prev) => {
+                    const next = { ...prev, [normalizedTargetId]: name };
+                    userNamesRef.current = next;
+                    return next;
+                });
+            }
+        }
+
+        setSelectedChat(normalizedTargetId);
+        autoSelectedRef.current = true;
+    }, [getUserName]);
+
+    const loadMessages = useCallback(async (showInitialLoader = false) => {
+        if (!myUid || pollingRef.current) return;
+
+        pollingRef.current = true;
+        if (showInitialLoader) setLoading(true);
+
+        try {
+            const { ok, data } = await apiFetchMessages();
+            if (!ok) {
+                setError(data?.detail || 'Failed to load messages.');
+                return;
+            }
+
+            const hydratedMessages = await hydrateMessages(data.results || data || []);
+            startTransition(() => {
+                setMessages((prev) => upsertMessages(prev, hydratedMessages, false));
+            });
+            setError('');
+
+            if (toParam && !autoSelectedRef.current) {
+                await ensureTargetChatSelection(toParam);
+            } else if (!selectedChatRef.current && hydratedMessages.length > 0) {
+                setSelectedChat(getConversationPartnerId(hydratedMessages[hydratedMessages.length - 1], myUid));
+            }
+        } catch (loadError) {
+            console.error('Failed to load messages:', loadError);
+            setError('Failed to load messages.');
+        } finally {
+            setLoading(false);
+            pollingRef.current = false;
+        }
+    }, [ensureTargetChatSelection, hydrateMessages, myUid, toParam]);
 
     useEffect(() => {
-        let cancelled = false;
+        loadMessagesRef.current = loadMessages;
+    }, [loadMessages]);
 
-        const loadMessages = async (showInitialLoader = false) => {
-            if (pollingRef.current) return;
-            pollingRef.current = true;
-            if (showInitialLoader) setLoading(true);
-            try {
-                const { ok, data } = await apiFetchMessages();
-                if (ok) {
-                    const msgs = await hydrateMessages(data.results || data || []);
-                    if (cancelled) return;
-                    setMessages(msgs);
-                    // If ?to= param, auto-select that conversation
-                    if (toParam) {
-                        const targetId = String(toParam);
-                        if (!userNamesRef.current[targetId]) {
-                            const name = await getUserName(targetId);
-                            if (cancelled) return;
-                            if (name) {
-                                setUserNames(prev => {
-                                    const next = { ...prev, [targetId]: name };
-                                    userNamesRef.current = next;
-                                    return next;
-                                });
-                            }
-                        }
-                        setSelectedChat(targetId);
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to load messages:', err);
-            } finally {
-                if (!cancelled) setLoading(false);
-                pollingRef.current = false;
-            }
-        };
-
-        loadMessages(true);
-        const intervalId = window.setInterval(() => {
-            if (document.visibilityState === 'visible') {
-                loadMessages(false);
-            }
-        }, 2500);
-        const handleFocus = () => loadMessages(false);
-        window.addEventListener('focus', handleFocus);
-
-        return () => {
-            cancelled = true;
-            window.clearInterval(intervalId);
-            window.removeEventListener('focus', handleFocus);
-        };
+    useEffect(() => {
+        autoSelectedRef.current = false;
     }, [toParam]);
 
-    // Group messages into conversations by the other user
-    const conversations = messages.reduce((acc, msg) => {
-        const senderId = String(msg.sender_id);
-        const receiverId = String(msg.receiver_id);
+    useEffect(() => {
+        loadMessages(true);
+
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                loadMessagesRef.current?.(false);
+            }
+        }, FALLBACK_SYNC_MS);
+
+        const handleFocus = () => loadMessagesRef.current?.(false);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                loadMessagesRef.current?.(false);
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [loadMessages]);
+
+    useEffect(() => {
+        if (!myUid) return undefined;
+
+        const token = getToken();
+        if (!token) return undefined;
+
+        let disposed = false;
+        manualSocketCloseRef.current = false;
+
+        const stopHeartbeat = () => {
+            if (heartbeatTimerRef.current) {
+                window.clearInterval(heartbeatTimerRef.current);
+                heartbeatTimerRef.current = null;
+            }
+        };
+
+        const scheduleReconnect = () => {
+            if (disposed || manualSocketCloseRef.current || reconnectTimerRef.current) return;
+
+            const attempt = reconnectAttemptsRef.current;
+            const delay = Math.min(RECONNECT_BASE_MS * (2 ** attempt), RECONNECT_MAX_MS);
+            reconnectAttemptsRef.current += 1;
+            reconnectTimerRef.current = window.setTimeout(() => {
+                reconnectTimerRef.current = null;
+                connectSocket();
+            }, delay);
+        };
+
+        const connectSocket = () => {
+            if (disposed) return;
+
+            const currentSocket = websocketRef.current;
+            if (currentSocket && (currentSocket.readyState === WebSocket.OPEN || currentSocket.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            const socketUrl = `${getSocketBase()}/api/messages/ws?token=${encodeURIComponent(token)}`;
+            const socket = new WebSocket(socketUrl);
+            websocketRef.current = socket;
+
+            socket.onopen = () => {
+                reconnectAttemptsRef.current = 0;
+                setError('');
+                loadMessagesRef.current?.(false);
+
+                stopHeartbeat();
+                heartbeatTimerRef.current = window.setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send('ping');
+                    }
+                }, HEARTBEAT_MS);
+            };
+
+            socket.onmessage = async (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (!payload?.message) return;
+                    const [hydratedMessage] = await hydrateMessages([payload.message]);
+                    mergeMessages(hydratedMessage);
+                } catch (messageError) {
+                    console.error('Failed to handle message update:', messageError);
+                }
+            };
+
+            socket.onerror = () => {
+                setError('Realtime message connection failed. Messages may update more slowly.');
+            };
+
+            socket.onclose = () => {
+                stopHeartbeat();
+                if (websocketRef.current === socket) {
+                    websocketRef.current = null;
+                }
+                if (!disposed && !manualSocketCloseRef.current) {
+                    scheduleReconnect();
+                }
+            };
+        };
+
+        const handleOnline = () => {
+            loadMessagesRef.current?.(false);
+            connectSocket();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                loadMessagesRef.current?.(false);
+                connectSocket();
+            }
+        };
+
+        connectSocket();
+        window.addEventListener('online', handleOnline);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            disposed = true;
+            manualSocketCloseRef.current = true;
+
+            stopHeartbeat();
+            if (reconnectTimerRef.current) {
+                window.clearTimeout(reconnectTimerRef.current);
+                reconnectTimerRef.current = null;
+            }
+
+            window.removeEventListener('online', handleOnline);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+            const socket = websocketRef.current;
+            websocketRef.current = null;
+            if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+                socket.close();
+            }
+        };
+    }, [hydrateMessages, mergeMessages, myUid]);
+
+    const conversations = useMemo(() => messages.reduce((accumulator, message) => {
+        const senderId = String(message.sender_id);
+        const receiverId = String(message.receiver_id);
         const otherId = senderId === myUid ? receiverId : senderId;
         const otherName = senderId === myUid
-            ? (msg.receiver_name || userNames[receiverId] || 'Loading...')
-            : (msg.sender_name || userNames[senderId] || 'Loading...');
-        if (!acc[otherId]) {
-            acc[otherId] = { userId: otherId, userName: otherName, messages: [] };
-        }
-        acc[otherId].messages.push(msg);
-        return acc;
-    }, {});
+            ? (message.receiver_name || userNames[receiverId] || 'Loading...')
+            : (message.sender_name || userNames[senderId] || 'Loading...');
 
-    const convList = [
+        if (!accumulator[otherId]) {
+            accumulator[otherId] = { userId: otherId, userName: otherName, messages: [] };
+        }
+
+        accumulator[otherId].messages.push(message);
+        return accumulator;
+    }, {}), [messages, myUid, userNames]);
+
+    const convList = useMemo(() => [
         ...Object.values(conversations),
         ...(selectedChat && !conversations[selectedChat]
             ? [{ userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] }]
@@ -260,15 +473,23 @@ const MessagesPage = () => {
         const aTime = a.messages[a.messages.length - 1]?.timestamp || '';
         const bTime = b.messages[b.messages.length - 1]?.timestamp || '';
         return new Date(bTime) - new Date(aTime);
-    });
+    }), [conversations, selectedChat, userNames]);
 
-    const filteredConvs = convList.filter(c =>
-        c.userName?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredConvs = useMemo(() => convList.filter((conversation) =>
+        conversation.userName?.toLowerCase().includes(deferredSearchTerm.toLowerCase())
+    ), [convList, deferredSearchTerm]);
 
-    // If toParam set but no conversation exists, create a virtual entry
-    const activeConv = selectedChat ? (conversations[selectedChat] || { userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] }) : null;
-    const activeMessages = activeConv?.messages?.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) || [];
+    const activeConv = useMemo(() => (
+        selectedChat
+            ? (conversations[selectedChat] || { userId: selectedChat, userName: userNames[selectedChat] || 'Loading...', messages: [] })
+            : null
+    ), [conversations, selectedChat, userNames]);
+
+    const activeMessages = useMemo(() => (
+        activeConv?.messages
+            ? [...activeConv.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            : []
+    ), [activeConv]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -277,106 +498,227 @@ const MessagesPage = () => {
     useEffect(() => {
         if (!selectedChat || activeMessages.length === 0) return;
 
-        const unreadIncoming = activeMessages.filter(msg =>
-            msg.id &&
-            !msg.is_read &&
-            String(msg.sender_id) === String(selectedChat) &&
-            String(msg.receiver_id) === myUid &&
-            !markingReadRef.current.has(msg.id)
+        const unreadIncoming = activeMessages.filter((message) =>
+            message.id &&
+            !message.is_read &&
+            String(message.sender_id) === String(selectedChat) &&
+            String(message.receiver_id) === myUid &&
+            !markingReadRef.current.has(message.id)
         );
 
         if (unreadIncoming.length === 0) return;
 
-        unreadIncoming.forEach(msg => markingReadRef.current.add(msg.id));
-        setMessages(prev => prev.map(msg =>
-            unreadIncoming.some(unread => unread.id === msg.id)
-                ? { ...msg, is_read: true }
-                : msg
+        unreadIncoming.forEach((message) => markingReadRef.current.add(message.id));
+        setMessages((prev) => prev.map((message) =>
+            unreadIncoming.some((unread) => unread.id === message.id)
+                ? { ...message, is_read: true }
+                : message
         ));
 
-        Promise.all(unreadIncoming.map(msg => updateMessage(msg.id, { is_read: true })))
-            .finally(() => {
-                unreadIncoming.forEach(msg => markingReadRef.current.delete(msg.id));
-            });
-    }, [activeMessages, selectedChat, myUid]);
+        Promise.all(unreadIncoming.map((message) => updateMessage(message.id, { is_read: true })))
+            .then(async (results) => {
+                const failedUpdate = results.find((result) => !result?.ok);
+                if (failedUpdate) {
+                    setError(failedUpdate.data?.detail || 'Failed to update message status.');
+                }
 
-    const handleSend = async (e) => {
-        e.preventDefault();
-        if (!newMsg.trim() || !selectedChat) return;
+                const successfulUpdates = results
+                    .filter((result) => result?.ok && result?.data)
+                    .map((result) => result.data);
+
+                if (successfulUpdates.length > 0) {
+                    const hydratedUpdates = await hydrateMessages(successfulUpdates);
+                    mergeMessages(hydratedUpdates);
+                }
+            })
+            .finally(() => {
+                unreadIncoming.forEach((message) => markingReadRef.current.delete(message.id));
+            });
+    }, [activeMessages, hydrateMessages, mergeMessages, selectedChat, myUid]);
+
+    const handleSend = useCallback(async (event) => {
+        event.preventDefault();
+        if (!newMsg.trim() || !selectedChat || sending) return;
+
+        const content = newMsg.trim();
+
+        if (editingMessage?.id) {
+            if (editingMessage.is_deleted) {
+                setEditingMessage(null);
+                setNewMsg('');
+                return;
+            }
+
+            if (content === (editingMessage.content || '').trim()) {
+                setEditingMessage(null);
+                setNewMsg('');
+                return;
+            }
+
+            setSending(true);
+            setError('');
+            try {
+                const { ok, data } = await updateMessage(editingMessage.id, { content });
+                if (!ok) {
+                    setError(data?.detail || 'Failed to edit message.');
+                    return;
+                }
+
+                const [hydratedMessage] = await hydrateMessages([data]);
+                mergeMessages(hydratedMessage);
+                setEditingMessage(null);
+                setNewMsg('');
+                if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                    loadMessagesRef.current?.(false);
+                }
+            } catch {
+                setError('Failed to edit message.');
+            } finally {
+                setSending(false);
+            }
+            return;
+        }
+
+        const sendKey = `${myUid}:${selectedChat}:${content}`;
+        if (inflightSendKeysRef.current.has(sendKey)) return;
+
+        const clientMessageId = `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const optimisticId = `temp-${Date.now()}`;
+        const optimisticMessage = {
+            id: optimisticId,
+            client_message_id: clientMessageId,
+            order_id: null,
+            sender_id: myUid,
+            receiver_id: String(selectedChat),
+            sender_name: userData?.full_name || userData?.username || 'You',
+            receiver_name: userNamesRef.current[String(selectedChat)] || activeConv?.userName || 'Loading...',
+            content,
+            is_read: false,
+            media_url: null,
+            timestamp: new Date().toISOString(),
+            is_pending: true,
+        };
+
+        inflightSendKeysRef.current.add(sendKey);
+        setSending(true);
+        mergeMessages(optimisticMessage);
+        setNewMsg('');
+        setError('');
+
         try {
             const { ok, data } = await createMessage({
+                client_message_id: clientMessageId,
                 receiver_id: selectedChat,
-                content: newMsg.trim(),
+                content,
             });
-            if (ok) {
-                const hydrated = await hydrateMessages([data]);
-                setMessages(prev => [...prev, hydrated[0]]);
+
+            if (!ok) {
+                removeMessageById(optimisticId);
+                setError(data?.detail || 'Failed to send message.');
+                return;
+            }
+
+            const confirmedMessage = {
+                ...data,
+                sender_id: String(data.sender_id ?? myUid),
+                receiver_id: String(data.receiver_id ?? selectedChat),
+                sender_name: data.sender_name || optimisticMessage.sender_name,
+                receiver_name: data.receiver_name || optimisticMessage.receiver_name,
+                is_pending: false,
+            };
+            mergeMessages(confirmedMessage);
+            if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                loadMessagesRef.current?.(false);
+            }
+            setError('');
+        } catch {
+            removeMessageById(optimisticId);
+            setError('Failed to send message.');
+        } finally {
+            inflightSendKeysRef.current.delete(sendKey);
+            setSending(false);
+        }
+    }, [activeConv?.userName, editingMessage, hydrateMessages, mergeMessages, myUid, newMsg, removeMessageById, selectedChat, sending, userData?.full_name, userData?.username]);
+
+    const handleStartEdit = useCallback((message) => {
+        if (!message?.id || isPendingMessage(message) || message.is_deleted) return;
+        if (String(message.sender_id) !== myUid) return;
+        setEditingMessage(message);
+        setNewMsg(message.content || '');
+        setError('');
+        setOpenActionMenuId(null);
+    }, [myUid]);
+
+    const handleUnsend = useCallback(async (message) => {
+        if (!message?.id || isPendingMessage(message) || message.is_deleted) return false;
+        if (String(message.sender_id) !== myUid) return false;
+        if (unsendingMessageIds[message.id]) return false;
+
+        const previousMessage = {
+            ...message,
+            sender_id: String(message.sender_id),
+            receiver_id: String(message.receiver_id),
+        };
+
+        setUnsendingMessageIds((prev) => ({ ...prev, [message.id]: true }));
+        startTransition(() => {
+            setMessages((prev) => prev.map((item) => (
+                String(item.id) === String(message.id)
+                    ? {
+                        ...item,
+                        content: '',
+                        media_url: null,
+                        service_data: null,
+                        is_deleted: true,
+                    }
+                    : item
+            )));
+        });
+        setError('');
+
+        try {
+            const { ok, data } = await updateMessage(message.id, { is_deleted: true });
+            if (!ok) {
+                startTransition(() => {
+                    setMessages((prev) => prev.map((item) => (
+                        String(item.id) === String(message.id) ? previousMessage : item
+                    )));
+                });
+                setError(data?.detail || 'Failed to unsend message.');
+                return false;
+            }
+
+            const [hydratedMessage] = await hydrateMessages([data]);
+            mergeMessages(hydratedMessage);
+            if (editingMessage?.id === message.id) {
+                setEditingMessage(null);
                 setNewMsg('');
             }
-        } catch { /* ignore */ }
-    };
-
-    const handleFileUpload = async (event) => {
-        const file = event.target.files?.[0];
-        if (!file || !selectedChat || !myUid) return;
-
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
-            return;
-        }
-
-        // Validate file size (5MB max)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('File size must be less than 5MB');
-            return;
-        }
-
-        setIsUploading(true);
-        try {
-            // Upload file to backend
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
-            const uploadResponse = await fetch(`${API_BASE}/uploads/message-image`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!uploadResponse.ok) {
-                throw new Error('Failed to upload image');
+            if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+                loadMessagesRef.current?.(false);
             }
-
-            const uploadData = await uploadResponse.json();
-            const imageUrl = uploadData.url;
-
-            // Create message with image
-            const { ok, data } = await createMessage({
-                receiver_id: selectedChat,
-                content: '', // Empty content for image-only messages
-                media_url: imageUrl,
+            return true;
+        } catch {
+            startTransition(() => {
+                setMessages((prev) => prev.map((item) => (
+                    String(item.id) === String(message.id) ? previousMessage : item
+                )));
             });
-
-            if (ok) {
-                const hydrated = await hydrateMessages([data]);
-                setMessages(prev => [...prev, hydrated[0]]);
-            }
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            alert('Failed to upload image. Please try again.');
+            setError('Failed to unsend message.');
+            return false;
         } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
+            setUnsendingMessageIds((prev) => {
+                const next = { ...prev };
+                delete next[message.id];
+                return next;
+            });
         }
-    };
+    }, [editingMessage?.id, hydrateMessages, mergeMessages, myUid, unsendingMessageIds]);
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';
-        const d = new Date(dateStr);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
     const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
@@ -384,69 +726,89 @@ const MessagesPage = () => {
     const getAvatarColor = (name) => {
         const colors = ['#6366f1', '#f97316', '#10b981', '#ef4444', '#a855f7', '#3b82f6', '#f59e0b'];
         let hash = 0;
-        for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        for (let i = 0; i < (name || '').length; i += 1) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
         return colors[Math.abs(hash) % colors.length];
     };
 
     return (
-        <main className="flex flex-col h-full max-h-[calc(100vh-3.5rem)] bg-[#080808]">
-            {/* Breadcrumb */}
-            <div className="px-6 py-3 border-b border-white/5 flex items-center gap-2 text-sm">
-                <span className="text-zinc-500">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
-                <span className="text-zinc-600">/</span>
-                <span className="text-white font-medium">Messages</span>
+        <main className="msg-page">
+            <div className="msg-breadcrumb">
+                <span className="msg-bc-muted">{userData?.role === 'client' ? 'Client Workspace' : 'Creator Workspace'}</span>
+                <span className="msg-bc-sep">/</span>
+                <span className="msg-bc-active">Messages</span>
             </div>
 
-            <div className="flex flex-1 overflow-hidden">
-                {/* ── Left Panel: Conversation List ── */}
-                <div className="w-80 border-r border-white/5 flex flex-col bg-[#080808]/50 backdrop-blur-sm">
-                    <div className="p-4 border-b border-white/5">
-                        <div className="relative">
-                            <Search size={16} className="absolute left-3 top-2.5 text-zinc-500" />
-                            <input type="text" placeholder="Search messages..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" />
+            <div className="msg-container">
+                <div className="msg-sidebar">
+                    {error && (
+                        <div style={{
+                            margin: '0.75rem',
+                            padding: '0.75rem 0.9rem',
+                            borderRadius: '10px',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#fca5a5',
+                            fontSize: '0.9rem',
+                        }}>
+                            {error}
                         </div>
+                    )}
+
+                    <div className="msg-search">
+                        <Search size={14} className="msg-search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Search messages..."
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                        />
                     </div>
-                    <div className="flex-1 overflow-y-auto">
+
+                    <div className="msg-conv-list">
                         {loading ? (
-                            Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="p-4 flex gap-3 border-b border-white/[0.02] pointer-events-none">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer shrink-0"></div>
-                                    <div className="flex-1 min-w-0 space-y-2">
-                                        <div className="flex justify-between items-baseline">
-                                            <div className={`h-4 rounded bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer`} style={{ width: `${70 + (i%3)*25}px` }}></div>
-                                            <div className="h-3 w-10 bg-white/5 rounded"></div>
+                            Array.from({ length: 6 }).map((_, index) => (
+                                <div key={index} className="msg-conv-item" style={{ pointerEvents: 'none' }}>
+                                    <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0 }}></div>
+                                    <div className="msg-conv-info" style={{ flex: 1 }}>
+                                        <div className="skeleton-row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <div className="skeleton" style={{ width: `${70 + (index % 3) * 25}px`, height: 16 }}></div>
+                                            <div className="skeleton" style={{ width: 42, height: 14 }}></div>
                                         </div>
-                                        <div className="h-3 bg-white/5 rounded" style={{ width: `${60 + (i%4)*12}%` }}></div>
+                                        <div className="skeleton" style={{ width: `${60 + (index % 4) * 12}%`, height: 14 }}></div>
                                     </div>
                                 </div>
                             ))
                         ) : filteredConvs.length === 0 ? (
-                            <p className="text-center text-zinc-500 text-sm py-8">No conversations yet.</p>
+                            <p className="msg-empty-text">No conversations yet.</p>
                         ) : (
-                            filteredConvs.map(conv => {
-                                const lastMsg = conv.messages[conv.messages.length - 1];
-                                const unread = conv.messages.some(m => 
-                                    !m.is_read && 
-                                    String(m.receiver_id) === myUid && 
-                                    String(m.sender_id) === conv.userId
+                            filteredConvs.map((conversation) => {
+                                const lastMessage = conversation.messages[conversation.messages.length - 1];
+                                const unread = conversation.messages.some(
+                                    (message) => !message.is_read && String(message.sender_id) !== myUid,
                                 );
+
                                 return (
                                     <div
-                                        key={conv.userId}
-                                        className={`p-4 flex gap-3 cursor-pointer transition-colors border-b border-white/[0.02] relative ${selectedChat === conv.userId ? 'bg-white/5 border-l-2 border-l-blue-500' : 'hover:bg-white/[0.02]'}`}
-                                        onClick={() => setSelectedChat(conv.userId)}
+                                        key={conversation.userId}
+                                        className={`msg-conv-item ${selectedChat === conversation.userId ? 'active' : ''}`}
+                                        onClick={() => setSelectedChat(conversation.userId)}
                                     >
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-sm shrink-0" style={{ background: getAvatarColor(conv.userName) }}>
-                                            {getInitial(conv.userName)}
+                                        <div className="msg-conv-avatar" style={{ background: getAvatarColor(conversation.userName) }}>
+                                            {getInitial(conversation.userName)}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-baseline mb-1">
-                                                <span className="text-sm font-medium text-white truncate">{conv.userName}</span>
-                                                <span className="text-xs text-zinc-500 ml-2">{formatTime(lastMsg?.timestamp)}</span>
+                                        <div className="msg-conv-info">
+                                            <div className="msg-conv-top">
+                                                <span className="msg-conv-name">{conversation.userName}</span>
+                                                <span className="msg-conv-time">{formatTime(lastMessage?.timestamp)}</span>
                                             </div>
-                                            <p className="text-xs text-zinc-400 truncate">{lastMsg?.content?.slice(0, 45) || '...'}{(lastMsg?.content?.length || 0) > 45 ? '...' : ''}</p>
+                                            <p className={`msg-conv-preview ${lastMessage?.is_deleted ? 'msg-conv-preview--deleted' : ''}`}>
+                                                {getConversationPreviewText(lastMessage, myUid).slice(0, 45) || '...'}
+                                                {(getConversationPreviewText(lastMessage, myUid).length || 0) > 45 ? '...' : ''}
+                                            </p>
                                         </div>
-                                        {unread && <span className="absolute right-4 top-1/2 -translate-y-1/2 w-2 h-2 bg-blue-500 rounded-full"></span>}
+                                        {unread && <span className="msg-unread-dot"></span>}
                                     </div>
                                 );
                             })
@@ -454,102 +816,203 @@ const MessagesPage = () => {
                     </div>
                 </div>
 
-                {/* ── Right Panel: Chat View ── */}
-                <div className="flex-1 flex flex-col bg-[#080808]">
+                <div className="msg-chat">
                     {selectedChat && activeConv ? (
                         <>
-                            <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 shrink-0 bg-[#080808]/80">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-medium text-xs" style={{ background: getAvatarColor(activeConv.userName) }}>
+                            <div className="msg-chat-header">
+                                <div className="msg-chat-header-user">
+                                    <div
+                                        className="msg-conv-avatar msg-conv-avatar--sm"
+                                        style={{ background: getAvatarColor(activeConv.userName) }}
+                                    >
                                         {getInitial(activeConv.userName)}
                                     </div>
-                                    <span className="text-sm font-medium text-white">{activeConv.userName}</span>
+                                    <span className="msg-chat-header-name">{activeConv.userName}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <button className="w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"><Search size={16} /></button>
-                                    <button className="w-8 h-8 rounded-full hover:bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"><MoreVertical size={16} /></button>
+                                <div className="msg-chat-header-actions">
+                                    <button className="msg-icon-btn"><Search size={16} /></button>
+                                    <button className="msg-icon-btn"><MoreVertical size={16} /></button>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                                {activeMessages.map(msg => (
-                                    <div key={msg.id} className={`flex ${String(msg.sender_id) === myUid ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${String(msg.sender_id) === myUid ? 'bg-blue-600 text-white' : 'bg-white/5 text-white'}`}>
-                                            {msg.media_url ? (
-                                                <img 
-                                                    src={msg.media_url.startsWith('http') ? msg.media_url : `${import.meta.env.VITE_API_BASE_URL || ''}${msg.media_url}`} 
-                                                    alt="Shared image" 
-                                                    className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90 transition-opacity"
-                                                    onClick={() => window.open(msg.media_url.startsWith('http') ? msg.media_url : `${import.meta.env.VITE_API_BASE_URL || ''}${msg.media_url}`, '_blank')}
-                                                />
-                                            ) : null}
-                                            {msg.content && <p className="text-sm break-words">{msg.content || msg.message || ''}</p>}
-                                            <span className="text-xs opacity-70 mt-1 block">{formatTime(msg.timestamp)}</span>
+
+                            <div className="msg-chat-body">
+                                {activeMessages.map((message) => {
+                                    const isMine = String(message.sender_id) === myUid;
+                                    const isDeleted = Boolean(message.is_deleted);
+                                    const displayText = getMessageDisplayText(message, myUid);
+                                    const isActionMenuOpen = openActionMenuId === message.id;
+
+                                    return (
+                                        <div
+                                            key={message.id}
+                                            className={`msg-bubble-row ${isMine ? 'mine' : 'theirs'}`}
+                                        >
+                                            {isMine && !isDeleted && !isPendingMessage(message) && (
+                                                <div
+                                                    className={`msg-bubble-rail ${isActionMenuOpen ? 'is-open' : ''}`}
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        className="msg-bubble-menu-btn"
+                                                        aria-label="Message options"
+                                                        aria-expanded={isActionMenuOpen}
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            setOpenActionMenuId((current) => (
+                                                                current === message.id ? null : message.id
+                                                            ));
+                                                        }}
+                                                    >
+                                                        <MoreHorizontal size={16} />
+                                                    </button>
+
+                                                    {isActionMenuOpen && (
+                                                        <div className="msg-bubble-menu">
+                                                            <button
+                                                                type="button"
+                                                                className="msg-bubble-menu__item"
+                                                                onClick={() => handleStartEdit(message)}
+                                                            >
+                                                                <PencilLine size={14} />
+                                                                Edit message
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="msg-bubble-menu__item msg-bubble-menu__item--danger"
+                                                                disabled={Boolean(unsendingMessageIds[message.id])}
+                                                                onClick={() => {
+                                                                    setOpenActionMenuId(null);
+                                                                    setUnsendConfirm({ open: true, message });
+                                                                }}
+                                                            >
+                                                                {unsendingMessageIds[message.id] ? 'Unsending...' : 'Unsend'}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <div className={`msg-bubble-stack ${isMine ? 'mine' : 'theirs'}`}>
+                                                <div
+                                                    className={`msg-bubble ${
+                                                        isMine ? 'msg-bubble--mine' : 'msg-bubble--theirs'
+                                                    } ${isDeleted ? 'msg-bubble--deleted' : ''} ${message.is_pending ? 'msg-bubble--pending' : ''}`}
+                                                >
+                                                    <p>{displayText}</p>
+                                                    <span className="msg-bubble-time">{getMessageMetaText(message)}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                                 <div ref={chatEndRef}></div>
                             </div>
-                            <form className="p-4 border-t border-white/5 flex items-center gap-3" onSubmit={handleSend}>
-                                <input 
-                                    type="file" 
-                                    ref={fileInputRef}
-                                    className="hidden" 
-                                    accept="image/*"
-                                    onChange={handleFileUpload}
-                                />
-                                <button 
-                                    type="button" 
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isUploading}
-                                    className="w-10 h-10 rounded-full hover:bg-white/5 flex items-center justify-center text-zinc-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <Paperclip size={18} />
-                                </button>
-                                <input type="text" placeholder="Type a message..." value={newMsg} onChange={e => setNewMsg(e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" disabled={isUploading} />
-                                <button type="submit" className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={!newMsg.trim() || isUploading}><Send size={18} /></button>
+
+                            <form className={`msg-chat-input ${editingMessage ? 'is-editing' : ''}`} onSubmit={handleSend}>
+                                {editingMessage && (
+                                    <div className="msg-compose-mode">
+                                        <div className="msg-compose-mode__copy">
+                                            <span className="msg-compose-mode__eyebrow">Editing message</span>
+                                            <strong>{editingMessage.receiver_name || activeConv.userName}</strong>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="msg-compose-mode__cancel"
+                                            onClick={() => {
+                                                setEditingMessage(null);
+                                                setNewMsg('');
+                                            }}
+                                        >
+                                            <X size={14} />
+                                            Cancel
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="msg-chat-input__row">
+                                    <button type="button" className="msg-icon-btn" disabled={Boolean(editingMessage)}><Paperclip size={18} /></button>
+                                    <input
+                                        ref={composerInputRef}
+                                        type="text"
+                                        placeholder={editingMessage ? 'Edit your message...' : 'Type a message...'}
+                                        value={newMsg}
+                                        onChange={(event) => setNewMsg(event.target.value)}
+                                    />
+                                    <button type="submit" className="msg-send-btn" disabled={!newMsg.trim() || sending}>
+                                        {editingMessage ? <Check size={18} /> : <Send size={18} />}
+                                    </button>
+                                </div>
                             </form>
                         </>
                     ) : loading ? (
                         <>
-                            {/* Skeleton Chat Header */}
-                            <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 shrink-0 bg-[#080808]/80">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer"></div>
-                                    <div className="h-4 w-28 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded"></div>
+                            <div className="msg-chat-header">
+                                <div className="msg-chat-header-user">
+                                    <div className="skeleton skeleton-avatar"></div>
+                                    <div className="skeleton" style={{ width: 100, height: 16 }}></div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-white/5"></div>
-                                    <div className="w-8 h-8 rounded-full bg-white/5"></div>
+                                <div className="msg-chat-header-actions">
+                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
+                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
                                 </div>
                             </div>
-                            {/* Skeleton Chat Bubbles */}
-                            <div className="flex-1 overflow-hidden p-6 space-y-6">
-                                {[1, 2, 3, 4, 5, 6].map(i => (
-                                    <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[70%] rounded-2xl p-4 space-y-2 ${i % 2 === 0 ? 'bg-blue-500/10' : 'bg-white/[0.03]'}`}>
-                                            <div className={`h-4 ${i % 3 === 0 ? 'w-64' : i % 3 === 1 ? 'w-48' : 'w-56'} bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded`}></div>
-                                            {i % 2 === 0 && <div className="h-4 w-32 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded"></div>}
-                                            <div className="h-3 w-12 bg-white/5 rounded mt-2"></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Skeleton Input Bar */}
-                            <div className="p-4 border-t border-white/5 pointer-events-none">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-white/5"></div>
-                                    <div className="flex-1 h-11 bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer rounded-xl"></div>
-                                    <div className="w-10 h-10 rounded-full bg-white/5"></div>
+
+                            <div className="msg-chat-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
+                                <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '40%' }}>
+                                    <div className="skeleton" style={{ width: '90%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '50%', height: 14 }}></div>
                                 </div>
+                                <div className="skeleton-bubble skeleton-bubble--right" style={{ width: '50%' }}>
+                                    <div className="skeleton" style={{ width: '85%', height: 18, marginBottom: 8, background: 'rgba(99,102,241,0.2)' }}></div>
+                                    <div className="skeleton" style={{ width: '95%', height: 18, marginBottom: 8, background: 'rgba(99,102,241,0.2)' }}></div>
+                                    <div className="skeleton" style={{ width: '40%', height: 14, background: 'rgba(99,102,241,0.15)' }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '55%' }}>
+                                    <div className="skeleton" style={{ width: '80%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '60%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '30%', height: 14 }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--right" style={{ width: '45%' }}>
+                                    <div className="skeleton" style={{ width: '75%', height: 18, marginBottom: 8, background: 'rgba(99,102,241,0.2)' }}></div>
+                                    <div className="skeleton" style={{ width: '50%', height: 14, background: 'rgba(99,102,241,0.15)' }}></div>
+                                </div>
+                                <div className="skeleton-bubble skeleton-bubble--left" style={{ width: '35%' }}>
+                                    <div className="skeleton" style={{ width: '90%', height: 18, marginBottom: 8 }}></div>
+                                    <div className="skeleton" style={{ width: '45%', height: 14 }}></div>
+                                </div>
+                            </div>
+
+                            <div className="msg-chat-input" style={{ pointerEvents: 'none' }}>
+                                <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }}></div>
+                                <div className="skeleton" style={{ flex: 1, height: 42, borderRadius: 8 }}></div>
+                                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 8 }}></div>
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center">
-                            <p className="text-zinc-500 text-sm">Select a conversation to start messaging</p>
+                        <div className="msg-chat-empty">
+                            <p>Select a conversation to start messaging</p>
                         </div>
                     )}
                 </div>
             </div>
+
+            <ConfirmModal
+                open={unsendConfirm.open}
+                title="Unsend message?"
+                message="This will remove the message from both sides of the conversation."
+                variant="danger"
+                confirmLabel="Unsend"
+                loading={Boolean(unsendConfirm.message?.id && unsendingMessageIds[unsendConfirm.message.id])}
+                onConfirm={async () => {
+                    const targetMessage = unsendConfirm.message;
+                    if (!targetMessage) return;
+                    const ok = await handleUnsend(targetMessage);
+                    if (ok) {
+                        setUnsendConfirm({ open: false, message: null });
+                    }
+                }}
+                onCancel={() => setUnsendConfirm({ open: false, message: null })}
+            />
         </main>
     );
 };

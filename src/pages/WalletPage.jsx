@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, ArrowDownCircle, ArrowUpCircle, Plus, CreditCard, Trash2, DollarSign } from 'lucide-react';
-import { getUserData, fetchMyOrders, fetchMyCreatorOrders, fetchMyWallets, fetchMyWithdrawals, createWallet, deleteWallet, createWithdrawal } from '../api';
+import { fetchMyWallets, fetchMyWithdrawals, createWallet, deleteWallet, createWithdrawal } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import { readCollection } from '../utils/collections';
+import { getCurrentUser } from '../utils/currentUser';
+import { getOrderFetcherForRole, isPendingPayoutOrderStatus } from '../utils/orders';
+import './WalletPage.css';
 
 const WalletPage = ({ userRole }) => {
     const [balance, setBalance] = useState(0);
     const [pendingBalance, setPendingBalance] = useState(0);
     const [wallets, setWallets] = useState([]);
     const [withdrawals, setWithdrawals] = useState([]);
-    const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState('');
 
@@ -26,53 +29,42 @@ const WalletPage = ({ userRole }) => {
     const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null });
     const [deleting, setDeleting] = useState(false);
 
-    const userData = getUserData();
+    const userData = getCurrentUser();
     const isCreator = userRole === 'creator';
 
     useEffect(() => {
         (async () => {
             try {
-                const ordersFetcher = isCreator ? fetchMyCreatorOrders : fetchMyOrders;
                 const [oRes, wRes, xRes] = await Promise.all([
-                    ordersFetcher(),
+                    getOrderFetcherForRole(userRole)(),
                     fetchMyWallets(),
-                    isCreator ? fetchMyWithdrawals() : Promise.resolve({ ok: true, data: [] }),
+                    fetchMyWithdrawals(),
                 ]);
 
                 if (oRes.ok) {
-                    const orderRows = oRes.data.results || oRes.data || [];
-                    setOrders(orderRows);
-                    if (isCreator) {
-                        const completed = orderRows.filter(o => o.status === 'completed');
-                        const pending = orderRows.filter(o => ['in_progress', 'delivered', 'accepted'].includes(o.status));
-                        const totalEarned = completed.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
-                        setPendingBalance(pending.reduce((sum, o) => sum + parseFloat(o.price || 0), 0));
+                    const orders = readCollection(oRes);
+                    const completed = orders.filter(o => o.status === 'completed');
+                    const pending = orders.filter(o => isPendingPayoutOrderStatus(o.status));
+                    const totalEarned = completed.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
+                    setPendingBalance(pending.reduce((sum, o) => sum + parseFloat(o.price || 0), 0));
 
-                        let totalWithdrawn = 0;
-                        if (xRes.ok) {
-                            const ws = xRes.data.results || xRes.data || [];
-                            setWithdrawals(ws);
-                            totalWithdrawn = ws.filter(w => w.status !== 'rejected').reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
-                        }
-                        setBalance(Math.max(0, totalEarned - totalWithdrawn));
-                    } else {
-                        const refundable = orderRows.filter(o => ['pending', 'accepted', 'in_progress', 'delivered', 'completed'].includes(o.status));
-                        const refunded = orderRows.filter(o => (o.escrow_status || '').toLowerCase() === 'refunded');
-                        const totalSpent = refundable.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
-                        const totalRefunded = refunded.reduce((sum, o) => sum + parseFloat(o.price || 0), 0);
-                        setBalance(Math.max(0, totalSpent - totalRefunded));
-                        setPendingBalance(totalRefunded);
+                    let totalWithdrawn = 0;
+                    if (xRes.ok) {
+                        const ws = readCollection(xRes);
+                        setWithdrawals(ws);
+                        totalWithdrawn = ws.filter(w => w.status !== 'rejected').reduce((sum, w) => sum + parseFloat(w.amount || 0), 0);
                     }
+                    setBalance(Math.max(0, totalEarned - totalWithdrawn));
                 }
 
-                if (wRes.ok) setWallets(wRes.data.results || wRes.data || []);
+                if (wRes.ok) setWallets(readCollection(wRes));
             } catch (err) {
                 console.error('Wallet load error:', err);
             } finally {
                 setLoading(false);
             }
         })();
-    }, [isCreator]);
+    }, [isCreator, userRole]);
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
@@ -151,38 +143,38 @@ const WalletPage = ({ userRole }) => {
     // ── Skeleton ──
     const renderSkeleton = () => (
         <>
-            <div className="grid grid-cols-3 gap-6">
+            <div className="earn-stats">
                 {[0,1,2].map(i => (
-                    <div key={i} className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer"></div>
-                        <div className="flex-1 space-y-2">
-                            <div className="h-3 w-24 rounded bg-white/5"></div>
-                            <div className="h-7 w-32 rounded bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer"></div>
+                    <div key={i} className="earn-stat-card">
+                        <div className="skeleton" style={{ width: 52, height: 52, borderRadius: 14 }}></div>
+                        <div style={{ flex: 1 }}>
+                            <div className="skeleton" style={{ width: '60%', height: 14, marginBottom: 8 }}></div>
+                            <div className="skeleton" style={{ width: '40%', height: 28 }}></div>
                         </div>
                     </div>
                 ))}
             </div>
-            <div className="space-y-4">
-                <div className="h-6 w-40 rounded bg-white/10"></div>
+            <div className="earn-section">
+                <div className="skeleton" style={{ width: 180, height: 20, marginBottom: 16 }}></div>
                 {[0,1].map(i => (
-                    <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-white/[0.03] via-white/[0.08] to-white/[0.03] bg-[length:200%_100%] animate-shimmer"></div>
-                        <div className="flex-1 space-y-2">
-                            <div className={`h-4 rounded bg-white/10`} style={{ width: `${50 + i * 15}%` }}></div>
-                            <div className={`h-3 rounded bg-white/5`} style={{ width: `${30 + i * 10}%` }}></div>
+                    <div key={i} className="earn-row-item">
+                        <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }}></div>
+                        <div style={{ flex: 1 }}>
+                            <div className="skeleton" style={{ width: `${50 + i * 15}%`, height: 16, marginBottom: 6 }}></div>
+                            <div className="skeleton" style={{ width: `${30 + i * 10}%`, height: 13 }}></div>
                         </div>
                     </div>
                 ))}
             </div>
-            <div className="space-y-4">
-                <div className="h-6 w-48 rounded bg-white/10"></div>
+            <div className="earn-section">
+                <div className="skeleton" style={{ width: 200, height: 20, marginBottom: 16 }}></div>
                 {[0,1,2].map(i => (
-                    <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                        <div className="flex-1 space-y-2">
-                            <div className={`h-4 rounded bg-white/10`} style={{ width: `${40 + i * 12}%` }}></div>
-                            <div className={`h-3 rounded bg-white/5`} style={{ width: `${25 + i * 8}%` }}></div>
+                    <div key={i} className="earn-row-item">
+                        <div style={{ flex: 1 }}>
+                            <div className="skeleton" style={{ width: `${40 + i * 12}%`, height: 16, marginBottom: 6 }}></div>
+                            <div className="skeleton" style={{ width: `${25 + i * 8}%`, height: 13 }}></div>
                         </div>
-                        <div className="h-6 w-20 rounded-full bg-white/5"></div>
+                        <div className="skeleton" style={{ width: 70, height: 24, borderRadius: 12 }}></div>
                     </div>
                 ))}
             </div>
@@ -190,36 +182,32 @@ const WalletPage = ({ userRole }) => {
     );
 
     return (
-        <main className="p-8 max-w-4xl mx-auto space-y-8 pb-20 relative">
-            {toast && (
-                <div className="fixed top-4 right-4 z-50 bg-emerald-500/90 text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
-                    {toast}
-                </div>
-            )}
+        <main className="earn-page">
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
 
             {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-sm">
-                <span className="text-zinc-500">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
-                <span className="text-zinc-600">/</span>
-                <span className="text-white font-medium">{isCreator ? 'Earnings' : 'Billing'}</span>
+            <div className="earn-breadcrumb">
+                <span className="earn-bc-muted">{isCreator ? 'Creator Workspace' : 'Client Workspace'}</span>
+                <span className="earn-bc-sep">/</span>
+                <span className="earn-bc-active">{isCreator ? 'Earnings' : 'Billing'}</span>
             </div>
 
             {/* Header */}
-            <div className="flex justify-between items-start">
+            <div className="earn-header">
                 <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">{isCreator ? 'Earnings' : 'Billing'}</h1>
-                    <p className="text-sm text-zinc-400">
+                    <h1 className="earn-title">{isCreator ? 'Earnings' : 'Billing'}</h1>
+                    <p className="earn-subtitle">
                         {isCreator
                             ? 'Track your earnings, manage withdrawals, and set up payout methods.'
                             : 'Manage your billing, payment methods, and transaction history.'}
                     </p>
                 </div>
-                {!loading && isCreator && (
-                    <div className="flex gap-3">
-                        <button className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" onClick={() => setShowWithdrawModal(true)} disabled={wallets.length === 0}>
+                {!loading && (
+                    <div className="earn-header-actions">
+                        <button className="earn-action-btn earn-action-btn--primary" onClick={() => setShowWithdrawModal(true)} disabled={wallets.length === 0}>
                             <ArrowUpCircle size={16} /> Withdraw
                         </button>
-                        <button className="px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-white text-sm font-medium flex items-center gap-2 transition-colors" onClick={() => setShowPayoutModal(true)}>
+                        <button className="earn-action-btn earn-action-btn--outline" onClick={() => setShowPayoutModal(true)}>
                             <Plus size={16} /> Add Payout
                         </button>
                     </div>
@@ -229,146 +217,83 @@ const WalletPage = ({ userRole }) => {
             {loading ? renderSkeleton() : (
                 <>
                     {/* Stat Cards */}
-                    <div className="grid grid-cols-3 gap-6">
-                        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><DollarSign size={24} /></div>
+                    <div className="earn-stats">
+                        <div className="earn-stat-card">
+                            <div className="earn-stat-icon earn-stat-icon--green"><DollarSign size={24} /></div>
                             <div>
-                                <p className="text-xs text-zinc-500 mb-1">{isCreator ? 'Available Balance' : 'Total Spent'}</p>
-                                <p className="text-2xl font-bold text-white">₱{balance.toLocaleString()}</p>
+                                <p className="earn-stat-label">Available Balance</p>
+                                <p className="earn-stat-value">₱{balance.toLocaleString()}</p>
                             </div>
                         </div>
-                        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-400"><ArrowDownCircle size={24} /></div>
+                        <div className="earn-stat-card">
+                            <div className="earn-stat-icon earn-stat-icon--yellow"><ArrowDownCircle size={24} /></div>
                             <div>
-                                <p className="text-xs text-zinc-500 mb-1">{isCreator ? 'Pending' : 'Total Refunded'}</p>
-                                <p className="text-2xl font-bold text-white">₱{pendingBalance.toLocaleString()}</p>
+                                <p className="earn-stat-label">Pending</p>
+                                <p className="earn-stat-value">₱{pendingBalance.toLocaleString()}</p>
                             </div>
                         </div>
-                        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400"><ArrowUpCircle size={24} /></div>
+                        <div className="earn-stat-card">
+                            <div className="earn-stat-icon earn-stat-icon--purple"><ArrowUpCircle size={24} /></div>
                             <div>
-                                <p className="text-xs text-zinc-500 mb-1">{isCreator ? 'Total Withdrawn' : 'Completed Orders'}</p>
-                                <p className="text-2xl font-bold text-white">{isCreator ? `₱${totalWithdrawn.toLocaleString()}` : orders.filter(o => o.status === 'completed').length}</p>
+                                <p className="earn-stat-label">Total Withdrawn</p>
+                                <p className="earn-stat-value">₱{totalWithdrawn.toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
 
-                    {isCreator ? (
-                        <>
-                            {/* Payout Methods */}
-                            <div className="space-y-4">
-                                <h2 className="text-xl font-semibold text-white">Payout Methods</h2>
-                                <div className="space-y-3">
-                                    {wallets.length > 0 ? wallets.map(w => (
-                                        <div key={w.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center gap-4 hover:bg-white/[0.03] transition-colors">
-                                            <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center text-zinc-400"><CreditCard size={18} /></div>
-                                            <div className="flex-1">
-                                                <h4 className="text-sm font-medium text-white">{w.wallet_type}</h4>
-                                                <p className="text-xs text-zinc-500">{w.account_name} • {w.account_number}</p>
-                                            </div>
-                                            <button className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 flex items-center gap-1.5 transition-colors" onClick={() => setDeleteConfirm({ open: true, id: w.id })}>
-                                                <Trash2 size={14} /> Remove
-                                            </button>
-                                        </div>
-                                    )) : (
-                                        <p className="text-sm text-zinc-500 text-center py-8">No payout methods yet. Add one to withdraw funds.</p>
-                                    )}
+                    {/* Payout Methods */}
+                    <div className="earn-section">
+                        <h2 className="earn-section-title">Payout Methods</h2>
+                        <div className="earn-section-list">
+                            {wallets.length > 0 ? wallets.map(w => (
+                                <div key={w.id} className="earn-row-item">
+                                    <div className="earn-row-icon"><CreditCard size={18} /></div>
+                                    <div className="earn-row-info">
+                                        <h4>{w.wallet_type}</h4>
+                                        <p>{w.account_name} • {w.account_number}</p>
+                                    </div>
+                                    <button className="earn-delete-btn" onClick={() => setDeleteConfirm({ open: true, id: w.id })}>
+                                        <Trash2 size={14} /> Remove
+                                    </button>
                                 </div>
-                            </div>
+                            )) : (
+                                <p className="earn-empty">No payout methods yet. Add one to withdraw funds.</p>
+                            )}
+                        </div>
+                    </div>
 
-                            {/* Withdrawal History */}
-                            <div className="space-y-4">
-                                <h2 className="text-xl font-semibold text-white">Withdrawal History</h2>
-                                <div className="space-y-3">
-                                    {withdrawals.length > 0 ? withdrawals.map(w => (
-                                        <div key={w.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between hover:bg-white/[0.03] transition-colors">
-                                            <div>
-                                                <h4 className="text-sm font-medium text-white">₱{parseFloat(w.amount || 0).toLocaleString()}</h4>
-                                                <p className="text-xs text-zinc-500">{w.method_type} • {w.account_details}</p>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                                                    w.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
-                                                    w.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                                                    w.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
-                                                    'bg-zinc-500/10 text-zinc-400'
-                                                }`}>{w.status || 'pending'}</span>
-                                                <span className="text-xs text-zinc-600">{w.created_at ? new Date(w.created_at).toLocaleDateString() : ''}</span>
-                                            </div>
-                                        </div>
-                                    )) : (
-                                        <p className="text-sm text-zinc-500 text-center py-8">No withdrawals yet.</p>
-                                    )}
+                    {/* Withdrawal History */}
+                    <div className="earn-section">
+                        <h2 className="earn-section-title">Withdrawal History</h2>
+                        <div className="earn-section-list">
+                            {withdrawals.length > 0 ? withdrawals.map(w => (
+                                <div key={w.id} className="earn-row-item">
+                                    <div className="earn-row-info">
+                                        <h4>₱{parseFloat(w.amount || 0).toLocaleString()}</h4>
+                                        <p>{w.method_type} • {w.account_details}</p>
+                                    </div>
+                                    <div className="earn-row-meta">
+                                        <span className={`earn-status earn-status--${w.status || 'pending'}`}>{w.status || 'pending'}</span>
+                                        <span className="earn-row-date">{w.created_at ? new Date(w.created_at).toLocaleDateString() : ''}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="space-y-4">
-                                <h2 className="text-xl font-semibold text-white">Charges & Payments</h2>
-                                <div className="space-y-3">
-                                    {orders.length > 0 ? orders
-                                        .filter(o => (o.escrow_status || '').toLowerCase() !== 'refunded')
-                                        .slice(0, 20)
-                                        .map(o => (
-                                            <div key={o.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between hover:bg-white/[0.03] transition-colors">
-                                                <div>
-                                                    <h4 className="text-sm font-medium text-white">{o.service_title || `Order #${o.id}`}</h4>
-                                                    <p className="text-xs text-zinc-500">{o.created_at ? new Date(o.created_at).toLocaleDateString() : ''}</p>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                                                        o.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
-                                                        o.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
-                                                        o.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                                                        'bg-zinc-500/10 text-zinc-400'
-                                                    }`}>{o.status || 'pending'}</span>
-                                                    <span className="text-sm font-medium text-red-400">- ₱{parseFloat(o.price || 0).toLocaleString()}</span>
-                                                </div>
-                                            </div>
-                                        )) : (
-                                        <p className="text-sm text-zinc-500 text-center py-8">No payment charges yet.</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h2 className="text-xl font-semibold text-white">Refund Timeline</h2>
-                                <div className="space-y-3">
-                                    {orders.filter(o => (o.escrow_status || '').toLowerCase() === 'refunded').length > 0 ? orders
-                                        .filter(o => (o.escrow_status || '').toLowerCase() === 'refunded')
-                                        .slice(0, 20)
-                                        .map(o => (
-                                            <div key={`refund-${o.id}`} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between hover:bg-white/[0.03] transition-colors">
-                                                <div>
-                                                    <h4 className="text-sm font-medium text-white">{o.service_title || `Order #${o.id}`}</h4>
-                                                    <p className="text-xs text-zinc-500">{o.updated_at ? new Date(o.updated_at).toLocaleDateString() : (o.created_at ? new Date(o.created_at).toLocaleDateString() : '')}</p>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">refunded</span>
-                                                    <span className="text-sm font-medium text-emerald-400">+ ₱{parseFloat(o.price || 0).toLocaleString()}</span>
-                                                </div>
-                                            </div>
-                                        )) : (
-                                        <p className="text-sm text-zinc-500 text-center py-8">No refunds processed yet.</p>
-                                    )}
-                                </div>
-                            </div>
-                        </>
-                    )}
+                            )) : (
+                                <p className="earn-empty">No withdrawals yet.</p>
+                            )}
+                        </div>
+                    </div>
                 </>
             )}
 
             {/* ═══ Add Payout Modal ═══ */}
-            {isCreator && showPayoutModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPayoutModal(false)}>
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
-                    <div className="relative w-full max-w-md p-6 rounded-2xl bg-[#0F0F0F] border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-medium text-white mb-6">Add Payout Method</h3>
-                        <form onSubmit={handleAddPayout} className="space-y-4">
+            {showPayoutModal && (
+                <div className="confirm-overlay" onClick={() => setShowPayoutModal(false)}>
+                    <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+                        <h3 className="confirm-modal__title">Add Payout Method</h3>
+                        <form onSubmit={handleAddPayout} className="earn-modal-form">
                             <div>
-                                <label className="block text-xs text-zinc-400 mb-2">Wallet Type</label>
-                                <select value={payoutForm.wallet_type} onChange={e => setPayoutForm(p => ({ ...p, wallet_type: e.target.value }))} className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20">
+                                <label className="earn-form-label">Wallet Type</label>
+                                <select value={payoutForm.wallet_type} onChange={e => setPayoutForm(p => ({ ...p, wallet_type: e.target.value }))} className="earn-form-input">
                                     <option value="GCash">GCash</option>
                                     <option value="Maya">Maya (PayMaya)</option>
                                     <option value="BankTransfer">Bank Transfer</option>
@@ -376,16 +301,16 @@ const WalletPage = ({ userRole }) => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs text-zinc-400 mb-2">Account Name</label>
-                                <input value={payoutForm.account_name} onChange={e => setPayoutForm(p => ({ ...p, account_name: e.target.value }))} placeholder="Juan Dela Cruz" required className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" />
+                                <label className="earn-form-label">Account Name</label>
+                                <input value={payoutForm.account_name} onChange={e => setPayoutForm(p => ({ ...p, account_name: e.target.value }))} placeholder="Juan Dela Cruz" required className="earn-form-input" />
                             </div>
                             <div>
-                                <label className="block text-xs text-zinc-400 mb-2">Account Number</label>
-                                <input value={payoutForm.account_number} onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} placeholder="09XXXXXXXXX" required className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" />
+                                <label className="earn-form-label">Account Number</label>
+                                <input value={payoutForm.account_number} onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} placeholder="09XXXXXXXXX" required className="earn-form-input" />
                             </div>
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" className="flex-1 px-4 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 text-white text-sm font-medium transition-colors" onClick={() => setShowPayoutModal(false)}>Cancel</button>
-                                <button type="submit" className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50" disabled={payoutLoading}>
+                            <div className="confirm-modal__actions">
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setShowPayoutModal(false)}>Cancel</button>
+                                <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" disabled={payoutLoading}>
                                     {payoutLoading ? 'Adding...' : 'Add Method'}
                                 </button>
                             </div>
@@ -395,30 +320,29 @@ const WalletPage = ({ userRole }) => {
             )}
 
             {/* ═══ Withdraw Modal ═══ */}
-            {isCreator && showWithdrawModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowWithdrawModal(false)}>
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
-                    <div className="relative w-full max-w-md p-6 rounded-2xl bg-[#0F0F0F] border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-medium text-white mb-2">Withdraw Funds</h3>
-                        <p className="text-sm text-zinc-400 mb-6">Available: <strong className="text-white">₱{balance.toLocaleString()}</strong></p>
-                        <form onSubmit={handleWithdraw} className="space-y-4">
+            {showWithdrawModal && (
+                <div className="confirm-overlay" onClick={() => setShowWithdrawModal(false)}>
+                    <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+                        <h3 className="confirm-modal__title">Withdraw Funds</h3>
+                        <p className="earn-modal-balance">Available: <strong>₱{balance.toLocaleString()}</strong></p>
+                        <form onSubmit={handleWithdraw} className="earn-modal-form">
                             <div>
-                                <label className="block text-xs text-zinc-400 mb-2">Amount (₱)</label>
+                                <label className="earn-form-label">Amount (₱)</label>
                                 <input type="number" min="1" max={balance} step="0.01" value={withdrawForm.amount}
-                                    onChange={e => setWithdrawForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" required className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20 placeholder-zinc-600" />
+                                    onChange={e => setWithdrawForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" required className="earn-form-input" />
                             </div>
                             <div>
-                                <label className="block text-xs text-zinc-400 mb-2">Payout Method</label>
-                                <select value={withdrawForm.wallet_id} onChange={e => setWithdrawForm(p => ({ ...p, wallet_id: e.target.value }))} required className="w-full bg-[#1A1A1A] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-white/20">
+                                <label className="earn-form-label">Payout Method</label>
+                                <select value={withdrawForm.wallet_id} onChange={e => setWithdrawForm(p => ({ ...p, wallet_id: e.target.value }))} required className="earn-form-input">
                                     <option value="">Select a method</option>
                                     {wallets.map(w => (
                                         <option key={w.id} value={w.id}>{w.wallet_type} • {w.account_name}</option>
                                     ))}
                                 </select>
                             </div>
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" className="flex-1 px-4 py-2.5 rounded-lg border border-white/10 hover:bg-white/5 text-white text-sm font-medium transition-colors" onClick={() => setShowWithdrawModal(false)}>Cancel</button>
-                                <button type="submit" className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50" disabled={withdrawLoading}>
+                            <div className="confirm-modal__actions">
+                                <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setShowWithdrawModal(false)}>Cancel</button>
+                                <button type="submit" className="confirm-modal__btn confirm-modal__btn--success" disabled={withdrawLoading}>
                                     {withdrawLoading ? 'Processing...' : 'Withdraw'}
                                 </button>
                             </div>
@@ -427,18 +351,16 @@ const WalletPage = ({ userRole }) => {
                 </div>
             )}
 
-            {isCreator && (
-                <ConfirmModal
-                    open={deleteConfirm.open}
-                    title="Remove Payout Method?"
-                    message="This payout method will be permanently removed."
-                    variant="danger"
-                    confirmLabel="Remove"
-                    loading={deleting}
-                    onConfirm={handleDeleteWallet}
-                    onCancel={() => setDeleteConfirm({ open: false, id: null })}
-                />
-            )}
+            <ConfirmModal
+                open={deleteConfirm.open}
+                title="Remove Payout Method?"
+                message="This payout method will be permanently removed."
+                variant="danger"
+                confirmLabel="Remove"
+                loading={deleting}
+                onConfirm={handleDeleteWallet}
+                onCancel={() => setDeleteConfirm({ open: false, id: null })}
+            />
         </main>
     );
 };
