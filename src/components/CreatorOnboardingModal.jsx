@@ -37,7 +37,7 @@ export const CreatorOnboardingModal = ({ isOpen, onClose, onComplete }) => {
     const [middleName, setMiddleName] = useState('');
     const [lastName, setLastName] = useState('');
     const [phone, setPhone] = useState('');
-    const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
+    const [selectedCountry] = useState(COUNTRIES[0]);
     const [idNumber, setIdNumber] = useState('');
 
     // Address State
@@ -46,7 +46,7 @@ export const CreatorOnboardingModal = ({ isOpen, onClose, onComplete }) => {
     const [city, setCity] = useState('');
     const [province, setProvince] = useState('');
     const [postalCode, setPostalCode] = useState('');
-    const [country, setCountry] = useState('Philippines');
+    const country = 'Philippines';
 
     // ID Images
     const [idFront, setIdFront] = useState(null);
