@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { X, Check, ArrowRight, Upload, AlertCircle, Camera, Plus, Trash2 } from 'lucide-react';
-import { getToken } from '../api';
+import { getApiOrigin, getToken } from '../api';
 
 const MAIN_CATEGORIES = [
     { id: 'cat1', label: 'Design & Creative' },
@@ -24,6 +24,8 @@ const COUNTRIES = [
     { code: 'PH', dialCode: '+63', name: 'Philippines', flag: '🇵🇭', placeholder: '0912 345 6789', regex: /^09\d{9}$/, maxLength: 11 },
     { code: 'US', dialCode: '+1', name: 'United States', flag: '🇺🇸', placeholder: '(555) 123-4567', regex: /^\d{10}$/, maxLength: 10 },
 ];
+
+const API_ORIGIN = getApiOrigin();
 
 export const CreatorOnboardingModal = ({ isOpen, onClose, onComplete }) => {
     const [step, setStep] = useState(1);
@@ -179,7 +181,7 @@ export const CreatorOnboardingModal = ({ isOpen, onClose, onComplete }) => {
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/uploads/id-verification?filename=${filename}`, {
+            const response = await fetch(`${API_ORIGIN}/api/uploads/id-verification?filename=${filename}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -236,7 +238,7 @@ export const CreatorOnboardingModal = ({ isOpen, onClose, onComplete }) => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
             
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/creator-applications/`, {
+            const response = await fetch(`${API_ORIGIN}/api/creator-applications/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
