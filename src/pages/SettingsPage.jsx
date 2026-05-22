@@ -130,6 +130,10 @@ const SettingsPage = ({ userRole, onLogout }) => {
 
     const { theme, setTheme } = useTheme();
     const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
+    const isAdmin = userRole === 'admin';
+    const availableTabs = isAdmin
+        ? TABS.filter((tab) => !['help', 'followers', 'payout'].includes(tab.key))
+        : TABS;
 
     useEffect(() => {
         document.documentElement.style.setProperty('--accent', accentColor);
@@ -155,6 +159,12 @@ const SettingsPage = ({ userRole, onLogout }) => {
             setCreatorModalOpen(true);
         }
     }, [shouldOpenBecomeCreator, userRole]);
+
+    useEffect(() => {
+        if (!availableTabs.some((tab) => tab.key === activeTab)) {
+            setActiveTab('profile');
+        }
+    }, [activeTab, availableTabs]);
 
     // Load tab-specific data
     useEffect(() => {
@@ -199,10 +209,10 @@ const SettingsPage = ({ userRole, onLogout }) => {
         if (activeTab === 'payout') {
             loadPayoutData();
         }
-        if (activeTab === 'help') {
+        if (activeTab === 'help' && !isAdmin) {
             loadHelpTickets();
         }
-    }, [activeTab, userData?.firebase_uid]);
+    }, [activeTab, isAdmin, userData?.firebase_uid]);
 
     // ── PROFILE ──
     const handlePhotoUpload = (e) => {
@@ -513,7 +523,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
             <div className="settings-layout">
                 {/* Sidebar */}
                 <nav className="settings-nav">
-                    {TABS.map(tab => (
+                    {availableTabs.map(tab => (
                         <button
                             key={tab.key}
                             className={`settings-nav-item ${activeTab === tab.key ? 'active' : ''}`}
