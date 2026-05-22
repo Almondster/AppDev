@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, BarChart3, AlertTriangle, ShieldCheck, Tag, Plus, Trash2, Package } from 'lucide-react';
 import { fetchUsers as apiFetchUsers, fetchOrders as apiFetchOrders, fetchSupportTickets as apiFetchTickets, fetchCategories, createCategory, deleteCategory, fetchServices } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
+import { readCollection } from '../utils/collections';
 
 const AdminDashboardPage = () => {
     const [userCount, setUserCount] = useState(0);
@@ -30,21 +31,21 @@ const AdminDashboardPage = () => {
                     fetchServices({ include_deleted: true }),
                 ]);
                 if (uRes.ok) {
-                    const users = uRes.data.results || uRes.data || [];
+                    const users = readCollection(uRes);
                     setUserCount(users.length);
                 }
                 if (oRes.ok) {
-                    const orders = oRes.data.results || oRes.data || [];
+                    const orders = readCollection(oRes);
                     setOrderCount(orders.length);
                     setTotalRevenue(orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + parseFloat(o.price || 0), 0));
                     setRecentOrders(orders.slice(0, 3));
                 }
                 if (tRes.ok) {
-                    const tickets = tRes.data.results || tRes.data || [];
+                    const tickets = readCollection(tRes);
                     setTicketCount(tickets.length);
                 }
-                if (cRes.ok) setCategories(cRes.data.results || cRes.data || []);
-                if (sRes.ok) setServiceCount((sRes.data.results || sRes.data || []).length);
+                if (cRes.ok) setCategories(readCollection(cRes));
+                if (sRes.ok) setServiceCount(readCollection(sRes).length);
             } catch (err) {
                 console.error('Admin dashboard error:', err);
             } finally {
