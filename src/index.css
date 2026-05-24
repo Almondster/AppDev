@@ -17,6 +17,7 @@
   --accent: #6366f1;
   --accent-hover: #818cf8;
   --accent-subtle: rgba(99,102,241,0.12);
+  --accent-light: rgba(99,102,241,0.15);
   --glass-bg: rgba(255,255,255,0.02);
   --glass-border: rgba(255,255,255,0.06);
   --skeleton-bg: rgba(255,255,255,0.06);
@@ -41,6 +42,7 @@
   --accent: #6366f1;
   --accent-hover: #4f46e5;
   --accent-subtle: rgba(99,102,241,0.1);
+  --accent-light: rgba(99,102,241,0.08);
   --glass-bg: rgba(255,255,255,0.7);
   --glass-border: rgba(0,0,0,0.08);
   --skeleton-bg: rgba(0,0,0,0.06);
