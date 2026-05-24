@@ -6,6 +6,7 @@ export const ROUTES = {
     HOME: '/',
     LOGIN: '/login',
     LANDING: '/landing',
+    MARKETPLACE: '/marketplace',
     PROJECTS: '/projects',
     MY_GIGS: '/my-gigs',
     MESSAGES: '/messages',

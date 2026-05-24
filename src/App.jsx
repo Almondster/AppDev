@@ -19,6 +19,7 @@ import UsersPage from './pages/UsersPage';
 import DisputesPage from './pages/DisputesPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
+import MarketplacePage from './pages/MarketplacePage';
 import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
@@ -120,6 +121,7 @@ function App() {
           <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
+            <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />
