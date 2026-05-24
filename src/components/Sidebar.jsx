@@ -22,6 +22,7 @@ const Sidebar = ({ userRole, onLogout }) => {
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/marketplace', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
+        { to: '/recommendations', label: 'Recommendations', icon: <Briefcase size={18} /> },
         { to: '/projects', label: 'My Orders', icon: <Briefcase size={18} /> },
         { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
         { to: '/notifications', label: 'Notifications', icon: <Bell size={18} /> },
@@ -31,6 +32,7 @@ const Sidebar = ({ userRole, onLogout }) => {
     const creatorMenu = [
         { to: '/', label: 'Studio', icon: <LayoutGrid size={18} /> },
         { to: '/marketplace', label: 'Marketplace', icon: <Package size={18} /> },
+        { to: '/recommendations', label: 'Recommendations', icon: <Briefcase size={18} /> },
         { to: '/my-gigs', label: 'My Gigs', icon: <Briefcase size={18} /> },
         { to: '/orders', label: 'Orders', icon: <Package size={18} /> },
         { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },

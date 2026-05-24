@@ -3,6 +3,7 @@ import { Search, Heart, Star, Clock, X, Save, Trash2 } from 'lucide-react';
 import { fetchServices } from '../api';
 import { readCollection } from '../utils/collections';
 import SearchFilters from '../components/SearchFilters';
+import { trackSearchQuery } from '../utils/recommendations';
 import './MarketplacePage.css';
 
 const MarketplacePage = () => {
@@ -39,6 +40,12 @@ const MarketplacePage = () => {
   useEffect(() => {
     const fetchFilteredServices = async () => {
       setLoading(true);
+      
+      // Track search query and filters
+      if (searchQuery.trim()) {
+        trackSearchQuery(searchQuery, filters);
+      }
+      
       try {
         const params = {
           search: searchQuery,

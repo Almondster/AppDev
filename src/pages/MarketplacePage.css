@@ -46,7 +46,7 @@
   font-size: 15px;
   border: 2px solid #e0e7ff;
   border-radius: 8px;
-  background: white;
+  background: rgb(11, 0, 0);
   transition: all 0.2s ease;
   font-family: inherit;
 }
@@ -91,7 +91,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
+  background: rgb(14, 0, 0);
   border: 1px solid #e0e7ff;
   border-top: none;
   border-radius: 0 0 8px 8px;
@@ -105,7 +105,7 @@
 .suggestions-header {
   padding: 10px 16px;
   border-bottom: 1px solid #f0f1f7;
-  background: #f9fafb;
+  background: #000407;
 }
 
 .suggestions-label {
@@ -133,14 +133,14 @@
 }
 
 .suggestion-item:hover {
-  background-color: #f7f9ff;
+  background-color: #000206;
   color: #667eea;
   border-left-color: #667eea;
 }
 
 .save-search-btn {
   padding: 10px 16px;
-  background: white;
+  background: rgb(8, 0, 0);
   border: 2px solid #e0e7ff;
   border-radius: 8px;
   cursor: pointer;
@@ -532,6 +532,7 @@
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -543,6 +544,7 @@
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   flex: 1;

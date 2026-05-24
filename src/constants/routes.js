@@ -7,6 +7,7 @@ export const ROUTES = {
     LOGIN: '/login',
     LANDING: '/landing',
     MARKETPLACE: '/marketplace',
+    RECOMMENDATIONS: '/recommendations',
     PROJECTS: '/projects',
     MY_GIGS: '/my-gigs',
     MESSAGES: '/messages',

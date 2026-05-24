@@ -20,6 +20,7 @@ import DisputesPage from './pages/DisputesPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
 import MarketplacePage from './pages/MarketplacePage';
+import RecommendationsPage from './pages/RecommendationsPage';
 import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
@@ -122,6 +123,7 @@ function App() {
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/marketplace" element={<MarketplacePage />} />
+            <Route path="/recommendations" element={<RecommendationsPage />} />
             <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />
