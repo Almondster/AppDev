@@ -272,7 +272,13 @@ const CreatorDashboardPage = () => {
                         <div className="reviews-list">
                             {reviews.map(r => (
                                 <div key={r.id} className="review-card">
-                                    <div className="review-avatar">{(r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()}</div>
+                                    <div className="review-avatar">
+                                        {r.reviewer_avatar_url ? (
+                                            <img src={r.reviewer_avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                                        ) : (
+                                            (r.reviewer_name || r.reviewer_id || 'U').charAt(0).toUpperCase()
+                                        )}
+                                    </div>
                                     <div className="review-body">
                                         <div className="review-header">
                                             <div>
