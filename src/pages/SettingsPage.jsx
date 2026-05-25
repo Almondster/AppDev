@@ -175,7 +175,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 const res = await fetchSupportTickets();
                 if (res.ok) {
                     const all = res.data.results || res.data || [];
-                    setTickets(all.filter(t => t.user_id === userData?.firebase_uid));
+                    setTickets(all);
                 }
             } catch (err) {
                 console.error('Failed to load support tickets:', err);
