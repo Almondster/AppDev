@@ -306,7 +306,7 @@ const OrderDetailPage = () => {
     setActionLoading(true);
     try {
       const { ok } = await createReview({
-        order: order.id,
+        order_id: order.id,
         reviewer_id: userData.firebase_uid,
         reviewee_id: isCreator ? order.client_id : order.creator_id,
         rating,
