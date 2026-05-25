@@ -191,14 +191,14 @@ const CreatorDashboardPage = () => {
                         </div>
                         <div className="quick-stats">
                             <div className="quick-stat-card">
-                                <Clock size={18} className="qs-icon qs-icon--blue" />
+                                <Clock size={26} className="qs-icon qs-icon--blue" />
                                 <div>
                                     <p className="qs-value">~1 hr</p>
                                     <p className="qs-label">Avg Response</p>
                                 </div>
                             </div>
                             <div className="quick-stat-card">
-                                <Star size={18} className="qs-icon qs-icon--yellow" />
+                                <Star size={26} className="qs-icon qs-icon--yellow" />
                                 <div>
                                     <p className="qs-value">{avgRating} <span className="qs-sub">/ 5.0</span></p>
                                     <p className="qs-label">Rating</p>
@@ -211,22 +211,22 @@ const CreatorDashboardPage = () => {
                     <h3 className="section-label">Interactions</h3>
                     <div className="interactions-grid">
                         <div className="interaction-card">
-                            <div className="ic-top"><Eye size={20} className="ic-icon ic-icon--blue" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
+                            <div className="ic-top"><Eye size={26} className="ic-icon ic-icon--blue" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
                             <p className="ic-value">{loading ? '...' : 0}</p>
                             <p className="ic-label">Views</p>
                         </div>
                         <div className="interaction-card">
-                            <div className="ic-top"><MousePointerClick size={20} className="ic-icon ic-icon--orange" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
+                            <div className="ic-top"><MousePointerClick size={26} className="ic-icon ic-icon--orange" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
                             <p className="ic-value">{loading ? '...' : 0}</p>
                             <p className="ic-label">Clicks</p>
                         </div>
                         <div className="interaction-card">
-                            <div className="ic-top"><Briefcase size={20} className="ic-icon ic-icon--red" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
+                            <div className="ic-top"><Briefcase size={26} className="ic-icon ic-icon--red" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
                             <p className="ic-value">{loading ? '...' : active.length}</p>
                             <p className="ic-label">Active Jobs</p>
                         </div>
                         <div className="interaction-card">
-                            <div className="ic-top"><DollarSign size={20} className="ic-icon ic-icon--purple" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
+                            <div className="ic-top"><DollarSign size={26} className="ic-icon ic-icon--purple" /><span className="ic-badge ic-badge--green">→ +0%</span></div>
                             <p className="ic-value">₱{loading ? '...' : (revenue / 1000).toFixed(1)}k</p>
                             <p className="ic-label">Total Revenue</p>
                         </div>

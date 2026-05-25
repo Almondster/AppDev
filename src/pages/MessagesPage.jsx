@@ -554,7 +554,12 @@ const MessagesPage = () => {
     ), [activeConv]);
 
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (chatEndRef.current) {
+            const parent = chatEndRef.current.parentElement;
+            if (parent) {
+                parent.scrollTo({ top: parent.scrollHeight, behavior: 'smooth' });
+            }
+        }
     }, [activeMessages.length, selectedChat]);
 
     useEffect(() => {

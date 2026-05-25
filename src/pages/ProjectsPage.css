@@ -111,7 +111,14 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.85rem;
+    table-layout: fixed;
 }
+.gigs-table th:nth-child(1) { width: 27%; }
+.gigs-table th:nth-child(2) { width: 24%; }
+.gigs-table th:nth-child(3) { width: 13%; }
+.gigs-table th:nth-child(4) { width: 12%; }
+.gigs-table th:nth-child(5) { width: 10%; }
+.gigs-table th:nth-child(6) { width: 14%; }
 .gigs-table thead {
     background: rgba(255,255,255,0.04);
 }
@@ -146,8 +153,16 @@
 .gigs-cell-service {
     color: #fff;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.gigs-cell-user { color: #a1a1aa; }
+.gigs-cell-user { 
+    color: #a1a1aa; 
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .gigs-cell-date { color: #71717a; font-size: 0.8rem; }
 .gigs-cell-amount {
     color: #fff;
