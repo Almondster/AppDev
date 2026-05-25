@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
     LayoutGrid,
@@ -15,10 +16,12 @@ import {
     Moon,
 } from 'lucide-react';
 import { getUserData } from '../api';
+import ConfirmModal from './ConfirmModal';
 import { useTheme } from '../context/hooks/useTheme.js';
 
 const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0 }) => {
     const userData = propUserData || getUserData();
+    const [logoutConfirm, setLogoutConfirm] = useState(false);
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
@@ -106,11 +109,21 @@ const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0 }
                         <span>Settings</span>
                     </NavLink>
                 )}
-                <button className="nav-item nav-item--logout" onClick={onLogout}>
+                <button className="nav-item nav-item--logout" onClick={() => setLogoutConfirm(true)}>
                     <LogOut size={18} />
                     <span>Log Out</span>
                 </button>
             </div>
+
+            <ConfirmModal
+                open={logoutConfirm}
+                title="Log Out?"
+                message="Are you sure you want to log out of your account?"
+                variant="danger"
+                confirmLabel="Log Out"
+                onConfirm={() => { setLogoutConfirm(false); onLogout(); }}
+                onCancel={() => setLogoutConfirm(false)}
+            />
         </aside>
     );
 };

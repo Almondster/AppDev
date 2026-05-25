@@ -14,6 +14,7 @@ import {
     createReport,
     createOrder,
     fetchUsers,
+    fetchOrders,
 } from '../api';
 import {
     ArrowLeft,
@@ -93,6 +94,10 @@ const CreatorProfilePage = () => {
     const [reportModal, setReportModal] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [reporting, setReporting] = useState(false);
+    const [unfollowConfirm, setUnfollowConfirm] = useState(false);
+    const [blockConfirm, setBlockConfirm] = useState(false);
+    const [existingOrders, setExistingOrders] = useState([]);
+    const [duplicateModal, setDuplicateModal] = useState({ open: false, service: null });
 
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -162,6 +167,17 @@ const CreatorProfilePage = () => {
                 setLoading(false);
             }
         })();
+
+        // Fetch existing orders for duplicate detection
+        (async () => {
+            try {
+                const res = await fetchOrders();
+                if (res.ok) {
+                    const all = res.data?.results || res.data || [];
+                    setExistingOrders(all);
+                }
+            } catch { /* ignore */ }
+        })();
     }, [profileUid, currentUid]);
 
     const creatorUser = creator?.user || userProfile || {};
@@ -191,15 +207,7 @@ const CreatorProfilePage = () => {
 
     const handleFollow = async () => {
         if (isFollowing && followId) {
-            try {
-                await deleteFollow(followId);
-                setIsFollowing(false);
-                setFollowId(null);
-                setFollowers((prev) => Math.max(0, prev - 1));
-                showToast('Unfollowed');
-            } catch {
-                showToast('Failed to unfollow.');
-            }
+            setUnfollowConfirm(true);
             return;
         }
 
@@ -219,7 +227,25 @@ const CreatorProfilePage = () => {
         }
     };
 
+    const confirmUnfollow = async () => {
+        setUnfollowConfirm(false);
+        try {
+            await deleteFollow(followId);
+            setIsFollowing(false);
+            setFollowId(null);
+            setFollowers((prev) => Math.max(0, prev - 1));
+            showToast('Unfollowed');
+        } catch {
+            showToast('Failed to unfollow.');
+        }
+    };
+
     const handleBlock = async () => {
+        setBlockConfirm(true);
+    };
+
+    const confirmBlock = async () => {
+        setBlockConfirm(false);
         if (isBlocked && blockId) {
             try {
                 await deleteBlock(blockId);
@@ -272,7 +298,7 @@ const CreatorProfilePage = () => {
     };
 
     const handleOrderService = async () => {
-        const service = confirmModal.service;
+        const service = confirmModal.service || duplicateModal.service;
         if (!service) return;
 
         setOrderLoading(true);
@@ -284,6 +310,19 @@ const CreatorProfilePage = () => {
         }
         setOrderLoading(false);
         setConfirmModal({ open: false, service: null });
+        setDuplicateModal({ open: false, service: null });
+    };
+
+    const initiateOrder = (service) => {
+        const hasDuplicate = existingOrders.some(
+            (o) => String(o.service_id) === String(service.id) &&
+                   ['Pending', 'In_progress'].includes(o.status)
+        );
+        if (hasDuplicate) {
+            setDuplicateModal({ open: true, service });
+        } else {
+            setConfirmModal({ open: true, service });
+        }
     };
 
     const renderStars = (rating) =>
@@ -349,7 +388,7 @@ const CreatorProfilePage = () => {
                                     className="cp-service-order-btn"
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        setConfirmModal({ open: true, service });
+                                        initiateOrder(service);
                                     }}
                                 >
                                     Order
@@ -693,6 +732,39 @@ const CreatorProfilePage = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                open={unfollowConfirm}
+                title="Unfollow?"
+                message={<>Are you sure you want to unfollow <strong>{displayName}</strong>?</>}
+                variant="warning"
+                confirmLabel="Unfollow"
+                onConfirm={confirmUnfollow}
+                onCancel={() => setUnfollowConfirm(false)}
+            />
+
+            <ConfirmModal
+                open={blockConfirm}
+                title={isBlocked ? 'Unblock User?' : 'Block User?'}
+                message={isBlocked
+                    ? <><strong>{displayName}</strong> will be able to interact with you again.</>  
+                    : <><strong>{displayName}</strong> will no longer be able to interact with you.</>}
+                variant={isBlocked ? 'info' : 'danger'}
+                confirmLabel={isBlocked ? 'Unblock' : 'Block'}
+                onConfirm={confirmBlock}
+                onCancel={() => setBlockConfirm(false)}
+            />
+
+            <ConfirmModal
+                open={duplicateModal.open}
+                title="Duplicate Order"
+                message={duplicateModal.service ? <>You already have an active order for <strong>"{duplicateModal.service.title}"</strong>. Do you want to place another order?</> : ''}
+                variant="warning"
+                confirmLabel="Order Anyway"
+                loading={orderLoading}
+                onConfirm={handleOrderService}
+                onCancel={() => setDuplicateModal({ open: false, service: null })}
+            />
         </section>
     );
 };

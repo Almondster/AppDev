@@ -103,6 +103,7 @@ const UsersPage = () => {
     const [confirmModal, setConfirmModal] = useState(emptyConfirmModal);
     const [banModal, setBanModal] = useState(emptyBanModal);
     const [actionLoading, setActionLoading] = useState(false);
+    const [reviewConfirm, setReviewConfirm] = useState({ open: false, applicationId: null, status: '' });
 
     const showToast = useCallback((message) => {
         setToast(message);
@@ -384,7 +385,7 @@ const UsersPage = () => {
                                     <button
                                         type="button"
                                         disabled={reviewingId === application.id}
-                                        onClick={() => handleReview(application.id, 'rejected')}
+                                        onClick={() => setReviewConfirm({ open: true, applicationId: application.id, status: 'rejected' })}
                                         style={{ padding: '0.7rem 1rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}
                                     >
                                         {reviewingId === application.id ? 'Processing...' : 'Reject'}
@@ -392,7 +393,7 @@ const UsersPage = () => {
                                     <button
                                         type="button"
                                         disabled={reviewingId === application.id}
-                                        onClick={() => handleReview(application.id, 'approved')}
+                                        onClick={() => setReviewConfirm({ open: true, applicationId: application.id, status: 'approved' })}
                                         style={{ padding: '0.7rem 1rem', borderRadius: '10px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
                                     >
                                         {reviewingId === application.id ? 'Processing...' : 'Approve'}
@@ -568,6 +569,23 @@ const UsersPage = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                open={reviewConfirm.open}
+                title={reviewConfirm.status === 'approved' ? 'Approve Application?' : 'Reject Application?'}
+                message={reviewConfirm.status === 'approved'
+                    ? 'This will grant the user creator privileges. Are you sure?'
+                    : 'This will reject the creator application. Are you sure?'}
+                variant={reviewConfirm.status === 'approved' ? 'success' : 'danger'}
+                confirmLabel={reviewConfirm.status === 'approved' ? 'Approve' : 'Reject'}
+                loading={reviewingId === reviewConfirm.applicationId}
+                onConfirm={() => {
+                    const { applicationId, status } = reviewConfirm;
+                    setReviewConfirm({ open: false, applicationId: null, status: '' });
+                    handleReview(applicationId, status);
+                }}
+                onCancel={() => setReviewConfirm({ open: false, applicationId: null, status: '' })}
+            />
         </main>
     );
 };

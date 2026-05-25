@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ImagePlus, Plus, Search, X } from 'lucide-react';
 import { createService, deleteService, fetchMyServices, updateService } from '../api';
 import Button from '../components/Button';
+import ConfirmModal from '../components/ConfirmModal';
 import '../styles/ProjectsPage.css';
 import { readCollection } from '../utils/collections';
 import { getCurrentUser } from '../utils/currentUser';
@@ -24,6 +25,8 @@ const MyGigsPage = () => {
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('recent');
+  const [deleteConfirm, setDeleteConfirm] = useState({ open: false, service: null });
+  const [deleting, setDeleting] = useState(false);
 
   const userData = getCurrentUser();
 
@@ -146,8 +149,10 @@ const MyGigsPage = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (service) => {
-    if (!window.confirm(`Delete "${service.title}"?`)) return;
+  const handleDelete = async () => {
+    const service = deleteConfirm.service;
+    if (!service) return;
+    setDeleting(true);
     try {
       const { ok, data } = await deleteService(service.id);
       if (ok) {
@@ -159,6 +164,8 @@ const MyGigsPage = () => {
     } catch {
       showNotification('Failed to delete service.', 'info');
     }
+    setDeleting(false);
+    setDeleteConfirm({ open: false, service: null });
   };
 
   const handleCancel = () => {
@@ -316,7 +323,7 @@ const MyGigsPage = () => {
                 </div>
                 <div className="card__actions my-gig-card__actions">
                   <button className="card-action-btn card-action-btn--edit" onClick={() => handleEdit(service)}>Edit</button>
-                  <button className="card-action-btn card-action-btn--delete" onClick={() => handleDelete(service)}>Delete</button>
+                  <button className="card-action-btn card-action-btn--delete" onClick={() => setDeleteConfirm({ open: true, service })}>Delete</button>
                 </div>
               </article>
             ))
@@ -327,6 +334,17 @@ const MyGigsPage = () => {
           )}
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteConfirm.open}
+        title="Delete Service?"
+        message={deleteConfirm.service ? <>Are you sure you want to delete <strong>"{deleteConfirm.service.title}"</strong>? This action cannot be undone.</> : ''}
+        variant="danger"
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ open: false, service: null })}
+      />
     </section>
   );
 };
