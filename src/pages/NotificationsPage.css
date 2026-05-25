@@ -3,7 +3,7 @@
 
 .notif-breadcrumb { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
 .notif-bc-muted { color: var(--text-muted, #71717a); }
-.notif-bc-sep { color: var(--border, #3f3f46); }
+.notif-bc-sep { color: #3f3f46; }
 .notif-bc-active { color: var(--text-primary, #fff); font-weight: 600; }
 
 .notif-header { position: relative; }

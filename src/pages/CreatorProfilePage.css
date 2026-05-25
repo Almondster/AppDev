@@ -136,12 +136,16 @@
 
 .cp-profile-card {
     padding: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
 }
 
 .cp-avatar {
     width: 96px;
     height: 96px;
-    margin-bottom: 1.15rem;
+    margin: 0 auto 1.15rem;
     border-radius: 50%;
     overflow: hidden;
     border: 3px solid var(--bg-secondary);
@@ -169,6 +173,7 @@
 .cp-identity {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 0.3rem;
 }
 
@@ -219,7 +224,7 @@
 }
 
 .cp-stat {
-    padding: 0.9rem 0.65rem;
+    padding: 0.9rem 0.4rem;
     border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--bg-card);
@@ -237,9 +242,12 @@
     display: block;
     margin-top: 0.3rem;
     color: var(--text-muted);
-    font-size: 0.74rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cp-action-grid {

@@ -1,7 +1,7 @@
 .auth-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(520px, 1fr);
-  min-height: 100vh;
+  height: 100vh;
   background: #050505;
   color: #fff;
   overflow: hidden;
@@ -161,9 +161,8 @@
 
 .auth-form-panel {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 86px 48px 40px;
+  flex-direction: column;
+  padding: 130px 48px 40px;
   overflow-y: auto;
   background: #050505;
 }
@@ -188,10 +187,15 @@
 
 .auth-form-card {
   width: min(520px, 100%);
+  margin: auto;
 }
 
 .auth-form-card--signup {
   width: min(540px, 100%);
+}
+
+.auth-form-card__header {
+  margin-bottom: 40px;
 }
 
 .auth-form-card__header h2 {
@@ -283,12 +287,12 @@
 
 .auth-form {
   display: grid;
-  gap: 18px;
+  gap: 28px;
 }
 
 .auth-form label {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .auth-form label > span {
@@ -434,7 +438,7 @@
 }
 
 .auth-submit {
-  margin-top: 10px;
+  margin-top: 16px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.94);
   color: #050505;
@@ -483,7 +487,7 @@
 
   .auth-form-panel {
     min-height: 100vh;
-    padding: 90px 24px 42px;
+    padding: 110px 24px 42px;
   }
 
   .auth-back {

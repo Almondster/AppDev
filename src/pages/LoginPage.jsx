@@ -184,17 +184,13 @@ const LoginPage = ({ onLogin }) => {
         </Link>
 
         <div className={`auth-form-card ${isSignUp ? 'auth-form-card--signup' : ''}`}>
+
           <div className="auth-form-card__header">
             <h2>{isSignUp ? 'Create an account' : 'Welcome back'}</h2>
             <p>{isSignUp ? 'Enter your details to get started.' : 'Please enter your details to sign in.'}</p>
           </div>
 
-          <button type="button" className="auth-google" onClick={handleGoogleAuth}>
-            <GoogleIcon />
-            {isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
-          </button>
 
-          <div className="auth-divider"><span>OR</span></div>
 
           {apiError && <div className="auth-alert auth-alert--error">{apiError}</div>}
           {apiSuccess && <div className="auth-alert auth-alert--success">{apiSuccess}</div>}

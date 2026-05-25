@@ -201,17 +201,8 @@ const MyGigsPage = () => {
 
       <header className="section__header">
         <div>
-          <h1 className="section__title" style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 0.25rem', color: '#fff' }}>My Gigs ({services.length})</h1>
-          <p style={{ color: '#71717a', margin: '0', fontSize: '0.9rem' }}>Create, update, and manage the services clients can order.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Button
-            variant={showForm ? 'danger' : 'primary'}
-            onClick={toggleForm}
-            icon={showForm ? <X size={14} /> : <Plus size={14} />}
-          >
-            {showForm ? 'Close' : 'Create Service'}
-          </Button>
+          <h1 className="section__title" style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 0.25rem', color: 'var(--text-primary)' }}>My Gigs ({services.length})</h1>
+          <p style={{ color: 'var(--text-muted, #71717a)', margin: '0', fontSize: '0.9rem' }}>Create, update, and manage the services clients can order.</p>
         </div>
       </header>
 
@@ -289,19 +280,28 @@ const MyGigsPage = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <label htmlFor="gigsSort" className="sr-only">Sort services</label>
-        <select
-          id="gigsSort"
-          className="form-input sort-select"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-        >
-          <option value="recent">Sort: Newest</option>
-          <option value="title">Sort: Name</option>
-          <option value="price-low">Sort: Price low</option>
-          <option value="price-high">Sort: Price high</option>
-          <option value="category">Sort: Category</option>
-        </select>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <label htmlFor="gigsSort" className="sr-only">Sort services</label>
+          <select
+            id="gigsSort"
+            className="form-input sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="recent">Sort: Newest</option>
+            <option value="title">Sort: Name</option>
+            <option value="price-low">Sort: Price low</option>
+            <option value="price-high">Sort: Price high</option>
+            <option value="category">Sort: Category</option>
+          </select>
+          <Button
+            variant={showForm ? 'danger' : 'primary'}
+            onClick={toggleForm}
+            icon={showForm ? <X size={14} /> : <Plus size={14} />}
+          >
+            {showForm ? 'Close' : 'Create Service'}
+          </Button>
+        </div>
       </div>
 
       {loading ? (

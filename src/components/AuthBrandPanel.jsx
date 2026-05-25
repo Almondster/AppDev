@@ -34,7 +34,7 @@ const AuthBrandPanel = () => (
         <div className="auth-testimonial__person">
           <img src="https://picsum.photos/id/1005/80/80" alt="" />
           <div>
-            <strong>Fel Kristian Raut</strong>
+            <strong>Fel Kirstian Raut</strong>
             <span>Product Director, GORRP Tech</span>
           </div>
         </div>
