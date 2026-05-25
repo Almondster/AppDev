@@ -17,7 +17,7 @@ import {
 import { getUserData } from '../api';
 import { useTheme } from '../context/hooks/useTheme.js';
 
-const Sidebar = ({ userRole, onLogout, userData: propUserData }) => {
+const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0 }) => {
     const userData = propUserData || getUserData();
     // Define navigation links based on user role
     const clientMenu = [
@@ -87,7 +87,10 @@ const Sidebar = ({ userRole, onLogout, userData: propUserData }) => {
                         className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}
                     >
                         {item.icon}
-                        <span>{item.label}</span>
+                        <span className="nav-item-label">{item.label}</span>
+                        {item.to === '/notifications' && unreadCount > 0 && (
+                            <span className="nav-item-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        )}
                     </NavLink>
                 ))}
             </nav>
