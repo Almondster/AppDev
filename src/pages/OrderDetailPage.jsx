@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchOrder, updateOrder, fetchTimeline, getUserData, payOrder, rejectOrder, resolveApiUrl, submitFinalOutput, submitPartialOutput, uploadStorageFile } from '../api';
+import { API_ORIGIN, acceptOrder, fetchOrder, updateOrder, fetchTimeline, getToken, getUserData, payOrder, rejectOrder, resolveApiUrl, submitFinalOutput, submitPartialOutput, uploadStorageFile } from '../api';
 import { ArrowLeft, MessageSquare, Star, XCircle, Play, Lock, CreditCard, Upload, Download } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import ReviewModal from '../components/ReviewModal';
@@ -35,6 +35,7 @@ const OrderDetailPage = () => {
   const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', variant: 'info', action: null });
   const [reviewOpen, setReviewOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [downloadingUrl, setDownloadingUrl] = useState('');
   const [partialForm, setPartialForm] = useState({ partial_output_url: '', partial_output_note: '' });
   const [finalForm, setFinalForm] = useState({ final_file_url: '', final_output_note: '' });
 
@@ -67,16 +68,94 @@ const OrderDetailPage = () => {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
+  const getDownloadFilename = (url, fallback) => {
+    if (!url) return fallback;
+    try {
+      const parsedUrl = new URL(resolveApiUrl(url));
+      const candidate = decodeURIComponent(parsedUrl.pathname.split('/').pop() || '');
+      return candidate || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const isManagedUploadUrl = (url) => {
+    if (!url) return false;
+    try {
+      const parsedUrl = new URL(resolveApiUrl(url));
+      return parsedUrl.origin === API_ORIGIN && parsedUrl.pathname.startsWith('/uploads/');
+    } catch {
+      return false;
+    }
+  };
+
+  const triggerDownload = (href, filename) => {
+    const link = document.createElement('a');
+    link.href = href;
+    if (filename) link.download = filename;
+    link.rel = 'noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const handleDownload = async (url, fallbackFilename) => {
+    const resolvedUrl = resolveApiUrl(url);
+    const downloadFilename = getDownloadFilename(url, fallbackFilename);
+
+    if (!isManagedUploadUrl(url)) {
+      triggerDownload(resolvedUrl, downloadFilename);
+      return;
+    }
+
+    setDownloadingUrl(resolvedUrl);
+    try {
+      const headers = {};
+      const token = getToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const response = await fetch(resolvedUrl, { headers });
+      if (!response.ok) {
+        throw new Error('download_failed');
+      }
+
+      const fileBlob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(fileBlob);
+      triggerDownload(objectUrl, downloadFilename);
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+    } catch {
+      showToast('Failed to download file.');
+    } finally {
+      setDownloadingUrl('');
+    }
+  };
+
   const renderOutputLink = (url, label, filename) => {
     if (!url) return null;
     const resolvedUrl = resolveApiUrl(url);
+    const downloadFilename = getDownloadFilename(url, filename);
+
+    if (isManagedUploadUrl(url)) {
+      return (
+        <button
+          type="button"
+          className="od-download-link"
+          onClick={() => handleDownload(url, filename)}
+          disabled={downloadingUrl === resolvedUrl}
+        >
+          <Download size={15} />
+          {downloadingUrl === resolvedUrl ? 'Downloading...' : label}
+        </button>
+      );
+    }
+
     return (
       <a
         className="od-download-link"
         href={resolvedUrl}
         target="_blank"
         rel="noreferrer"
-        download={filename}
+        download={downloadFilename}
       >
         <Download size={15} />
         {label}
