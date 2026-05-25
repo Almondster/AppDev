@@ -25,6 +25,7 @@ const OrderDetailPage = () => {
   const navigate = useNavigate();
   const userData = getUserData();
   const isCreator = userData?.role === 'creator';
+  const canManageDueDate = userData?.role === 'creator' || userData?.role === 'admin';
 
   const [order, setOrder] = useState(null);
   const [timeline, setTimeline] = useState([]);
@@ -36,6 +37,7 @@ const OrderDetailPage = () => {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [downloadingUrl, setDownloadingUrl] = useState('');
+  const [dueDateInput, setDueDateInput] = useState('');
   const [partialForm, setPartialForm] = useState({ partial_output_url: '', partial_output_note: '' });
   const [finalForm, setFinalForm] = useState({ final_file_url: '', final_output_note: '' });
 
@@ -48,6 +50,7 @@ const OrderDetailPage = () => {
         ]);
         if (oRes.ok) {
           setOrder(oRes.data);
+          setDueDateInput(oRes.data.due_date ? new Date(oRes.data.due_date).toISOString().slice(0, 10) : '');
           setPartialForm({
             partial_output_url: oRes.data.partial_output_url || '',
             partial_output_note: oRes.data.partial_output_note || '',
@@ -67,6 +70,11 @@ const OrderDetailPage = () => {
   }, [id]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
+
+  const buildDueDatePayload = (dateValue) => {
+    if (!dateValue) return null;
+    return new Date(`${dateValue}T23:59:59`).toISOString();
+  };
 
   const getDownloadFilename = (url, fallback) => {
     if (!url) return fallback;
@@ -276,6 +284,24 @@ const OrderDetailPage = () => {
     setActionLoading(false);
   };
 
+  const handleSaveDueDate = async (e) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      const { ok, data } = await updateOrder(id, { due_date: buildDueDatePayload(dueDateInput) });
+      if (ok) {
+        setOrder(data);
+        setDueDateInput(data.due_date ? new Date(data.due_date).toISOString().slice(0, 10) : '');
+        showToast('Due date saved.');
+      } else {
+        showToast(data?.detail || 'Failed to save due date.');
+      }
+    } catch {
+      showToast('Failed to save due date.');
+    }
+    setActionLoading(false);
+  };
+
   const handleReviewSubmit = async ({ rating, comment }) => {
     setActionLoading(true);
     try {
@@ -323,6 +349,7 @@ const OrderDetailPage = () => {
   }
 
   const st = STATUS_STYLES[order.status] || STATUS_STYLES.pending;
+  const showDueDateEditor = canManageDueDate && !['pending', 'completed', 'cancelled', 'rejected', 'refunded'].includes(order.status);
 
   return (
     <main className="order-detail">
@@ -369,6 +396,20 @@ const OrderDetailPage = () => {
               {(order.status || 'pending').replace('_', ' ')}
             </span>
           </div>
+
+          {showDueDateEditor && (
+            <form className="od-delivery-form" onSubmit={handleSaveDueDate}>
+              <input
+                type="date"
+                value={dueDateInput}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setDueDateInput(e.target.value)}
+              />
+              <button className="od-action-btn od-action-btn--outline" disabled={actionLoading || !dueDateInput}>
+                Save Due Date
+              </button>
+            </form>
+          )}
         </div>
       </div>
 
