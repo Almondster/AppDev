@@ -138,3 +138,28 @@
   cursor: not-allowed;
   transform: none !important;
 }
+
+/* ── Light Mode ── */
+[data-theme="light"] .confirm-modal {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .confirm-modal__title {
+  color: #18181b;
+}
+
+[data-theme="light"] .confirm-modal__message {
+  color: #52525b;
+}
+
+[data-theme="light"] .confirm-modal__btn--cancel {
+  background: rgba(0, 0, 0, 0.05);
+  color: #3f3f46;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .confirm-modal__btn--cancel:hover {
+  background: rgba(0, 0, 0, 0.08);
+}

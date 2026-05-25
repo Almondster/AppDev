@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchService, fetchCreators, fetchReviews, createOrder, getUserData } from '../api';
+import { fetchService, fetchCreators, fetchReviews, createOrder, getUserData, fetchOrders } from '../api';
 import { ArrowLeft, Star, MessageSquare, Clock, Tag } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import './ServiceDetailPage.css';
@@ -17,6 +17,8 @@ const ServiceDetailPage = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const [toast, setToast] = useState('');
+  const [existingOrders, setExistingOrders] = useState([]);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -45,6 +47,16 @@ const ServiceDetailPage = () => {
         setLoading(false);
       }
     })();
+
+    // Fetch existing orders for duplicate detection
+    (async () => {
+      try {
+        const res = await fetchOrders();
+        if (res.ok) {
+          setExistingOrders(res.data?.results || res.data || []);
+        }
+      } catch { /* ignore */ }
+    })();
   }, [id]);
 
   const safeText = (value, fallback = '') => {
@@ -72,6 +84,19 @@ const ServiceDetailPage = () => {
     }
     setOrdering(false);
     setConfirmOpen(false);
+    setDuplicateOpen(false);
+  };
+
+  const handleOrderClick = () => {
+    const hasDuplicate = existingOrders.some(
+      (o) => String(o.service_id) === String(service?.id) &&
+             ['Pending', 'In_progress'].includes(o.status)
+    );
+    if (hasDuplicate) {
+      setDuplicateOpen(true);
+    } else {
+      setConfirmOpen(true);
+    }
   };
 
   const avgRating = reviews.length > 0
@@ -192,7 +217,7 @@ const ServiceDetailPage = () => {
             <p className="sd-price-label">Starting price</p>
 
             {userData?.role !== 'creator' && (
-              <button className="sd-order-btn" onClick={() => setConfirmOpen(true)}>
+              <button className="sd-order-btn" onClick={handleOrderClick}>
                 Order This Service
               </button>
             )}
@@ -225,6 +250,17 @@ const ServiceDetailPage = () => {
         loading={ordering}
         onConfirm={handleOrder}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <ConfirmModal
+        open={duplicateOpen}
+        title="Duplicate Order"
+        message={<>You already have an active order for <strong>"{service?.title}"</strong>. Do you want to place another order?</>}
+        variant="warning"
+        confirmLabel="Order Anyway"
+        loading={ordering}
+        onConfirm={handleOrder}
+        onCancel={() => setDuplicateOpen(false)}
       />
     </main>
   );

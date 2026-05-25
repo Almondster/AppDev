@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutGrid, MessageSquare, Briefcase, Wallet, Settings, LogOut, Bell, ChevronLeft, ChevronRight, ShieldCheck, Users, AlertTriangle, Package } from 'lucide-react';
 import { getUserData } from '../api';
+import ConfirmModal from './ConfirmModal';
 
 const splashIcon = '/assets/splash-icon-light-resized.png';
 
 export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggleCollapse, unreadCount = 0 }) => {
     const userData = getUserData();
+    const [logoutConfirm, setLogoutConfirm] = useState(false);
 
     // Define menus based on role using 'to' instead of 'id'
     const clientMenu = [
@@ -138,7 +140,7 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                     </NavLink>
                 )}
                 <button
-                    onClick={onLogout}
+                    onClick={() => setLogoutConfirm(true)}
                     className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-red-400 hover:bg-red-500/5 transition-colors`}
                     title={isCollapsed ? 'Logout' : undefined}
                 >
@@ -146,6 +148,16 @@ export const SidebarNative = ({ userRole, onLogout, isCollapsed = false, onToggl
                     {!isCollapsed && <span>Log Out</span>}
                 </button>
             </div>
+
+            <ConfirmModal
+                open={logoutConfirm}
+                title="Log Out?"
+                message="Are you sure you want to log out of your account?"
+                variant="danger"
+                confirmLabel="Log Out"
+                onConfirm={() => { setLogoutConfirm(false); onLogout(); }}
+                onCancel={() => setLogoutConfirm(false)}
+            />
         </div>
     );
 };

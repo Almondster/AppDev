@@ -102,9 +102,9 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const [tickets, setTickets] = useState([]);
     const [ticketLoading, setTicketLoading] = useState(false);
 
-    // Delete confirm
     const [deleteConfirm, setDeleteConfirm] = useState({ open: false, type: '', id: null });
     const [deleting, setDeleting] = useState(false);
+    const [logoutConfirm, setLogoutConfirm] = useState(false);
 
     const { theme, setTheme } = useTheme();
     const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
@@ -512,7 +512,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                             {tab.icon} {tab.label}
                         </button>
                     ))}
-                    <button className="settings-nav-item settings-nav-item--danger" onClick={onLogout}>
+                    <button className="settings-nav-item settings-nav-item--danger" onClick={() => setLogoutConfirm(true)}>
                         <LogOut size={18} /> Log Out
                     </button>
                 </nav>
@@ -1109,6 +1109,16 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                open={logoutConfirm}
+                title="Log Out?"
+                message="Are you sure you want to log out of your account?"
+                variant="danger"
+                confirmLabel="Log Out"
+                onConfirm={() => { setLogoutConfirm(false); onLogout(); }}
+                onCancel={() => setLogoutConfirm(false)}
+            />
         </main>
     );
 };
