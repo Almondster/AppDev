@@ -151,14 +151,25 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: #a5b4fc;
   font-weight: 700;
   text-decoration: none;
   overflow-wrap: anywhere;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
 .od-download-link:hover {
   color: #c7d2fe;
+}
+
+.od-download-link:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .od-delivery-box p {
