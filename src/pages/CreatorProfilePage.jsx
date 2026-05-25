@@ -341,7 +341,11 @@ const CreatorProfilePage = () => {
                 {reviews.map((review) => (
                     <article key={review.id} className="cp-review-item">
                         <div className="cp-review-avatar">
-                            {safeText(review.reviewer_name || review.reviewer_id, 'U').charAt(0).toUpperCase()}
+                            {review.reviewer_avatar_url ? (
+                                <img src={review.reviewer_avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                            ) : (
+                                safeText(review.reviewer_name || review.reviewer_id, 'U').charAt(0).toUpperCase()
+                            )}
                         </div>
                         <div className="cp-review-body">
                             <div className="cp-review-top">

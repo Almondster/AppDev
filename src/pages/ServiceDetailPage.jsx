@@ -197,7 +197,13 @@ const ServiceDetailPage = () => {
             <h3>Reviews ({reviews.length})</h3>
             {reviews.length > 0 ? reviews.map(r => (
               <div key={r.id} className="sd-review-item">
-                <div className="sd-review-avatar">{getInitial(r.reviewer_name || r.reviewer_id)}</div>
+                <div className="sd-review-avatar">
+                  {r.reviewer_avatar_url ? (
+                    <img src={r.reviewer_avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                  ) : (
+                    getInitial(r.reviewer_name || r.reviewer_id)
+                  )}
+                </div>
                 <div className="sd-review-body">
                   <h5>{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h5>
                   <div className="sd-review-stars">{renderStars(r.rating || 0)}</div>
