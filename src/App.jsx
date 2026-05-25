@@ -20,8 +20,6 @@ import UsersPage from './pages/UsersPage';
 import DisputesPage from './pages/DisputesPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
-import MarketplacePage from './pages/MarketplacePage';
-import RecommendationsPage from './pages/RecommendationsPage';
 import { getToken, getUserData, logout as apiLogout } from './api';
 import './index.css';
 
@@ -123,10 +121,8 @@ function App() {
           <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} userData={userData} onLogout={handleLogout} />}>
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
-            <Route element={<RoleGuard allowedRoles={['client']} userRole={userRole} />}>
-              <Route path="/marketplace" element={<MarketplacePage />} />
-              <Route path="/recommendations" element={<RecommendationsPage />} />
-            </Route>
+            <Route path="/marketplace" element={<Navigate to="/" replace />} />
+            <Route path="/recommendations" element={<Navigate to="/" replace />} />
             <Route path="/projects" element={userRole === 'admin' ? <AdminProjectsPage /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={userRole === 'admin' ? <Navigate to="/projects" replace /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />
