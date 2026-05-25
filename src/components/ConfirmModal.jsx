@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Info, CheckCircle, AlertCircle } from 'lucide-react';
 import './ConfirmModal.css';
 
@@ -41,7 +42,7 @@ const ConfirmModal = ({
     variant === 'success' ? 'confirm-modal__btn--success' :
                             'confirm-modal__btn--confirm';
 
-  return (
+  return createPortal(
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-modal" onClick={e => e.stopPropagation()}>
         <div className={`confirm-modal__icon confirm-modal__icon--${variant}`}>
@@ -66,8 +67,10 @@ const ConfirmModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 export default ConfirmModal;
+
