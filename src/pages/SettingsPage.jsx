@@ -9,6 +9,7 @@ import {
     fetchMyWallets, createWallet, deleteWallet, fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod,
     createSupportTicket, fetchSupportTickets, submitCreatorApplication, setUserData, uploadIdVerificationImage,
 } from '../api';
+import { createInitialCreatorForm } from '../constants/creatorOnboarding';
 import ConfirmModal from '../components/ConfirmModal';
 import { useTheme } from '../context/hooks/useTheme.js';
 import './SettingsPage.css';
@@ -66,30 +67,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const [creatorStep, setCreatorStep] = useState(1);
     const [creatorSubmitting, setCreatorSubmitting] = useState(false);
     const [creatorUploadingField, setCreatorUploadingField] = useState('');
-    const [creatorForm, setCreatorForm] = useState({
-        first_name: '',
-        middle_name: '',
-        last_name: '',
-        phone: '',
-        id_number: '',
-        id_front_url: '',
-        id_back_url: '',
-        id_selfie_url: '',
-        street_address: '',
-        barangay: '',
-        city: '',
-        province: '',
-        postal_code: '',
-        country: 'Philippines',
-        category: '',
-        skills: [],
-        bio: '',
-        experience_years: '',
-        starting_price: '',
-        turnaround_time: '',
-        portfolio_url: '',
-        agreed: false,
-    });
+    const [creatorForm, setCreatorForm] = useState(() => createInitialCreatorForm(userData));
 
     // Profile state
     const [profileForm, setProfileForm] = useState({
@@ -143,15 +121,14 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
     useEffect(() => {
-        const fullName = (userData?.full_name || '').trim();
-        const [firstName = '', ...rest] = fullName.split(/\s+/).filter(Boolean);
-        const lastName = rest.join(' ');
         setCreatorForm(prev => ({
             ...prev,
-            first_name: prev.first_name || firstName,
-            last_name: prev.last_name || lastName,
+            first_name: prev.first_name || userData?.first_name || '',
+            middle_name: prev.middle_name || userData?.middle_name || '',
+            last_name: prev.last_name || userData?.last_name || '',
+            phone: prev.phone || createInitialCreatorForm(userData).phone,
         }));
-    }, [userData?.full_name]);
+    }, [userData?.first_name, userData?.middle_name, userData?.last_name, userData?.phone]);
 
     useEffect(() => {
         if (shouldOpenBecomeCreator && userRole === 'client') {
@@ -246,11 +223,12 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 avatar_url: profileForm.avatar_url,
             });
             if (ok) {
-                // Update local storage
-                const u = getUserData();
-                u.full_name = profileForm.full_name;
-                u.avatar_url = profileForm.avatar_url;
-                localStorage.setItem('createch_user', JSON.stringify(u));
+                const u = getUserData() || {};
+                setUserData({
+                    ...u,
+                    full_name: profileForm.full_name,
+                    avatar_url: profileForm.avatar_url,
+                });
                 showToast('Profile updated!');
             } else {
                 showToast('Failed to update profile.');
@@ -285,8 +263,8 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 showToast('Complete the identity fields first.');
                 return false;
             }
-            if (!/^09\d{9}$/.test(creatorForm.phone.trim())) {
-                showToast('Phone number must be 11 digits and start with 09.');
+            if (!/^9\d{9}$/.test(creatorForm.phone.trim())) {
+                showToast('Phone number must be 10 digits and start with 9.');
                 return false;
             }
             if (!/^\d{12}$/.test(creatorForm.id_number.trim())) {
@@ -376,7 +354,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                 first_name: creatorForm.first_name.trim(),
                 middle_name: creatorForm.middle_name.trim() || null,
                 last_name: creatorForm.last_name.trim(),
-                phone: creatorForm.phone.trim() || null,
+                phone: creatorForm.phone.trim() ? `+63${creatorForm.phone.trim()}` : null,
                 id_number: creatorForm.id_number.trim() || null,
                 id_front_url: creatorForm.id_front_url || null,
                 id_back_url: creatorForm.id_back_url || null,
@@ -941,7 +919,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                         <label>Phone</label>
                                         <input
                                             value={creatorForm.phone}
-                                            onChange={e => updateCreatorField('phone', digitsOnly(e.target.value, 11))}
+                                            onChange={e => updateCreatorField('phone', digitsOnly(e.target.value, 10))}
                                             placeholder="09123456789"
                                             inputMode="numeric"
                                         />

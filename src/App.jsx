@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
+import AdminProjectsPage from './pages/AdminProjectsPage';
 import MyGigsPage from './pages/MyGigsPage';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
@@ -34,14 +35,14 @@ function RoleGuard({ allowedRoles, userRole }) {
   return <Outlet />;
 }
 
-function ProtectedLayout({ isLoggedIn, userRole, onLogout }) {
+function ProtectedLayout({ isLoggedIn, userRole, userData, onLogout }) {
   const location = useLocation();
 
   if (!isLoggedIn) return <LandingPage />;
   return (
     <ProjectsProvider>
       <div className="dashboard-layout page-fade">
-        <Sidebar userRole={userRole} onLogout={onLogout} />
+        <Sidebar userRole={userRole} userData={userData} onLogout={onLogout} />
         <div className="main-content-wrapper">
           <main className="main-content">
             <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
@@ -119,13 +120,13 @@ function App() {
           } />
 
           {/* Protected Routes — key forces re-mount on user change */}
-          <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />}>
+          <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} userData={userData} onLogout={handleLogout} />}>
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/recommendations" element={<RecommendationsPage />} />
-            <Route path="/projects" element={<ProjectsPage userRole={userRole} />} />
-            <Route path="/orders" element={<ProjectsPage userRole={userRole} />} />
+            <Route path="/projects" element={userRole === 'admin' ? <AdminProjectsPage /> : <ProjectsPage userRole={userRole} />} />
+            <Route path="/orders" element={userRole === 'admin' ? <Navigate to="/projects" replace /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />
             <Route path="/become-creator" element={<BecomeCreatorPage />} />
 

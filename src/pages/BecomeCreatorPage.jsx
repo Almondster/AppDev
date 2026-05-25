@@ -67,7 +67,7 @@ const BecomeCreatorPage = () => {
     const [uploadingField, setUploadingField] = useState('');
     const [error, setError] = useState('');
     const [submittedApplication, setSubmittedApplication] = useState(null);
-    const [creatorForm, setCreatorForm] = useState(() => createInitialCreatorForm(userData?.full_name || ''));
+    const [creatorForm, setCreatorForm] = useState(() => createInitialCreatorForm(userData));
 
     const isExistingCreator = userData?.role && userData.role !== 'client';
     const selectedSkills = useMemo(
@@ -95,8 +95,8 @@ const BecomeCreatorPage = () => {
                 setError('Complete the identity fields first.');
                 return false;
             }
-            if (!/^09\d{9}$/.test(creatorForm.phone.trim())) {
-                setError('Phone number must be 11 digits and start with 09.');
+            if (!/^9\d{9}$/.test(creatorForm.phone.trim())) {
+                setError('Phone number must be 10 digits and start with 9.');
                 return false;
             }
             if (!/^\d{12}$/.test(creatorForm.id_number.trim())) {
@@ -188,7 +188,7 @@ const BecomeCreatorPage = () => {
                 first_name: creatorForm.first_name.trim(),
                 middle_name: creatorForm.middle_name.trim() || null,
                 last_name: creatorForm.last_name.trim(),
-                phone: creatorForm.phone.trim() || null,
+                phone: creatorForm.phone.trim() ? `+63${creatorForm.phone.trim()}` : null,
                 id_number: creatorForm.id_number.trim() || null,
                 id_front_url: creatorForm.id_front_url || null,
                 id_back_url: creatorForm.id_back_url || null,
@@ -250,8 +250,8 @@ const BecomeCreatorPage = () => {
                     <span>Phone</span>
                     <input
                         value={creatorForm.phone}
-                        onChange={(event) => updateField('phone', digitsOnly(event.target.value, 11))}
-                        placeholder="09123456789"
+                        onChange={(event) => updateField('phone', digitsOnly(event.target.value, 10))}
+                        placeholder="9123456789"
                         inputMode="numeric"
                     />
                 </label>

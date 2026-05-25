@@ -155,7 +155,9 @@ const buildQuery = (params = {}) => {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || value === undefined || value === '') return;
-    query.set(key, String(value));
+    // Convert camelCase to snake_case for backend compatibility
+    const snakeKey = key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
+    query.set(snakeKey, String(value));
   });
   const serialized = query.toString();
   return serialized ? `?${serialized}` : '';
@@ -238,14 +240,18 @@ export async function login(email, password) {
       email: data.email,
       role: data.role,
       full_name: data.full_name,
+      first_name: data.first_name || '',
+      middle_name: data.middle_name || '',
+      last_name: data.last_name || '',
+      phone: data.phone || '',
     });
   }
   return { ok, data };
 }
 
-export async function register({ email, password, confirm_password, first_name, last_name, phone, role }) {
+export async function register({ email, password, confirm_password, first_name, middle_name, last_name, phone, role }) {
   const { ok, data } = await api.post('/auth/register/', {
-    email, password, confirm_password, first_name, last_name, phone, role,
+    email, password, confirm_password, first_name, middle_name, last_name, phone, role,
   });
   if (ok && data.access) {
     setToken(data.access);
@@ -254,6 +260,10 @@ export async function register({ email, password, confirm_password, first_name, 
       email: data.email,
       role: data.role,
       full_name: data.full_name,
+      first_name: data.first_name || '',
+      middle_name: data.middle_name || '',
+      last_name: data.last_name || '',
+      phone: data.phone || '',
     });
   }
   return { ok, data };
@@ -450,6 +460,17 @@ export const fetchDeadlines   = () => api.get('/deadline-notifications/');
 export const createDeadline   = (body) => api.post('/deadline-notifications/', body);
 export const markDeadlineRead = (id) => api.put(`/deadline-notifications/${id}/read`);
 export const deleteDeadline   = (id) => api.delete(`/deadline-notifications/${id}`);
+
+// ---------------------------------------------------------------------------
+// Order Notifications
+// ---------------------------------------------------------------------------
+export const fetchOrderNotifications = ({ isRead, orderId, limit = 50 } = {}) =>
+  api.get(`/order-notifications/${buildQuery({ is_read: isRead, order_id: orderId, limit })}`);
+export const getUnreadOrderNotificationCount = () => api.get('/order-notifications/unread-count');
+export const markOrderNotificationRead = (id) => api.post(`/order-notifications/${id}/mark-read`);
+export const markAllOrderNotificationsRead = () => api.post('/order-notifications/mark-all-read');
+export const deleteOrderNotification = (id) => api.delete(`/order-notifications/${id}`);
+export const clearAllOrderNotifications = () => api.delete('/order-notifications/clear-all');
 
 // ---------------------------------------------------------------------------
 // User-scoped fetchers — filter data belonging to the logged-in user

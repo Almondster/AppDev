@@ -137,8 +137,7 @@ const UsersPage = () => {
 
     const filteredUsers = useMemo(() => {
         const needle = searchTerm.trim().toLowerCase();
-        if (!needle) return users;
-        return users.filter((user) => {
+        const filtered = !needle ? users : users.filter((user) => {
             const status = getUserStatus(user);
             return [
                 user.username,
@@ -148,6 +147,14 @@ const UsersPage = () => {
             ]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(needle));
+        });
+        // Sort: active and banned first, deleted users at the bottom
+        return filtered.sort((a, b) => {
+            const statusA = getUserStatus(a).tone;
+            const statusB = getUserStatus(b).tone;
+            if (statusA === 'deleted' && statusB !== 'deleted') return 1;
+            if (statusA !== 'deleted' && statusB === 'deleted') return -1;
+            return 0;
         });
     }, [searchTerm, users]);
 
@@ -250,18 +257,10 @@ const UsersPage = () => {
                     return;
                 }
                 setUsers((prev) => prev.map((user) => (
-                        String(user.id) === String(id)
-                        ? {
-                            ...user,
-                            username: `Deleted User ${id}`,
-                            email: 'Deleted account',
-                            is_active: false,
-                            suspended_until: null,
-                            suspension_reason: null,
-                        }
+                    String(user.id) === String(id)
+                        ? { ...user, is_active: false, suspended_until: null, suspension_reason: null }
                         : user
                 )));
-                await loadAdminData();
                 showToast(`${userName} was deleted.`);
             }
         } catch (error) {
@@ -284,7 +283,7 @@ const UsersPage = () => {
                         <BadgeCheck size={28} color="#3b82f6" />
                     </div>
                     <p style={{ color: 'var(--text-muted)', fontSize: '1rem', margin: 0 }}>
-                        Review creator applications, ban users for a fixed period, and permanently delete accounts.
+                        Review creator applications, ban users for a fixed period, and manage user accounts.
                     </p>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 1fr))', gap: '0.85rem', minWidth: 'min(100%, 360px)' }}>
@@ -433,17 +432,19 @@ const UsersPage = () => {
                     </div>
                     {filteredUsers.map((user) => {
                         const status = getUserStatus(user);
+                        const displayName = user.username || user.email;
+                        const displayEmail = user.email;
                         return (
                             <div key={user.id} className="glass-card--hover" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '2fr 1fr 1.2fr 1fr 1.6fr', gap: '1rem', alignItems: 'center', background: 'var(--bg-secondary)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: '700', fontSize: '0.95rem' }}>
-                                        {(user.username || user.email || '?').charAt(0).toUpperCase()}
+                                        {(displayName || displayEmail || '?').charAt(0).toUpperCase()}
                                     </div>
                                     <div style={{ minWidth: 0 }}>
                                         <div style={{ color: 'var(--text-primary)', fontWeight: '600', wordBreak: 'break-word' }}>
-                                            {user.username || user.email}
+                                            {displayName}
                                         </div>
-                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.84rem', wordBreak: 'break-word' }}>{user.email}</div>
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.84rem', wordBreak: 'break-word' }}>{displayEmail}</div>
                                     </div>
                                 </div>
 
@@ -515,7 +516,7 @@ const UsersPage = () => {
                 title={confirmModal.action === 'delete' ? 'Delete User?' : 'Lift Ban?'}
                 message={
                     confirmModal.action === 'delete'
-                        ? <>Delete <strong>{confirmModal.userName}</strong>? This permanently disables the account and removes access.</>
+                        ? <>Delete <strong>{confirmModal.userName}</strong>?</>
                         : <>Lift the current ban for <strong>{confirmModal.userName}</strong>?</>
                 }
                 variant={confirmModal.action === 'delete' ? 'danger' : 'success'}

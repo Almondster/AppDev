@@ -16,13 +16,26 @@ export const CREATOR_SUBCATEGORY_MAP = {
   'Music & Audio': ['Voice Over', 'Mixing & Mastering', 'Producers & Composers', 'Singers & Vocalists'],
 };
 
-export const createInitialCreatorForm = (fullName = '') => {
-  const [firstName = '', ...rest] = String(fullName).trim().split(/\s+/).filter(Boolean);
+const toLocalPhilippinePhone = (value = '') => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('63') && digits.length >= 12) return digits.slice(2, 12);
+  if (digits.startsWith('0') && digits.length === 11) return digits.slice(1);
+  if (digits.startsWith('9') && digits.length === 10) return digits;
+  return digits.slice(0, 10);
+};
+
+export const createInitialCreatorForm = (profile = '') => {
+  const source = typeof profile === 'string' ? { full_name: profile } : (profile || {});
+  const fullName = String(source.full_name || source.username || '').trim();
+  const [derivedFirstName = '', ...derivedRest] = fullName.split(/\s+/).filter(Boolean);
+  const derivedLastName = derivedRest.join(' ');
+
   return {
-    first_name: firstName,
-    middle_name: '',
-    last_name: rest.join(' '),
-    phone: '',
+    first_name: source.first_name || derivedFirstName,
+    middle_name: source.middle_name || '',
+    last_name: source.last_name || derivedLastName,
+    phone: toLocalPhilippinePhone(source.phone || ''),
     id_number: '',
     id_front_url: '',
     id_back_url: '',

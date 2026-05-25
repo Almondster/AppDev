@@ -19,6 +19,12 @@ const AdminDashboardPage = () => {
     const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null, name: '' });
     const [deleting, setDeleting] = useState(false);
     const [serviceCount, setServiceCount] = useState(0);
+    const [toast, setToast] = useState('');
+
+    const showToast = (message) => {
+        setToast(message);
+        window.setTimeout(() => setToast(''), 3500);
+    };
 
     useEffect(() => {
         (async () => {
@@ -72,17 +78,24 @@ const AdminDashboardPage = () => {
     const handleDeleteCategory = async () => {
         setDeleting(true);
         try {
-            const { ok } = await deleteCategory(deleteConfirm.id);
-            if (ok) setCategories(prev => prev.filter(c => c.id !== deleteConfirm.id));
-        } catch (err) {
-                console.error('Failed to delete category:', err);
+            const { ok, data } = await deleteCategory(deleteConfirm.id);
+            if (ok) {
+                setCategories(prev => prev.filter(c => c.id !== deleteConfirm.id));
+                showToast(`${deleteConfirm.name} deleted.`);
+            } else {
+                showToast(data?.detail || 'Failed to delete category.');
             }
-            setDeleting(false);
-            setDeleteConfirm({ open: false, id: null, name: '' });
-        };
+        } catch (err) {
+            console.error('Failed to delete category:', err);
+            showToast('Failed to delete category.');
+        }
+        setDeleting(false);
+        setDeleteConfirm({ open: false, id: null, name: '' });
+    };
 
     return (
         <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
+            {toast && <div className="global-toast global-toast--success">{toast}</div>}
             <header className="hero-gradient" style={{ padding: '3rem 2rem', background: 'linear-gradient(to right, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2))' }}>
                 <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <ShieldCheck size={36} color="#f43f5e" /> Admin Command
@@ -167,7 +180,7 @@ const AdminDashboardPage = () => {
                                         <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.9rem' }}>{c.label || c.name}</p>
                                         {(c.icon || c.description) && <p style={{ color: '#71717a', fontSize: '0.8rem', margin: '2px 0 0' }}>{c.icon || c.description}</p>}
                                     </div>
-                                    <button onClick={() => setDeleteConfirm({ open: true, id: c.id, name: c.name })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
+                                    <button onClick={() => setDeleteConfirm({ open: true, id: c.id, name: c.label || c.name || 'Category' })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: 4 }}><Trash2 size={16} /></button>
                                 </div>
                             ))}
                         </div>

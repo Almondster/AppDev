@@ -17,8 +17,8 @@ import {
 import { getUserData } from '../api';
 import { useTheme } from '../context/hooks/useTheme.js';
 
-const Sidebar = ({ userRole, onLogout }) => {
-    const userData = getUserData();
+const Sidebar = ({ userRole, onLogout, userData: propUserData }) => {
+    const userData = propUserData || getUserData();
     // Define navigation links based on user role
     const clientMenu = [
         { to: '/marketplace', label: 'Marketplace', icon: <LayoutGrid size={18} /> },
@@ -42,7 +42,7 @@ const Sidebar = ({ userRole, onLogout }) => {
 
     const adminMenu = [
         { to: '/', label: 'Dashboard', icon: <ShieldCheck size={18} /> },
-        { to: '/projects', label: 'All Projects', icon: <Briefcase size={18} /> },
+        { to: '/projects', label: 'All Services', icon: <Briefcase size={18} /> },
         { to: '/users', label: 'Manage Users', icon: <Users size={18} /> },
         { to: '/disputes', label: 'Disputes', icon: <AlertTriangle size={18} /> },
         { to: '/settings', label: 'Platform Settings', icon: <Settings size={18} /> },
@@ -65,7 +65,15 @@ const Sidebar = ({ userRole, onLogout }) => {
 
             <div className="sidebar-user">
                 <div className="sidebar-avatar">
-                    {(userData?.full_name || userRole || 'U').charAt(0).toUpperCase()}
+                    {userData?.avatar_url ? (
+                        <img
+                            src={userData.avatar_url}
+                            alt={userData?.full_name || userData?.email || 'User'}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                        />
+                    ) : (
+                        (userData?.full_name || userRole || 'U').charAt(0).toUpperCase()
+                    )}
                 </div>
                 <div className="sidebar-user-info">
                     <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>

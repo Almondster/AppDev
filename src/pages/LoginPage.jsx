@@ -49,7 +49,7 @@ const LoginPage = ({ onLogin }) => {
       cleanValue = value.replace(/[^a-zA-Z\s]/g, '').replace(/^\s+/, '');
     }
     if (name === 'phone') {
-      cleanValue = value.replace(/\D/g, '').slice(0, 11);
+      cleanValue = value.replace(/\D/g, '').slice(0, 10);
     }
 
     setForm((prev) => ({ ...prev, [name]: cleanValue }));
@@ -65,7 +65,7 @@ const LoginPage = ({ onLogin }) => {
       if (!form.firstName.trim()) nextErrors.firstName = 'First name is required';
       if (!form.lastName.trim()) nextErrors.lastName = 'Last name is required';
       if (!form.dob) nextErrors.dob = 'Date of birth is required';
-      if (!/^09\d{9}$/.test(form.phone)) nextErrors.phone = 'Use an 11-digit PH number starting with 09';
+      if (!/^9\d{9}$/.test(form.phone)) nextErrors.phone = 'Use a 10-digit PH number starting with 9';
       if (form.password !== form.confirmPassword) nextErrors.confirmPassword = 'Passwords do not match';
       if (!form.termsAccepted) nextErrors.terms = 'You must accept the terms';
     }
@@ -94,8 +94,9 @@ const LoginPage = ({ onLogin }) => {
           password: form.password,
           confirm_password: form.confirmPassword,
           first_name: form.firstName.trim(),
-          last_name: [form.middleName.trim(), form.lastName.trim()].filter(Boolean).join(' '),
-          phone: `+63${form.phone.startsWith('0') ? form.phone.slice(1) : form.phone}`,
+          middle_name: form.middleName.trim(),
+          last_name: form.lastName.trim(),
+          phone: `+63${form.phone}`,
           role: searchParams.get('role') || 'client',
         });
 
@@ -229,7 +230,7 @@ const LoginPage = ({ onLogin }) => {
                   <span>Phone Number (PH)</span>
                   <div className="auth-phone">
                     <strong>+63</strong>
-                    <input name="phone" value={form.phone} onChange={handleChange} placeholder="0912 345 6789" />
+                    <input name="phone" value={form.phone} onChange={handleChange} placeholder="9123456789" />
                   </div>
                   {errors.phone && <small>{errors.phone}</small>}
                 </label>
