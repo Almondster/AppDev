@@ -302,6 +302,7 @@ export async function login(email, password) {
       middle_name: data.middle_name || '',
       last_name: data.last_name || '',
       phone: data.phone || '',
+      avatar_url: data.avatar_url || '',
     });
   }
   return { ok, data };
@@ -322,6 +323,7 @@ export async function register({ email, password, confirm_password, first_name, 
       middle_name: data.middle_name || '',
       last_name: data.last_name || '',
       phone: data.phone || '',
+      avatar_url: data.avatar_url || '',
     });
   }
   return { ok, data };
