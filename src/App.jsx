@@ -4,6 +4,7 @@ import { ProjectsProvider } from './context/providers/ProjectsProvider';
 import React from 'react';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
+import { NotificationCenterProvider, useNotificationCenter } from './context/NotificationCenterContext';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import AdminProjectsPage from './pages/AdminProjectsPage';
@@ -38,21 +39,36 @@ function ProtectedLayout({ isLoggedIn, userRole, userData, onLogout }) {
 
   if (!isLoggedIn) return <LandingPage />;
   return (
-    <ProjectsProvider>
-      <div className="dashboard-layout page-fade">
-        <Sidebar userRole={userRole} userData={userData} onLogout={onLogout} />
-        <div className="main-content-wrapper">
-          <main className="main-content">
-            <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
-              <Outlet />
-            </ErrorBoundary>
-          </main>
-          <footer className="app-footer">
-            <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
-          </footer>
-        </div>
+    <NotificationCenterProvider>
+      <ProjectsProvider>
+        <ProtectedWorkspace
+          locationKey={`${location.pathname}${location.search}`}
+          onLogout={onLogout}
+          userData={userData}
+          userRole={userRole}
+        />
+      </ProjectsProvider>
+    </NotificationCenterProvider>
+  );
+}
+
+function ProtectedWorkspace({ locationKey, onLogout, userData, userRole }) {
+  const { unreadCount } = useNotificationCenter();
+
+  return (
+    <div className="dashboard-layout page-fade">
+      <Sidebar userRole={userRole} userData={userData} onLogout={onLogout} unreadCount={unreadCount} />
+      <div className="main-content-wrapper">
+        <main className="main-content">
+          <ErrorBoundary resetKey={locationKey}>
+            <Outlet />
+          </ErrorBoundary>
+        </main>
+        <footer className="app-footer">
+          <p>&copy; 2026 CREATECH Platform. All rights reserved.</p>
+        </footer>
       </div>
-    </ProjectsProvider>
+    </div>
   );
 }
 
