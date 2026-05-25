@@ -111,7 +111,9 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const isAdmin = userRole === 'admin';
     const availableTabs = isAdmin
         ? TABS.filter((tab) => !['help', 'followers', 'payout'].includes(tab.key))
-        : TABS;
+        : userRole === 'creator'
+            ? TABS.filter((tab) => tab.key !== 'followers')
+            : TABS;
 
     useEffect(() => {
         document.documentElement.style.setProperty('--accent', accentColor);
