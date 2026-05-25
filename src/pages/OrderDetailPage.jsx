@@ -536,7 +536,7 @@ const OrderDetailPage = () => {
             <div key={t.id} className="od-timeline-item">
               <div className="od-timeline-dot"></div>
               <div className="od-timeline-content">
-                <h5>{t.event_type?.replace('_', ' ') || 'Event'}</h5>
+                <h5>{t.event_type ? t.event_type.replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Event'}</h5>
                 <p>{t.message || '—'} • {t.timestamp ? new Date(t.timestamp).toLocaleString() : ''}</p>
               </div>
             </div>

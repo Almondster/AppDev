@@ -64,6 +64,13 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   transition: background 0.3s ease, color 0.3s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+p, input, textarea, [contenteditable], code, pre {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Screen Reader Only - visually hidden but accessible */

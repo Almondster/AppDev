@@ -15,7 +15,14 @@ const FILTERS = ['all', 'unread', 'messages', 'orders', 'social'];
 
 const timeAgo = (dateStr) => {
     if (!dateStr) return '';
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const rawValue = typeof dateStr === 'string' ? dateStr.trim() : dateStr;
+    const normalizedValue = typeof rawValue === 'string' && rawValue && !/[zZ]|[+-]\d{2}:\d{2}$/.test(rawValue)
+        ? `${rawValue}Z`
+        : rawValue;
+    const timestamp = new Date(normalizedValue).getTime();
+    if (Number.isNaN(timestamp)) return '';
+
+    const diff = Math.max(0, Date.now() - timestamp);
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins}m ago`;
@@ -23,7 +30,7 @@ const timeAgo = (dateStr) => {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString();
+    return new Date(timestamp).toLocaleDateString();
 };
 
 const NotificationsPage = () => {

@@ -11,6 +11,18 @@
   font-size: 0.85rem;
 }
 
+/* Breadcrumb */
+.mygigs-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.mygigs-bc-muted { color: var(--text-muted, #71717a); }
+.mygigs-bc-sep { color: var(--border, #3f3f46); }
+.mygigs-bc-active { color: var(--text-primary, #fff); font-weight: 600; }
+
 .projects-admin-note__label {
   color: #ef4444;
 }

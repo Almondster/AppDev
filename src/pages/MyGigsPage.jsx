@@ -192,10 +192,17 @@ const MyGigsPage = () => {
         </div>
       )}
 
+      {/* ── Breadcrumb ── */}
+      <div className="mygigs-breadcrumb">
+          <span className="mygigs-bc-muted">Creator Workspace</span>
+          <span className="mygigs-bc-sep">/</span>
+          <span className="mygigs-bc-active">My Gigs</span>
+      </div>
+
       <header className="section__header">
         <div>
-          <h2 className="section__title">My Gigs ({services.length})</h2>
-          <p style={{ color: '#71717a', margin: '0.35rem 0 0' }}>Create, update, and manage the services clients can order.</p>
+          <h1 className="section__title" style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 0.25rem', color: '#fff' }}>My Gigs ({services.length})</h1>
+          <p style={{ color: '#71717a', margin: '0', fontSize: '0.9rem' }}>Create, update, and manage the services clients can order.</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Button
