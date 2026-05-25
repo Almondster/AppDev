@@ -123,8 +123,10 @@ function App() {
           <Route element={<ProtectedLayout key={userData?.firebase_uid || 'anon'} isLoggedIn={isLoggedIn} userRole={userRole} userData={userData} onLogout={handleLogout} />}>
 
             <Route path="/" element={<DashboardPage userRole={userRole} />} />
-            <Route path="/marketplace" element={<MarketplacePage />} />
-            <Route path="/recommendations" element={<RecommendationsPage />} />
+            <Route element={<RoleGuard allowedRoles={['client']} userRole={userRole} />}>
+              <Route path="/marketplace" element={<MarketplacePage />} />
+              <Route path="/recommendations" element={<RecommendationsPage />} />
+            </Route>
             <Route path="/projects" element={userRole === 'admin' ? <AdminProjectsPage /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={userRole === 'admin' ? <Navigate to="/projects" replace /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/creator-profile" element={<CreatorProfilePage />} />

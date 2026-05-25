@@ -31,8 +31,6 @@ const Sidebar = ({ userRole, onLogout, userData: propUserData }) => {
 
     const creatorMenu = [
         { to: '/', label: 'Studio', icon: <LayoutGrid size={18} /> },
-        { to: '/marketplace', label: 'Marketplace', icon: <Package size={18} /> },
-        { to: '/recommendations', label: 'Recommendations', icon: <Briefcase size={18} /> },
         { to: '/my-gigs', label: 'My Gigs', icon: <Briefcase size={18} /> },
         { to: '/orders', label: 'Orders', icon: <Package size={18} /> },
         { to: '/messages', label: 'Inbox', icon: <MessageSquare size={18} /> },
