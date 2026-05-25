@@ -24,6 +24,12 @@ export const API_BASE = import.meta.env.DEV
 const REQUEST_TIMEOUT_MS = 12000;
 
 export const getApiOrigin = () => API_ORIGIN;
+export const resolveApiUrl = (path) => {
+  if (!path) return path ?? null;
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_ORIGIN}${normalizedPath}`;
+};
 
 // ---------------------------------------------------------------------------
 // Token helpers
@@ -205,6 +211,58 @@ async function uploadMultipart(path, formData) {
     data = await res.json();
   } else {
     data = { detail: await res.text() };
+  }
+
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function uploadStorageFile(options) {
+  const token = getToken();
+  const params = new URLSearchParams({
+    bucket: options.bucket,
+    path: options.path,
+  });
+  if (options.contentType) {
+    params.set('content_type', options.contentType);
+  }
+
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.contentType) headers['Content-Type'] = options.contentType;
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/uploads/storage?${params.toString()}`, {
+      method: 'POST',
+      headers,
+      body: options.body,
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      data: { detail: 'Cannot connect to the server. Check that the backend is running and accessible.' },
+    };
+  }
+
+  let data;
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    data = { detail: await res.text() };
+  }
+
+  if (res.status === 401) {
+    clearToken();
+    clearUserData();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+
+  if (data?.url) {
+    data.url = resolveApiUrl(data.url);
   }
 
   return { ok: res.ok, status: res.status, data };

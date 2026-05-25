@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { acceptOrder, fetchOrder, updateOrder, fetchTimeline, getUserData, payOrder, rejectOrder, submitFinalOutput, submitPartialOutput } from '../api';
+import { acceptOrder, fetchOrder, updateOrder, fetchTimeline, getUserData, payOrder, rejectOrder, resolveApiUrl, submitFinalOutput, submitPartialOutput, uploadStorageFile } from '../api';
 import { ArrowLeft, MessageSquare, Star, XCircle, Play, Lock, CreditCard, Upload, Download } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import ReviewModal from '../components/ReviewModal';
@@ -66,46 +66,67 @@ const OrderDetailPage = () => {
   }, [id]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
-  const isDataUrl = (value) => String(value || '').startsWith('data:');
 
   const renderOutputLink = (url, label, filename) => {
     if (!url) return null;
+    const resolvedUrl = resolveApiUrl(url);
     return (
       <a
         className="od-download-link"
-        href={url}
-        target={isDataUrl(url) ? undefined : '_blank'}
-        rel={isDataUrl(url) ? undefined : 'noreferrer'}
-        download={isDataUrl(url) ? filename : undefined}
+        href={resolvedUrl}
+        target="_blank"
+        rel="noreferrer"
+        download={filename}
       >
-        {isDataUrl(url) && <Download size={15} />}
-        {isDataUrl(url) ? label : url}
+        <Download size={15} />
+        {label}
       </a>
     );
   };
 
-  const handleOutputFileUpload = (target, e) => {
+  const sanitizeFilename = (filename) => String(filename || 'upload')
+    .replace(/[^\w.\-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const handleOutputFileUpload = async (target, e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const fileData = String(reader.result || '');
+    setActionLoading(true);
+    try {
+      const storagePath = `${id}/${target}/${Date.now()}-${sanitizeFilename(file.name)}`;
+      const { ok, data } = await uploadStorageFile({
+        bucket: 'orders',
+        path: storagePath,
+        body: file,
+        contentType: file.type || 'application/octet-stream',
+      });
+
+      if (!ok) {
+        showToast(data?.detail || 'Failed to upload attached file.');
+        return;
+      }
+
       if (target === 'partial') {
         setPartialForm((prev) => ({
           ...prev,
-          partial_output_url: fileData,
+          partial_output_url: data.url,
           partial_output_note: prev.partial_output_note || `Attached file: ${file.name}`,
         }));
       } else {
         setFinalForm((prev) => ({
           ...prev,
-          final_file_url: fileData,
+          final_file_url: data.url,
           final_output_note: prev.final_output_note || `Attached file: ${file.name}`,
         }));
       }
-    };
-    reader.onerror = () => showToast('Failed to read attached file.');
-    reader.readAsDataURL(file);
+      showToast(`${file.name} uploaded successfully.`);
+    } catch {
+      showToast('Failed to upload attached file.');
+    } finally {
+      setActionLoading(false);
+      e.target.value = '';
+    }
   };
 
   const handleStatusChange = (newStatus, title, message, variant = 'info') => {
@@ -287,9 +308,9 @@ const OrderDetailPage = () => {
           {isCreator && ['accepted', 'partial_submitted'].includes(order.status) && (
             <form className="od-delivery-form" onSubmit={handleSubmitPartial}>
               <input
-                value={isDataUrl(partialForm.partial_output_url) ? '' : partialForm.partial_output_url}
+                value={partialForm.partial_output_url}
                 onChange={e => setPartialForm(prev => ({ ...prev, partial_output_url: e.target.value }))}
-                placeholder={isDataUrl(partialForm.partial_output_url) ? 'Attached file selected' : 'Partial output link'}
+                placeholder="Partial output link"
               />
               <label className="od-file-upload">
                 <Upload size={15} />
@@ -325,9 +346,9 @@ const OrderDetailPage = () => {
           {isCreator && ['partial_submitted', 'final_submitted'].includes(order.status) && (
             <form className="od-delivery-form" onSubmit={handleSubmitFinal}>
               <input
-                value={isDataUrl(finalForm.final_file_url) ? '' : finalForm.final_file_url}
+                value={finalForm.final_file_url}
                 onChange={e => setFinalForm(prev => ({ ...prev, final_file_url: e.target.value }))}
-                placeholder={isDataUrl(finalForm.final_file_url) ? 'Attached file selected' : 'Final output link'}
+                placeholder="Final output link"
               />
               <label className="od-file-upload">
                 <Upload size={15} />
