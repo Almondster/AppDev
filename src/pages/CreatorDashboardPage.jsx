@@ -7,6 +7,8 @@ import { getCurrentUserUid } from '../utils/currentUser';
 import { getOrderFetcherForRole, isActiveCreatorOrderStatus } from '../utils/orders';
 import './CreatorDashboardPage.css';
 
+const sameId = (a, b) => String(a) === String(b);
+
 const CreatorDashboardPage = () => {
     const [tab, setTab] = useState('overview');
     const [orders, setOrders] = useState([]);
@@ -27,7 +29,7 @@ const CreatorDashboardPage = () => {
                 if (rRes.ok) {
                     const allReviews = readCollection(rRes);
                     // Filter reviews for this creator
-                    setReviews(userUid ? allReviews.filter(r => r.reviewee_id === userUid) : allReviews);
+                    setReviews(userUid ? allReviews.filter((review) => sameId(review.reviewee_id, userUid)) : allReviews);
                 }
             } catch (err) {
                 console.error('Failed to load dashboard:', err);
