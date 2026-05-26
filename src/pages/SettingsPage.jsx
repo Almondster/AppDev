@@ -8,6 +8,7 @@ import {
     getUserData, patchUser, fetchMyFollowers, fetchMyFollowing, deleteFollow,
     fetchMyWallets, createWallet, deleteWallet, fetchMyPaymentMethods, createPaymentMethod, deletePaymentMethod,
     createSupportTicket, fetchSupportTickets, submitCreatorApplication, setUserData, uploadIdVerificationImage,
+    fetchUser,
 } from '../api';
 import { createInitialCreatorForm } from '../constants/creatorOnboarding';
 import ConfirmModal from '../components/ConfirmModal';
@@ -87,7 +88,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
     // Followers/Following state
     const [followers, setFollowers] = useState([]);
     const [following, setFollowing] = useState([]);
-    const [socialTab, setSocialTab] = useState('followers');
+    const [socialTab, setSocialTab] = useState('following');
     const [socialLoading, setSocialLoading] = useState(false);
 
     // Payout state
@@ -109,11 +110,15 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const { theme, setTheme } = useTheme();
     const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
     const isAdmin = userRole === 'admin';
-    const availableTabs = isAdmin
+    const availableTabs = (isAdmin
         ? TABS.filter((tab) => !['help', 'followers', 'payout'].includes(tab.key))
         : userRole === 'creator'
             ? TABS.filter((tab) => tab.key !== 'followers')
-            : TABS;
+            : TABS).map(tab => {
+                if (tab.key === 'followers') return { ...tab, label: 'Following' };
+                if (tab.key === 'payout' && userRole === 'client') return { ...tab, label: 'Payment Methods' };
+                return tab;
+            });
 
     useEffect(() => {
         document.documentElement.style.setProperty('--accent', accentColor);
@@ -152,7 +157,26 @@ const SettingsPage = ({ userRole, onLogout }) => {
             try {
                 const [fRes, gRes] = await Promise.all([fetchMyFollowers(), fetchMyFollowing()]);
                 if (fRes.ok) setFollowers(fRes.data.results || fRes.data || []);
-                if (gRes.ok) setFollowing(gRes.data.results || gRes.data || []);
+                if (gRes.ok) {
+                    const followingList = gRes.data.results || gRes.data || [];
+                    const enrichedFollowing = await Promise.all(
+                        followingList.map(async (f) => {
+                            try {
+                                const uRes = await fetchUser(f.following_id);
+                                if (uRes.ok) {
+                                    return {
+                                        ...f,
+                                        following_name: uRes.data.full_name || `${uRes.data.first_name} ${uRes.data.last_name}`.trim() || String(f.following_id)
+                                    };
+                                }
+                            } catch (e) {
+                                console.error('Failed to fetch user:', f.following_id, e);
+                            }
+                            return { ...f, following_name: String(f.following_id) };
+                        })
+                    );
+                    setFollowing(enrichedFollowing);
+                }
             } catch (err) {
                 console.error('Failed to load followers:', err);
             } finally {
@@ -724,39 +748,28 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {/* ─── Followers ─── */}
                     {activeTab === 'followers' && (
                         <div style={cardStyle}>
-                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
-                                <button onClick={() => setSocialTab('followers')} style={{
-                                    padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                    background: socialTab === 'followers' ? '#6366f1' : 'rgba(255,255,255,0.06)', color: socialTab === 'followers' ? '#fff' : '#a1a1aa', fontWeight: 600,
-                                }}>Followers ({followers.length})</button>
-                                <button onClick={() => setSocialTab('following')} style={{
-                                    padding: '0.5rem 1rem', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                    background: socialTab === 'following' ? '#6366f1' : 'rgba(255,255,255,0.06)', color: socialTab === 'following' ? '#fff' : '#a1a1aa', fontWeight: 600,
-                                }}>Following ({following.length})</button>
-                            </div>
+                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Following</h3>
                             {socialLoading ? (
                                 <p style={{ color: '#71717a', textAlign: 'center', padding: '2rem' }}>Loading...</p>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {(socialTab === 'followers' ? followers : following).map(f => (
+                                    {following.map(f => (
                                         <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}>
-                                                    {(socialTab === 'followers' ? (f.follower_id || '?') : (f.following_id || '?')).charAt(0).toUpperCase()}
+                                                    {String(f.following_name || '?').charAt(0).toUpperCase()}
                                                 </div>
-                                                <span style={{ color: '#d4d4d8', fontSize: '0.9rem' }}>{socialTab === 'followers' ? f.follower_id : f.following_id}</span>
+                                                <span style={{ color: '#d4d4d8', fontSize: '0.9rem' }}>{f.following_name || f.following_id}</span>
                                             </div>
-                                            {socialTab === 'following' && (
-                                                <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })}
-                                                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>
-                                                    Unfollow
-                                                </button>
-                                            )}
+                                            <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })}
+                                                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>
+                                                Unfollow
+                                            </button>
                                         </div>
                                     ))}
-                                    {(socialTab === 'followers' ? followers : following).length === 0 && (
+                                    {following.length === 0 && (
                                         <p style={{ color: '#52525b', textAlign: 'center', padding: '2rem' }}>
-                                            {socialTab === 'followers' ? 'No followers yet.' : 'Not following anyone.'}
+                                            Not following anyone.
                                         </p>
                                     )}
                                 </div>
@@ -767,48 +780,52 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {/* ─── Payout Methods ─── */}
                     {activeTab === 'payout' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payout Methods (Wallets)</h3>
-                                {wallets.map(w => (
-                                    <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
-                                        <div>
-                                            <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{w.wallet_type}</p>
-                                            <p style={{ color: '#71717a', fontSize: '0.85rem', margin: 0 }}>{w.account_name} • {w.account_number}</p>
+                            {userRole !== 'client' && (
+                                <div style={cardStyle}>
+                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payout Methods (Wallets)</h3>
+                                    {wallets.map(w => (
+                                        <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                            <div>
+                                                <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{w.wallet_type}</p>
+                                                <p style={{ color: '#71717a', fontSize: '0.85rem', margin: 0 }}>{w.account_name} • {w.account_number}</p>
+                                            </div>
+                                            <button onClick={() => setDeleteConfirm({ open: true, type: 'wallet', id: w.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
                                         </div>
-                                        <button onClick={() => setDeleteConfirm({ open: true, type: 'wallet', id: w.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                                    </div>
-                                ))}
-                                {wallets.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payout methods.</p>}
-                                <form onSubmit={handleAddWallet} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                                    <select value={payoutForm.wallet_type} onChange={e => setPayoutForm(p => ({ ...p, wallet_type: e.target.value }))} style={{ ...inputStyle, flex: '0 0 120px' }}>
-                                        <option value="GCash">GCash</option>
-                                        <option value="Maya">Maya</option>
-                                        <option value="BankTransfer">Bank Transfer</option>
-                                        <option value="PayPal">PayPal</option>
-                                    </select>
-                                    <input value={payoutForm.account_name} onChange={e => setPayoutForm(p => ({ ...p, account_name: e.target.value }))} placeholder="Account Name" required style={{ ...inputStyle, flex: 1 }} />
-                                    <input value={payoutForm.account_number} onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} placeholder="Account #" required style={{ ...inputStyle, flex: 1 }} />
-                                    <button type="submit" disabled={payoutLoading} style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                        {payoutLoading ? 'Adding...' : 'Add'}
-                                    </button>
-                                </form>
-                            </div>
+                                    ))}
+                                    {wallets.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payout methods.</p>}
+                                    <form onSubmit={handleAddWallet} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                        <select value={payoutForm.wallet_type} onChange={e => setPayoutForm(p => ({ ...p, wallet_type: e.target.value }))} style={{ ...inputStyle, flex: '0 0 120px' }}>
+                                            <option value="GCash">GCash</option>
+                                            <option value="Maya">Maya</option>
+                                            <option value="BankTransfer">Bank Transfer</option>
+                                            <option value="PayPal">PayPal</option>
+                                        </select>
+                                        <input value={payoutForm.account_name} onChange={e => setPayoutForm(p => ({ ...p, account_name: e.target.value }))} placeholder="Account Name" required style={{ ...inputStyle, flex: 1 }} />
+                                        <input value={payoutForm.account_number} onChange={e => setPayoutForm(p => ({ ...p, account_number: e.target.value }))} placeholder="Account #" required style={{ ...inputStyle, flex: 1 }} />
+                                        <button type="submit" disabled={payoutLoading} style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                            {payoutLoading ? 'Adding...' : 'Add'}
+                                        </button>
+                                    </form>
+                                </div>
+                            )}
 
-                            <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payment Methods</h3>
-                                {paymentMethods.map(pm => (
-                                    <div key={pm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
-                                        <span style={{ color: '#d4d4d8' }}>{pm.method_type} •••• {pm.masked_number}</span>
-                                        <button onClick={() => setDeleteConfirm({ open: true, type: 'payment', id: pm.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                                    </div>
-                                ))}
-                                {paymentMethods.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payment methods.</p>}
-                                <form onSubmit={handleAddPayment} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                                    <input value={pmForm.method_type} onChange={e => setPmForm(p => ({ ...p, method_type: e.target.value }))} placeholder="Type (e.g. GCash)" required style={{ ...inputStyle, flex: 1 }} />
-                                    <input value={pmForm.masked_number} onChange={e => setPmForm(p => ({ ...p, masked_number: e.target.value }))} placeholder="Number (e.g. 0917)" required style={{ ...inputStyle, flex: 1 }} />
-                                    <button type="submit" style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>Add</button>
-                                </form>
-                            </div>
+                            {userRole !== 'creator' && (
+                                <div style={cardStyle}>
+                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payment Methods</h3>
+                                    {paymentMethods.map(pm => (
+                                        <div key={pm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                            <span style={{ color: '#d4d4d8' }}>{pm.method_type} •••• {pm.masked_number}</span>
+                                            <button onClick={() => setDeleteConfirm({ open: true, type: 'payment', id: pm.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                                        </div>
+                                    ))}
+                                    {paymentMethods.length === 0 && <p style={{ color: '#52525b', fontSize: '0.9rem' }}>No payment methods.</p>}
+                                    <form onSubmit={handleAddPayment} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                        <input value={pmForm.method_type} onChange={e => setPmForm(p => ({ ...p, method_type: e.target.value }))} placeholder="Type (e.g. GCash)" required style={{ ...inputStyle, flex: 1 }} />
+                                        <input value={pmForm.masked_number} onChange={e => setPmForm(p => ({ ...p, masked_number: e.target.value }))} placeholder="Number (e.g. 0917)" required style={{ ...inputStyle, flex: 1 }} />
+                                        <button type="submit" style={{ padding: '0.65rem 1rem', borderRadius: 10, background: '#6366f1', color: '#fff', fontWeight: 600, border: 'none', cursor: 'pointer' }}>Add</button>
+                                    </form>
+                                </div>
+                            )}
                         </div>
                     )}
 
