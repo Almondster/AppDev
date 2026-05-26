@@ -370,7 +370,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
       setResults(data?.matches || data?.results || []);
       setAnalysis(data?.analysis || null);
       setResultSource(data?.source || '');
-      setWarning('');
+      setWarning(data?.warning || '');
       setProgressIndex(PROCESSING_PERCENTAGES.length - 1);
 
       window.setTimeout(() => {
