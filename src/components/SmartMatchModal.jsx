@@ -177,6 +177,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [results, setResults] = useState([]);
   const [analysis, setAnalysis] = useState(null);
+  const [resultSource, setResultSource] = useState('');
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [progressIndex, setProgressIndex] = useState(0);
@@ -197,6 +198,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
       setFormData(INITIAL_FORM_DATA);
       setResults([]);
       setAnalysis(null);
+      setResultSource('');
       setError('');
       setWarning('');
       setProgressIndex(0);
@@ -216,6 +218,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   const stepIndex = GUIDED_STEPS.indexOf(guidedStep);
+  const isAiResultSource = resultSource === 'sentence-transformer';
 
   const openCreatorProfile = (result) => {
     const creatorId = getResultId(result);
@@ -366,6 +369,13 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
 
       setResults(data?.matches || data?.results || []);
       setAnalysis(data?.analysis || null);
+      setResultSource(data?.source || '');
+      setWarning(
+        data?.warning ||
+          (nextMode === 'ai' && data?.source && data.source !== 'sentence-transformer'
+            ? 'AI Smart Match is temporarily unavailable, so these results were ranked using guided rule-based scoring.'
+            : '')
+      );
       setProgressIndex(PROCESSING_PERCENTAGES.length - 1);
 
       window.setTimeout(() => {
@@ -713,11 +723,11 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
           <div>
             <div className="smm-pill">
               <Sparkles size={14} />
-              {mode === 'ai' ? 'AI-ranked shortlist' : 'Guided shortlist'}
+              {isAiResultSource ? 'AI-ranked shortlist' : 'Guided shortlist'}
             </div>
             <h3>{results.length} creator{results.length === 1 ? '' : 's'} ready to review</h3>
             <p>
-              {mode === 'ai'
+              {isAiResultSource
                 ? 'The results were ranked directly by the sentence-transformer Smart Match service.'
                 : 'The results were ranked by rule-based scoring from the category, skills, budget, and deadline you selected.'}
             </p>
@@ -744,6 +754,8 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
           <span>{formatBudgetValue(summaryBudget)}</span>
           <span>{summaryTimeline}</span>
         </div>
+
+        {warning ? <div className="smm-callout smm-callout--warning">{warning}</div> : null}
 
         {results.length === 0 ? (
           <div className="smm-empty">
