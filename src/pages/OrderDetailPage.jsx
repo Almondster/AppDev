@@ -71,6 +71,11 @@ const OrderDetailPage = () => {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
+  const getLocalToday = () => {
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    return new Date(Date.now() - tzOffset).toISOString().slice(0, 10);
+  };
+
   const buildDueDatePayload = (dateValue) => {
     if (!dateValue) return null;
     return new Date(`${dateValue}T23:59:59`).toISOString();
@@ -286,6 +291,10 @@ const OrderDetailPage = () => {
 
   const handleSaveDueDate = async (e) => {
     e.preventDefault();
+    if (dueDateInput < getLocalToday()) {
+      showToast('Due date cannot be in the past.');
+      return;
+    }
     setActionLoading(true);
     try {
       const { ok, data } = await updateOrder(id, { due_date: buildDueDatePayload(dueDateInput) });
@@ -350,6 +359,11 @@ const OrderDetailPage = () => {
 
   const st = STATUS_STYLES[order.status] || STATUS_STYLES.pending;
   const showDueDateEditor = canManageDueDate && !['completed', 'cancelled', 'rejected', 'refunded'].includes(order.status);
+  
+  // Calculate if order is past due
+  const isPastDue = order.due_date && 
+    new Date(order.due_date).setHours(23, 59, 59, 999) < new Date().getTime() && 
+    !['completed', 'cancelled', 'refunded', 'rejected'].includes(order.status);
 
   return (
     <main className="order-detail">
@@ -388,7 +402,10 @@ const OrderDetailPage = () => {
           </div>
           <div className="od-info-row">
             <span className="od-info-label">Due Date</span>
-            <span className="od-info-value">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</span>
+            <span className="od-info-value">
+              {order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}
+              {isPastDue && <span style={{ color: '#ef4444', fontWeight: 600, marginLeft: '8px', fontSize: '0.85rem' }}>Past Due</span>}
+            </span>
           </div>
           <div className="od-info-row">
             <span className="od-info-label">Status</span>
@@ -402,7 +419,7 @@ const OrderDetailPage = () => {
               <input
                 type="date"
                 value={dueDateInput}
-                min={new Date().toISOString().slice(0, 10)}
+                min={getLocalToday()}
                 onChange={(e) => setDueDateInput(e.target.value)}
               />
               <button className="od-action-btn od-action-btn--outline" disabled={actionLoading || !dueDateInput}>

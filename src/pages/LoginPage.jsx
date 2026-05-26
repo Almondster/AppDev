@@ -31,6 +31,15 @@ const LoginPage = ({ onLogin }) => {
 
   useEffect(() => {
     setIsSignUp(searchParams.get('mode') === 'signup');
+    
+    // Force dark mode on LoginPage
+    document.documentElement.setAttribute('data-theme', 'dark');
+    
+    return () => {
+        // Restore user's theme preference when leaving
+        const savedTheme = localStorage.getItem('createch_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    };
   }, [searchParams]);
 
   const fullName = useMemo(() => {

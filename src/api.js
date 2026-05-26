@@ -312,6 +312,10 @@ export async function login(email, password) {
       phone: data.phone || '',
       avatar_url: data.avatar_url || '',
     });
+    // Background refresh: pull full profile without blocking login
+    fetchMe().then(meRes => {
+      if (meRes.ok) setUserData({ ...getUserData(), ...meRes.data });
+    }).catch(() => {});
   }
   return { ok, data };
 }
@@ -337,6 +341,10 @@ export async function register({ email, password, confirm_password, first_name, 
       phone: data.phone || '',
       avatar_url: data.avatar_url || '',
     });
+    // Background refresh: pull full profile without blocking registration
+    fetchMe().then(meRes => {
+      if (meRes.ok) setUserData({ ...getUserData(), ...meRes.data });
+    }).catch(() => {});
   }
   return { ok, data };
 }
@@ -448,6 +456,7 @@ export const createMessage    = (body) => api.post('/messages/', body);
 export const patchMessage     = (id, body) => api.patch(`/messages/${id}`, body);
 export const updateMessage    = (id, body) => api.patch(`/messages/${id}`, body);
 export const deleteMessage    = (id) => api.delete(`/messages/${id}`);
+export const getUnreadMessagesCount = () => api.get('/messages/unread-count');
 
 // ---------------------------------------------------------------------------
 // Follows

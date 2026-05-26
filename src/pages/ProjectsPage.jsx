@@ -204,7 +204,12 @@ const ProjectsPage = ({ userRole = 'creator' }) => {
                                         <td className="gigs-cell-service">{order.service_title || 'Untitled service'}</td>
                                         <td className="gigs-cell-user">{isCreator ? (order.client_display_name || order.client_name || 'Unknown client') : (order.creator_display_name || order.creator_name || 'Unknown creator')}</td>
                                         <td>{getStatusBadge(order.status)}</td>
-                                        <td className="gigs-cell-date">{order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}</td>
+                                        <td className="gigs-cell-date">
+                                            {order.due_date ? new Date(order.due_date).toLocaleDateString() : '—'}
+                                            {(order.due_date && new Date(order.due_date).setHours(23, 59, 59, 999) < new Date().getTime() && !['completed', 'cancelled', 'refunded', 'rejected'].includes(order.status)) && (
+                                                <div style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.75rem', marginTop: '4px' }}>Past Due</div>
+                                            )}
+                                        </td>
                                         <td className="gigs-cell-amount">₱{parseFloat(order.price || 0).toLocaleString()}</td>
                                         <td>
                                             <div className="gigs-action-group">

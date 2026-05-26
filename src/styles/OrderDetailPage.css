@@ -10,16 +10,16 @@
   gap: 0.5rem;
   font-size: 0.85rem;
   margin-bottom: 1.5rem;
-  color: #71717a;
+  color: var(--text-dim);
 }
 
-.od-bc-active { color: #d4d4d8; font-weight: 600; }
-.od-bc-sep { color: #3f3f46; }
+.od-bc-active { color: var(--text-secondary); font-weight: 600; }
+.od-bc-sep { color: var(--text-muted); }
 
 .od-back {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
-  color: #d4d4d8;
+  color: var(--text-secondary);
   padding: 0.5rem 1rem;
   border-radius: 10px;
   cursor: pointer;
@@ -34,7 +34,7 @@
 
 .od-back:hover {
   background: rgba(255,255,255,0.08);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .od-header {
@@ -49,13 +49,13 @@
 .od-title {
   font-size: 1.75rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .od-subtitle {
   display: none;
-  color: #71717a;
+  color: var(--text-dim);
   font-size: 0.9rem;
   margin: 0.25rem 0 0;
 }
@@ -92,7 +92,7 @@
 }
 
 .od-card {
-  background: #141417;
+  background: var(--bg-secondary);
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: 14px;
   padding: 1.5rem;
@@ -102,7 +102,7 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #71717a;
+  color: var(--text-dim);
   margin: 0 0 1rem;
   font-weight: 700;
 }
@@ -120,18 +120,18 @@
 }
 
 .od-info-label {
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .od-info-value {
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 0.9rem;
 }
 
 .od-muted {
-  color: #71717a;
+  color: var(--text-dim);
   font-size: 0.9rem;
   margin: 0;
 }
@@ -180,7 +180,7 @@
 
 .od-delivery-box p {
   margin: 0;
-  color: #d4d4d8;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -209,7 +209,7 @@
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px;
   background: rgba(255,255,255,0.04);
-  color: #fff;
+  color: var(--text-primary);
   padding: 0.65rem 0.75rem;
   font: inherit;
   outline: none;
@@ -277,7 +277,7 @@
 
 .od-action-btn--primary {
   background: #6366f1;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .od-action-btn--primary:hover {
@@ -286,7 +286,7 @@
 
 .od-action-btn--success {
   background: #10b981;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .od-action-btn--success:hover {
@@ -314,13 +314,13 @@
 
 .od-action-btn--outline {
   background: rgba(255,255,255,0.05);
-  color: #d4d4d8;
+  color: var(--text-secondary);
   border: 1px solid rgba(255,255,255,0.08);
 }
 
 .od-action-btn--outline:hover {
   background: rgba(255,255,255,0.1);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Timeline */
@@ -350,14 +350,14 @@
 
 .od-timeline-content h5 {
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
   margin: 0 0 0.25rem;
 }
 
 .od-timeline-content p {
   font-size: 0.8rem;
-  color: #71717a;
+  color: var(--text-dim);
   margin: 0;
 }
 

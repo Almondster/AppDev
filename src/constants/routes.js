@@ -16,7 +16,7 @@ export const ROUTES = {
     SETTINGS: '/settings',
     WALLET: '/wallet',
     BECOME_CREATOR: '/become-creator',
-    CREATOR_PROFILE: '/creator-profile',
+    CREATOR_PROFILE: '/profile',
     USERS: '/users',
     DISPUTES: '/disputes',
 };

@@ -82,6 +82,7 @@ const CreatorProfilePage = () => {
     const [services, setServices] = useState([]);
     const [reviews, setReviews] = useState([]);
     const [followers, setFollowers] = useState(0);
+    const [followingList, setFollowingList] = useState([]);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followId, setFollowId] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -152,6 +153,17 @@ const CreatorProfilePage = () => {
                     );
                     setIsFollowing(Boolean(myFollow));
                     setFollowId(myFollow?.id || null);
+
+                    const userMap = new Map(readCollection(usersRes || { data: [] }).map(u => [String(u.firebase_uid || u.id), u]));
+                    const flist = allFollows.filter((follow) => sameId(follow.follower_id, profileUid)).map(f => {
+                        const u = userMap.get(String(f.following_id));
+                        return {
+                            ...f,
+                            following_name: u ? u.full_name || u.first_name || u.username || String(f.following_id) : String(f.following_id),
+                            following_avatar: u ? u.avatar_url : null
+                        };
+                    });
+                    setFollowingList(flist);
                 }
 
                 if (blocksRes.ok) {
@@ -182,21 +194,18 @@ const CreatorProfilePage = () => {
     }, [profileUid, currentUid]);
 
     const creatorUser = creator?.user || userProfile || {};
-    const displayName = safeText(
-        creatorUser.display_name ||
-            creatorUser.full_name ||
-            creatorUser.username ||
-            creatorUser.email ||
-            creator?.display_name ||
-            creator?.username,
-        'Creator',
-    );
+    const uName = creatorUser.username || creatorUser.email || creator?.username || 'User';
+    const fName = [creatorUser.first_name, creatorUser.last_name].filter(Boolean).join(' ');
+    const displayName = fName && fName !== uName ? `${uName} (${fName})` : uName;
+    const city = creatorUser.city || '';
+    const country = creatorUser.country || '';
+    const locationString = city && country ? `${city}, ${country}` : country || city || 'Remote';
     const avatarUrl = creatorUser.avatar_url || null;
     const userRole = creatorUser.role || userProfile?.role || (creator ? 'creator' : 'client');
     const skills = parseSkills(creator?.skills) || parseSkills(creator?.custom_skills) || [];
     const completedJobs = 0;
     const avgRating = reviews.length > 0
-        ? (reviews.reduce((sum, review) => sum + (review.rating || 0), 0) / reviews.length).toFixed(1)
+        ? (reviews.reduce((sum, review) => sum + (Number(review.rating || 0)), 0) / reviews.length).toFixed(1)
         : '5.0';
     const hourlyRate = formatCurrency(creator?.starting_price || 500);
     const responseTime = creator?.response_time || '1 hour';
@@ -365,7 +374,7 @@ const CreatorProfilePage = () => {
                             <div className="cp-review-top">
                                 <div>
                                     <h4>{review.reviewer_name || review.reviewer_id || 'Anonymous'}</h4>
-                                    <div className="cp-review-stars">{renderStars(review.rating || 0)}</div>
+                                    <div className="cp-review-stars">{renderStars(Number(review.rating || 0))}</div>
                                 </div>
                                 <span className="cp-review-date">
                                     {review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}
@@ -421,6 +430,31 @@ const CreatorProfilePage = () => {
         )
     );
 
+    const renderFollowingList = () => (
+        followingList.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                {followingList.map(f => (
+                    <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }} onClick={() => navigate(`/profile?uid=${f.following_id}`)}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden' }}>
+                                {f.following_avatar ? <img src={f.following_avatar} alt="avatar" style={{width: '100%', height: '100%', objectFit: 'cover'}}/> : String(f.following_name || '?').charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ color: '#d4d4d8', fontSize: '0.9rem' }}>{f.following_name || f.following_id}</span>
+                        </div>
+                        {isOwnProfile && (
+                            <button onClick={() => { setFollowId(f.id); setUnfollowConfirm(true); }}
+                                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>
+                                Unfollow
+                            </button>
+                        )}
+                    </div>
+                ))}
+            </div>
+        ) : (
+            <p className="cp-empty">Not following anyone.</p>
+        )
+    );
+
     const renderProfileCard = (showCreatorStats) => (
         <div className="cp-profile-card">
             <div className="cp-avatar">
@@ -434,46 +468,53 @@ const CreatorProfilePage = () => {
             </div>
 
             <div className="cp-identity">
-                <span className="cp-role-chip">{showCreatorStats ? 'Creator Profile' : 'Community Member'}</span>
+                <span className="cp-role-chip" style={{ background: showCreatorStats ? '' : 'rgba(99,102,241,0.1)', color: showCreatorStats ? '' : '#818cf8', border: showCreatorStats ? '' : '1px solid rgba(99,102,241,0.2)' }}>
+                    {showCreatorStats ? 'Creator Profile' : 'Client Profile'}
+                </span>
                 <h2 className="cp-name">{displayName}</h2>
                 <p className="cp-role" style={{ textTransform: 'capitalize' }}>
-                    {showCreatorStats ? creator?.job_title || 'Independent creator' : userRole}
+                    {showCreatorStats ? creator?.job_title || 'Independent creator' : 'Client'}
                 </p>
                 <p className="cp-location">
                     <MapPin size={14} />
-                    Remote
+                    {locationString}
                 </p>
-            </div>
-
-            <div className={`cp-stats-row ${showCreatorStats ? 'cp-stats-row--triple' : ''}`}>
-                <div className="cp-stat">
-                    <span className="cp-stat-value">{followers}</span>
-                    <span className="cp-stat-label">Followers</span>
-                </div>
-                {showCreatorStats && (
-                    <>
-                        <div className="cp-stat">
-                            <span className="cp-stat-value">{avgRating}</span>
-                            <span className="cp-stat-label">Rating</span>
-                        </div>
-                        <div className="cp-stat">
-                            <span className="cp-stat-value">{services.length}</span>
-                            <span className="cp-stat-label">Services</span>
-                        </div>
-                    </>
+                {!showCreatorStats && (
+                    <p style={{ margin: '0.4rem 0 0', color: '#a1a1aa', fontSize: '0.88rem' }}>
+                        <span style={{ color: '#e4e4e7', fontWeight: 600 }}>{followers}</span> Followers
+                    </p>
                 )}
             </div>
 
+            {showCreatorStats && (
+                <div className="cp-stats-row cp-stats-row--triple">
+                    <div className="cp-stat">
+                        <span className="cp-stat-value">{followers}</span>
+                        <span className="cp-stat-label">Followers</span>
+                    </div>
+                    <div className="cp-stat">
+                        <span className="cp-stat-value">{avgRating}</span>
+                        <span className="cp-stat-label">Rating</span>
+                    </div>
+                    <div className="cp-stat">
+                        <span className="cp-stat-value">{services.length}</span>
+                        <span className="cp-stat-label">Services</span>
+                    </div>
+                </div>
+            )}
+
             {!isOwnProfile ? (
-                <div className="cp-action-grid">
-                    <button
-                        type="button"
-                        className={`cp-action-btn cp-action-btn--primary ${isFollowing ? 'cp-action-btn--danger' : ''}`}
-                        onClick={handleFollow}
-                    >
-                        {isFollowing ? <UserMinus size={15} /> : <UserPlus size={15} />}
-                        {isFollowing ? 'Unfollow' : 'Follow'}
-                    </button>
+                <div className="cp-action-grid" style={{ gridTemplateColumns: creator ? 'repeat(2, minmax(0, 1fr))' : '1fr' }}>
+                    {creator && (
+                        <button
+                            type="button"
+                            className={`cp-action-btn cp-action-btn--primary ${isFollowing ? 'cp-action-btn--danger' : ''}`}
+                            onClick={handleFollow}
+                        >
+                            {isFollowing ? <UserMinus size={15} /> : <UserPlus size={15} />}
+                            {isFollowing ? 'Unfollow' : 'Follow'}
+                        </button>
+                    )}
                     <button
                         type="button"
                         className="cp-action-btn"
@@ -577,38 +618,94 @@ const CreatorProfilePage = () => {
                         </div>
                     </div>
                 </>
-            ) : !creator && !isOwnProfile ? (
+            ) : !creator ? (
                 <>
                     <div className="cp-cover">
                         <div className="cp-cover-gradient"></div>
                         <div className="cp-cover-content">
-                            <span className="cp-cover-kicker">Community profile</span>
+                            <span className="cp-cover-kicker">Client Spotlight</span>
                             <h1>{displayName}</h1>
-                            <p>This user has not published a creator profile yet.</p>
+                            <p>Active client on the platform looking to collaborate.</p>
                         </div>
                     </div>
 
                     <div className="cp-layout">
                         <aside className="cp-sidebar">
-                            {renderProfileCard(false)}
+                            <div className="cp-profile-card">
+                                <div className="cp-avatar">
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt={`${displayName} avatar`} />
+                                    ) : (
+                                        <div className="cp-avatar-placeholder">
+                                            {safeText(uName, 'U').charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="cp-identity">
+                                    <span className="cp-role-chip" style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                        Client Profile
+                                    </span>
+                                    <h2 className="cp-name">{displayName}</h2>
+                                    <p className="cp-role" style={{ textTransform: 'capitalize' }}>Client</p>
+                                    <p className="cp-location">
+                                        <MapPin size={14} />
+                                        {locationString}
+                                    </p>
+                                </div>
+
+                                <div className="cp-stats-row cp-stats-row--single" style={{ display: 'flex', justifyContent: 'center' }}>
+                                    <div className="cp-stat" style={{ width: '140px' }}>
+                                        <span className="cp-stat-value">{followingList.length}</span>
+                                        <span className="cp-stat-label">Following</span>
+                                    </div>
+                                </div>
+
+                                {!isOwnProfile ? (
+                                    <div className="cp-action-grid">
+                                        <button
+                                            type="button"
+                                            className="cp-action-btn cp-action-btn--primary cp-action-btn--full"
+                                            onClick={() => navigate(`/messages?to=${profileUid}`)}
+                                        >
+                                            <MessageSquare size={15} />
+                                            Message
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button type="button" className="cp-action-btn cp-action-btn--primary cp-action-btn--full" onClick={() => navigate('/settings')}>
+                                        Edit Profile
+                                    </button>
+                                )}
+                            </div>
                         </aside>
 
                         <div className="cp-main">
                             <section className="cp-panel cp-panel--soft">
                                 <div className="cp-section-heading">
                                     <h3>About</h3>
-                                    <p>This account can still receive reviews and profile interactions.</p>
                                 </div>
-                                <p className="cp-body-copy">This user has not set up a creator profile yet.</p>
+                                <p className="cp-body-copy" style={{ whiteSpace: 'pre-wrap' }}>
+                                    {creatorUser.bio || "This client hasn't written a bio yet."}
+                                </p>
                             </section>
 
-                            <section className="cp-panel">
-                                <div className="cp-section-heading">
-                                    <h3>Reviews</h3>
-                                    <p>Community feedback left on this profile.</p>
-                                </div>
-                                {renderReviewList()}
-                            </section>
+                            {isOwnProfile && (
+                                <section className="cp-panel">
+                                    <div className="cp-tabs">
+                                        <button
+                                            type="button"
+                                            className={`cp-tab active`}
+                                            style={{ cursor: 'default' }}
+                                        >
+                                            Following
+                                        </button>
+                                    </div>
+                                    <div className="cp-tab-content">
+                                        {renderFollowingList()}
+                                    </div>
+                                </section>
+                            )}
                         </div>
                     </div>
                 </>

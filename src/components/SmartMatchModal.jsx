@@ -223,7 +223,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
   const openCreatorProfile = (result) => {
     const creatorId = getResultId(result);
     if (!creatorId) return;
-    navigate(`/creator-profile?uid=${encodeURIComponent(creatorId)}`);
+    navigate(`/profile?uid=${encodeURIComponent(creatorId)}`);
     onClose();
   };
 

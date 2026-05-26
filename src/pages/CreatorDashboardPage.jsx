@@ -49,7 +49,7 @@ const CreatorDashboardPage = () => {
     }).reduce((s, o) => s + parseFloat(o.price || 0), 0);
 
     const avgRating = reviews.length > 0
-        ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
+        ? (reviews.reduce((s, r) => s + (Number(r.rating || 0)), 0) / reviews.length).toFixed(1)
         : '0.0';
 
     const renderStars = (rating) => {
@@ -74,7 +74,7 @@ const CreatorDashboardPage = () => {
                     <button className={`studio-tab ${tab === 'reviews' ? 'active' : ''}`} onClick={() => setTab('reviews')}>Reviews</button>
                 </div>
                 <div className="studio-actions">
-                    <button className="studio-btn-outline" onClick={() => navigate('/creator-profile')}>
+                    <button className="studio-btn-outline" onClick={() => navigate('/profile')}>
                         <Star size={14} /> View Public Profile
                     </button>
                     <button className="studio-btn-outline" onClick={() => navigate('/my-gigs')}>
@@ -283,7 +283,7 @@ const CreatorDashboardPage = () => {
                                         <div className="review-header">
                                             <div>
                                                 <h4 className="review-name">{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h4>
-                                                <div className="review-stars">{renderStars(r.rating || 0)}</div>
+                                                <div className="review-stars">{renderStars(Number(r.rating || 0))}</div>
                                             </div>
                                             <span className="review-date">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
                                         </div>

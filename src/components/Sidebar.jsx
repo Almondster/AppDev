@@ -19,7 +19,7 @@ import { getUserData } from '../api';
 import ConfirmModal from './ConfirmModal';
 import { useTheme } from '../context/hooks/useTheme.js';
 
-const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0 }) => {
+const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0, unreadMessagesCount = 0 }) => {
     const userData = propUserData || getUserData();
     const [logoutConfirm, setLogoutConfirm] = useState(false);
     // Define navigation links based on user role
@@ -63,20 +63,24 @@ const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0 }
                 <span className="sidebar-title">CREATECH</span>
             </div>
 
-            <div className="sidebar-user">
+            <div className="sidebar-user" onClick={() => window.location.href = '/profile'} style={{ cursor: 'pointer' }}>
                 <div className="sidebar-avatar">
                     {userData?.avatar_url ? (
                         <img
                             src={userData.avatar_url}
-                            alt={userData?.full_name || userData?.email || 'User'}
+                            alt={userData?.username || userData?.full_name || userData?.email || 'User'}
                             style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                         />
                     ) : (
-                        (userData?.full_name || userRole || 'U').charAt(0).toUpperCase()
+                        (userData?.first_name || userData?.username || userData?.full_name || userRole || 'U').charAt(0).toUpperCase()
                     )}
                 </div>
                 <div className="sidebar-user-info">
-                    <span className="sidebar-user-name">{userData?.full_name || userData?.email || 'User'}</span>
+                    <span className="sidebar-user-name">
+                        {userData?.first_name || userData?.last_name 
+                            ? `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim()
+                            : userData?.username || userData?.full_name || userData?.email || 'User'}
+                    </span>
                     <span className="sidebar-user-role">{userRole}</span>
                 </div>
             </div>
@@ -93,6 +97,9 @@ const Sidebar = ({ userRole, onLogout, userData: propUserData, unreadCount = 0 }
                         <span className="nav-item-label">{item.label}</span>
                         {item.to === '/notifications' && unreadCount > 0 && (
                             <span className="nav-item-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        )}
+                        {item.to === '/messages' && unreadMessagesCount > 0 && (
+                            <span className="nav-item-badge nav-item-badge--danger">{unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}</span>
                         )}
                     </NavLink>
                 ))}

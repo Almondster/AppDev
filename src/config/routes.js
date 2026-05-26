@@ -90,7 +90,7 @@ export const PROTECTED_ROUTES = [
     name: 'Become a Creator',
   },
   {
-    path: '/creator-profile',
+    path: '/profile',
     component: CreatorProfilePage,
     name: 'Creator Profile',
   },

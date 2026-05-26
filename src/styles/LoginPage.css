@@ -2,8 +2,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(520px, 1fr);
   height: 100vh;
-  background: #050505;
-  color: #fff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   overflow: hidden;
   font-family: 'Inter', system-ui, sans-serif;
 }
@@ -65,7 +65,7 @@
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 1.12rem;
   font-weight: 600;
   text-decoration: none;
@@ -83,7 +83,7 @@
 
 .auth-brand-panel h1 {
   margin: 0;
-  color: #fff;
+  color: var(--text-primary);
   font-size: clamp(3rem, 5.2vw, 4rem);
   font-weight: 600;
   line-height: 1.18;
@@ -100,7 +100,7 @@
 .auth-brand-panel p {
   max-width: 620px;
   margin: 32px 0 0;
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 1.17rem;
   line-height: 1.65;
 }
@@ -124,7 +124,7 @@
 
 .auth-testimonial blockquote {
   margin: 18px 0 0;
-  color: #e4e4e7;
+  color: var(--text-secondary);
   font-size: 1.07rem;
   font-style: italic;
   font-weight: 650;
@@ -150,12 +150,12 @@
 }
 
 .auth-testimonial__person strong {
-  color: #fff;
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
 .auth-testimonial__person span {
-  color: #71717a;
+  color: var(--text-dim);
   font-size: 0.84rem;
 }
 
@@ -164,7 +164,7 @@
   flex-direction: column;
   padding: 130px 48px 40px;
   overflow-y: auto;
-  background: #050505;
+  background: var(--bg-primary);
 }
 
 .auth-back {
@@ -174,7 +174,7 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #71717a;
+  color: var(--text-dim);
   font-size: 0.9rem;
   font-weight: 700;
   text-decoration: none;
@@ -182,7 +182,7 @@
 }
 
 .auth-back:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .auth-form-card {
@@ -200,7 +200,7 @@
 
 .auth-form-card__header h2 {
   margin: 0;
-  color: #fff;
+  color: var(--text-primary);
   font-size: clamp(1.9rem, 3.2vw, 2.2rem);
   font-weight: 600;
   line-height: 1.1;
@@ -209,7 +209,7 @@
 
 .auth-form-card__header p {
   margin: 12px 0 0;
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.98rem;
 }
 
@@ -245,7 +245,7 @@
   display: grid;
   place-items: center;
   margin: 30px 0;
-  color: #52525b;
+  color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -262,7 +262,7 @@
 .auth-divider span {
   position: relative;
   padding: 0 18px;
-  background: #050505;
+  background: var(--bg-primary);
 }
 
 .auth-alert {
@@ -299,7 +299,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -307,7 +307,7 @@
 .auth-form label > span button {
   border: 0;
   background: transparent;
-  color: #71717a;
+  color: var(--text-dim);
   font: inherit;
   cursor: pointer;
 }
@@ -318,7 +318,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.055);
-  color: #fff;
+  color: var(--text-primary);
   font: inherit;
   font-size: 0.91rem;
   outline: none;
@@ -333,7 +333,7 @@
 }
 
 .auth-form input::placeholder {
-  color: #52525b;
+  color: var(--text-muted);
 }
 
 .auth-form small {
@@ -375,7 +375,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #a1a1aa;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
@@ -391,7 +391,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.055);
-  color: #fff;
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
@@ -404,7 +404,7 @@
   display: flex !important;
   align-items: center;
   gap: 10px;
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.78rem;
   cursor: pointer;
 }
@@ -421,13 +421,13 @@
 }
 
 .auth-terms em {
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-style: normal;
   line-height: 1.6;
 }
 
 .auth-terms strong {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .auth-terms-field small {
@@ -453,7 +453,7 @@
 
 .auth-switch {
   margin: 30px 0 0;
-  color: #71717a;
+  color: var(--text-dim);
   text-align: center;
   font-size: 0.84rem;
 }
@@ -462,7 +462,7 @@
   margin-left: 8px;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: var(--text-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -470,7 +470,7 @@
 
 .auth-preview {
   margin: 12px 0 0;
-  color: #52525b;
+  color: var(--text-muted);
   text-align: center;
   font-size: 0.76rem;
 }

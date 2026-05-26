@@ -33,14 +33,14 @@
 .review-modal__title {
   font-size: 1.2rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .review-modal__close {
   background: none;
   border: none;
-  color: #71717a;
+  color: var(--text-dim);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
@@ -48,7 +48,7 @@
 }
 
 .review-modal__close:hover {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .review-modal__stars {
@@ -73,7 +73,7 @@
 .review-modal__label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #a1a1aa;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
   display: block;
   text-transform: uppercase;
@@ -86,7 +86,7 @@
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
-  color: #fff;
+  color: var(--text-primary);
   padding: 0.75rem 1rem;
   font-size: 0.95rem;
   font-family: inherit;
@@ -101,7 +101,7 @@
 }
 
 .review-modal textarea::placeholder {
-  color: #52525b;
+  color: var(--text-muted);
 }
 
 .review-modal__actions {
@@ -122,7 +122,7 @@
 
 .review-modal__btn--cancel {
   background: rgba(255,255,255,0.06);
-  color: #d4d4d8;
+  color: var(--text-secondary);
   border: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -149,7 +149,7 @@
 .review-modal__rating-text {
   text-align: center;
   font-size: 0.85rem;
-  color: #a1a1aa;
+  color: var(--text-muted);
   margin-bottom: 1rem;
   min-height: 1.2em;
 }

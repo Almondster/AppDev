@@ -119,7 +119,7 @@ export const getTrendingServices = (services = []) => {
   // Score services based on recent interactions
   const scored = services.map((service) => {
     let score = 0;
-    score += (service.rating || 0) * 10;
+    score += (Number(service.rating || 0)) * 10;
     score += (service.order_count || 0) * 2;
     score += (service.view_count || 0) * 0.5;
 
@@ -191,7 +191,7 @@ export const getPersonalizedRecommendations = (services = []) => {
     }
 
     // Rating boost
-    score += (service.rating || 0) * 5;
+    score += (Number(service.rating || 0)) * 5;
 
     // Don't recommend recently viewed services
     const isRecent = viewedServices.some((v) => v.id === service.id);
@@ -273,7 +273,7 @@ export const getCustomersAlsoBought = (serviceId, services = []) => {
       if (s.creator_id !== currentService.creator_id) score += 10;
 
       // High rating
-      score += (s.rating || 0) * 5;
+      score += (Number(s.rating || 0)) * 5;
 
       return { ...s, _buyScore: score };
     })

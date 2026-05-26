@@ -6,6 +6,7 @@ import {
   getUnreadOrderNotificationCount,
   markAllOrderNotificationsRead,
   markOrderNotificationRead,
+  getUnreadMessagesCount,
 } from '../api';
 import { readCollection } from '../utils/collections';
 import { NotificationCenterContext } from './NotificationCenterContextObject';
@@ -58,6 +59,7 @@ export const NotificationCenterProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [serverUnreadCount, setServerUnreadCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const socketRef = useRef(null);
   const heartbeatRef = useRef(null);
   const reconnectRef = useRef(null);
@@ -82,9 +84,10 @@ export const NotificationCenterProvider = ({ children }) => {
     if (showLoader) setLoading(true);
 
     try {
-      const [notificationsRes, countRes] = await Promise.all([
+      const [notificationsRes, countRes, msgsCountRes] = await Promise.all([
         fetchOrderNotifications({ limit: 100 }),
         getUnreadOrderNotificationCount(),
+        getUnreadMessagesCount(),
       ]);
 
       if (notificationsRes.ok) {
@@ -94,6 +97,10 @@ export const NotificationCenterProvider = ({ children }) => {
 
       if (countRes.ok) {
         setServerUnreadCount(Number(countRes.data?.unread_count || 0));
+      }
+      
+      if (msgsCountRes && msgsCountRes.ok) {
+        setUnreadMessagesCount(Number(msgsCountRes.data?.unread_count || 0));
       }
     } catch (error) {
       console.error('Failed to refresh notifications:', error);
@@ -268,10 +275,11 @@ export const NotificationCenterProvider = ({ children }) => {
     notifications,
     loading,
     unreadCount,
+    unreadMessagesCount,
     refreshNotifications,
     markNotificationRead,
     markAllRead,
-  }), [loading, markAllRead, markNotificationRead, notifications, refreshNotifications, unreadCount]);
+  }), [loading, markAllRead, markNotificationRead, notifications, refreshNotifications, unreadCount, unreadMessagesCount]);
 
   return (
     <NotificationCenterContext.Provider value={value}>

@@ -20,7 +20,7 @@
   margin-bottom: 1rem;
 }
 .mygigs-bc-muted { color: var(--text-muted, #71717a); }
-.mygigs-bc-sep { color: #3f3f46; }
+.mygigs-bc-sep { color: var(--text-muted); }
 .mygigs-bc-active { color: var(--text-primary, #fff); font-weight: 600; }
 
 
@@ -321,7 +321,7 @@
 }
 .my-gig-card {
   overflow: hidden;
-  background: #141417;
+  background: var(--bg-secondary);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 10px;
   display: flex;
@@ -352,7 +352,7 @@
   height: 100%;
   display: grid;
   place-items: center;
-  color: #71717a;
+  color: var(--text-dim);
 }
 
 .my-gig-card__body {
@@ -369,7 +369,7 @@
 
 .my-gig-card__top h3 {
   margin: 0;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 0.88rem;
   line-height: 1.3;
   display: -webkit-box;
@@ -387,13 +387,13 @@
 
 .my-gig-card__category {
   margin: 0.45rem 0 0;
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.74rem;
 }
 
 .my-gig-card__desc {
   margin: 0.55rem 0 0;
-  color: #d4d4d8;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   line-height: 1.4;
   display: -webkit-box;
@@ -419,7 +419,7 @@
 }
 
 [data-theme="light"] .my-gig-card__placeholder {
-  color: #a1a1aa;
+  color: var(--text-muted);
   background: #f4f4f5;
 }
 
@@ -432,11 +432,11 @@
 }
 
 [data-theme="light"] .my-gig-card__category {
-  color: #71717a;
+  color: var(--text-dim);
 }
 
 [data-theme="light"] .my-gig-card__desc {
-  color: #3f3f46;
+  color: var(--text-muted);
 }
 
 [data-theme="light"] .my-gig-card__actions {

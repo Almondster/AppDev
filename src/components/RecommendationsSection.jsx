@@ -27,7 +27,7 @@ const RecommendationCard = ({ service, isFavorited, onFavoriteToggle }) => {
         <div className="rec-meta">
           <div className="rec-rating">
             <Star size={14} fill="#fbbf24" color="#fbbf24" />
-            <span>{(service.rating || 0).toFixed(1)}</span>
+            <span>{(Number(service.rating || 0)).toFixed(1)}</span>
           </div>
           <div className="rec-delivery">
             <Clock size={14} />

@@ -29,7 +29,7 @@ const MarketplacePage = () => {
 
   const applyLocalFilters = useCallback((items) => {
     return items.filter((service) => {
-      if (filters.minRating > 0 && (service.rating || 0) < filters.minRating) {
+      if (filters.minRating > 0 && (Number(service.rating || 0)) < filters.minRating) {
         return false;
       }
       if (
@@ -49,7 +49,7 @@ const MarketplacePage = () => {
     } else if (sortBy === 'price-high') {
       sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
     } else if (sortBy === 'rating') {
-      sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      sorted.sort((a, b) => (Number(b.rating || 0)) - (Number(a.rating || 0)));
     } else if (sortBy === 'recent') {
       sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     }
@@ -366,7 +366,7 @@ const MarketplacePage = () => {
                       <div className="rating-info">
                         <Star size={16} fill="#fbbf24" color="#fbbf24" />
                         <span className="rating-value">
-                          {(service.rating || 0).toFixed(1)}
+                          {(Number(service.rating || 0)).toFixed(1)}
                         </span>
                       </div>
                       <div className="delivery-info">

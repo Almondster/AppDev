@@ -25,7 +25,7 @@
 }
 
 .cp-breadcrumb-sep {
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--border-hover);
 }
 
 .cp-breadcrumb-active {
@@ -82,9 +82,9 @@
     padding: 0.3rem 0.7rem;
     margin-bottom: 0.85rem;
     border-radius: 999px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.12);
-    color: #e4e4e7;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.06em;
@@ -93,7 +93,7 @@
 
 .cp-cover-content h1 {
     margin: 0;
-    color: #fff;
+    color: var(--text-primary);
     font-size: clamp(2rem, 3.5vw, 3rem);
     line-height: 1.02;
 }
@@ -101,7 +101,7 @@
 .cp-cover-content p {
     margin: 0.85rem 0 0;
     max-width: 620px;
-    color: #a1a1aa;
+    color: var(--text-muted);
     font-size: 0.95rem;
     line-height: 1.6;
 }
@@ -165,7 +165,7 @@
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, #3b82f6, #a855f7);
-    color: #fff;
+    color: var(--text-primary);
     font-size: 2.1rem;
     font-weight: 700;
 }
@@ -283,7 +283,7 @@
 .cp-action-btn--primary {
     background: var(--accent);
     border-color: transparent;
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .cp-action-btn--primary:hover {
@@ -529,7 +529,7 @@
 }
 
 .cp-service-turnaround {
-    background: rgba(255,255,255,0.06);
+    background: var(--bg-input);
     color: var(--text-muted);
 }
 
@@ -566,7 +566,7 @@
     border: none;
     border-radius: 8px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-primary);
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
@@ -586,7 +586,7 @@
     justify-content: center;
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6, #a855f7);
-    color: #fff;
+    color: var(--text-primary);
     font-weight: 700;
     flex-shrink: 0;
 }

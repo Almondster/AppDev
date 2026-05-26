@@ -18,9 +18,6 @@ import '../styles/SettingsPage.css';
 const TABS = [
     { key: 'profile', label: 'Profile', icon: <User size={18} /> },
     { key: 'personalization', label: 'Personalization', icon: <Palette size={18} /> },
-    { key: 'security', label: 'Security', icon: <Shield size={18} /> },
-    { key: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
-    { key: 'followers', label: 'Followers', icon: <Users size={18} /> },
     { key: 'payout', label: 'Payout Methods', icon: <CreditCard size={18} /> },
     { key: 'help', label: 'Help & Support', icon: <HelpCircle size={18} /> },
 ];
@@ -72,10 +69,15 @@ const SettingsPage = ({ userRole, onLogout }) => {
 
     // Profile state
     const [profileForm, setProfileForm] = useState({
-        full_name: userData?.full_name || '',
+        username: userData?.username || '',
+        first_name: userData?.first_name || '',
+        last_name: userData?.last_name || '',
+        phone: userData?.phone || '',
+        country: userData?.country || 'Philippines',
+        city: userData?.city || '',
         email: userData?.email || '',
         avatar_url: userData?.avatar_url || '',
-        bio: '',
+        bio: userData?.bio || '',
     });
     const [saving, setSaving] = useState(false);
 
@@ -109,11 +111,8 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const [accentColor, setAccentColor] = useState(() => localStorage.getItem('createch_accent') || '#6366f1');
     const isAdmin = userRole === 'admin';
     const availableTabs = (isAdmin
-        ? TABS.filter((tab) => !['help', 'followers', 'payout'].includes(tab.key))
-        : userRole === 'creator'
-            ? TABS.filter((tab) => tab.key !== 'followers')
-            : TABS).map(tab => {
-                if (tab.key === 'followers') return { ...tab, label: 'Following' };
+        ? TABS.filter((tab) => !['help', 'payout'].includes(tab.key))
+        : TABS).map(tab => {
                 if (tab.key === 'payout' && userRole === 'client') return { ...tab, label: 'Payment Methods' };
                 return tab;
             });
@@ -241,16 +240,30 @@ const SettingsPage = ({ userRole, onLogout }) => {
     const handleProfileSave = async () => {
         setSaving(true);
         try {
-            const { ok } = await patchUser(userData?.firebase_uid, {
-                username: profileForm.full_name,
+            const { ok } = await patchUser(userData?.id, {
+                username: profileForm.username,
+                first_name: profileForm.first_name,
+                last_name: profileForm.last_name,
+                phone: profileForm.phone,
+                country: profileForm.country,
+                city: profileForm.city,
                 avatar_url: profileForm.avatar_url,
+                bio: profileForm.bio,
             });
             if (ok) {
                 const u = getUserData() || {};
+                const newFullName = [profileForm.first_name, profileForm.last_name].filter(Boolean).join(' ') || profileForm.username || u.full_name;
                 setUserData({
                     ...u,
-                    full_name: profileForm.full_name,
+                    username: profileForm.username,
+                    full_name: newFullName,
+                    first_name: profileForm.first_name,
+                    last_name: profileForm.last_name,
+                    phone: profileForm.phone,
+                    country: profileForm.country,
+                    city: profileForm.city,
                     avatar_url: profileForm.avatar_url,
+                    bio: profileForm.bio,
                 });
                 showToast('Profile updated!');
             } else {
@@ -433,7 +446,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
         setPayoutLoading(true);
         try {
             const { ok, data } = await createWallet({
-                user_id: userData?.firebase_uid,
+                user_id: userData?.id,
                 wallet_type: payoutForm.wallet_type,
                 account_name: payoutForm.account_name,
                 account_number: payoutForm.account_number,
@@ -451,7 +464,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
         e.preventDefault();
         try {
             const { ok, data } = await createPaymentMethod({
-                user_id: userData?.firebase_uid,
+                user_id: userData?.id,
                 method_type: pmForm.method_type,
                 masked_number: pmForm.masked_number,
             });
@@ -487,7 +500,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
         try {
             const { ok, data } = await createSupportTicket({
                 ticket_number: `TKT-${Date.now()}`,
-                user_id: userData?.firebase_uid,
+                user_id: userData?.id,
                 email: userData?.email || '',
                 category: ticketForm.category,
                 message: ticketForm.message,
@@ -566,11 +579,41 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Full Name</label>
-                                        <input style={inputStyle} value={profileForm.full_name}
-                                            onChange={e => setProfileForm(p => ({ ...p, full_name: e.target.value }))} />
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>First Name</label>
+                                        <input style={inputStyle} value={profileForm.first_name}
+                                            onChange={e => setProfileForm(p => ({ ...p, first_name: e.target.value }))} />
                                     </div>
                                     <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Last Name</label>
+                                        <input style={inputStyle} value={profileForm.last_name}
+                                            onChange={e => setProfileForm(p => ({ ...p, last_name: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Username</label>
+                                        <input style={inputStyle} value={profileForm.username}
+                                            onChange={e => setProfileForm(p => ({ ...p, username: e.target.value }))} />
+                                    </div>
+
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>City</label>
+                                        <input style={inputStyle} value={profileForm.city}
+                                            onChange={e => setProfileForm(p => ({ ...p, city: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Country</label>
+                                        <input style={inputStyle} value={profileForm.country}
+                                            onChange={e => setProfileForm(p => ({ ...p, country: e.target.value }))} />
+                                    </div>
+                                    <div style={{ gridColumn: 'span 2' }}>
+                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Bio / About Me</label>
+                                        <textarea
+                                            style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+                                            value={profileForm.bio}
+                                            onChange={e => setProfileForm(p => ({ ...p, bio: e.target.value }))}
+                                            placeholder="Tell us a little about yourself..."
+                                        />
+                                    </div>
+                                    <div style={{ gridColumn: 'span 2' }}>
                                         <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Email</label>
                                         <input style={{ ...inputStyle, opacity: 0.6 }} value={profileForm.email} disabled />
                                     </div>
@@ -627,150 +670,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                         }}>Dark</button>
                                     </div>
                                 </div>
-
-                                {/* Accent Color */}
-                                <div style={{ padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: '0 0 8px', fontSize: '0.95rem' }}>Accent Color</p>
-                                    <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '0 0 12px' }}>Choose your preferred accent color</p>
-                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                        {[
-                                            { color: '#6366f1', label: 'Indigo' },
-                                            { color: '#8b5cf6', label: 'Purple' },
-                                            { color: '#3b82f6', label: 'Blue' },
-                                            { color: '#10b981', label: 'Green' },
-                                            { color: '#f59e0b', label: 'Amber' },
-                                            { color: '#ef4444', label: 'Red' },
-                                            { color: '#ec4899', label: 'Pink' },
-                                            { color: '#06b6d4', label: 'Cyan' },
-                                        ].map(c => (
-                                            <button key={c.color} title={c.label} onClick={() => setAccentColor(c.color)} style={{
-                                                width: 36, height: 36, borderRadius: '50%', background: c.color, border: accentColor === c.color ? '3px solid #fff' : '3px solid transparent',
-                                                cursor: 'pointer', transition: 'all 0.2s', boxShadow: accentColor === c.color ? `0 0 12px ${c.color}60` : 'none',
-                                            }} />
-                                        ))}
-                                    </div>
-                                </div>
                             </div>
-
-                            <div style={cardStyle}>
-                                <h3 style={{ color: 'var(--text-primary, #fff)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Display</h3>
-                                {[
-                                    { key: 'compact', label: 'Compact Mode', desc: 'Reduce spacing for more content on screen' },
-                                    { key: 'animations', label: 'Animations', desc: 'Enable smooth transitions and micro-animations' },
-                                ].map(item => {
-                                    const storageKey = `createch_display_${item.key}`;
-                                    const val = localStorage.getItem(storageKey) !== 'false';
-                                    return (
-                                        <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div>
-                                                <p style={{ color: 'var(--text-primary, #fff)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
-                                                <p style={{ color: 'var(--text-muted, #71717a)', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
-                                            </div>
-                                            <button onClick={() => { const newVal = !val; localStorage.setItem(storageKey, newVal); showToast(`${item.label} ${newVal ? 'enabled' : 'disabled'}`); }} style={{
-                                                width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-                                                background: val ? '#6366f1' : 'rgba(255,255,255,0.1)',
-                                                position: 'relative', transition: 'background 0.2s',
-                                            }}>
-                                                <div style={{
-                                                    width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                                                    position: 'absolute', top: 3,
-                                                    left: val ? 25 : 3,
-                                                    transition: 'left 0.2s',
-                                                }} />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Security ─── */}
-                    {activeTab === 'security' && (
-                        <div style={cardStyle}>
-                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Security</h3>
-                            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                                Your account uses Firebase Authentication. Password changes are managed through your email provider.
-                            </p>
-                            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(99,102,241,0.1)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.2)' }}>
-                                <p style={{ color: '#818cf8', fontSize: '0.9rem', margin: 0 }}>
-                                    <Shield size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                                    To change your password, use the "Forgot Password" option on the login screen.
-                                </p>
-                            </div>
-                            <div style={{ marginTop: '1.5rem' }}>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Account info:</p>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Role</span><span style={{ color: 'var(--text-primary)', fontWeight: 600, textTransform: 'capitalize' }}>{userRole}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>UID</span><span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{userData?.firebase_uid?.substring(0, 16)}...</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── Notifications ─── */}
-                    {activeTab === 'notifications' && (
-                        <div style={cardStyle}>
-                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Notification Preferences</h3>
-                            {[
-                                { key: 'email', label: 'Email Notifications', desc: 'Receive updates via email' },
-                                { key: 'orders', label: 'Order Updates', desc: 'Get notified about order status changes' },
-                                { key: 'messages', label: 'New Messages', desc: 'Alert when you receive a new message' },
-                                { key: 'marketing', label: 'Marketing & Promotions', desc: 'Tips, offers, and platform news' },
-                            ].map(item => (
-                                <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
-                                    <div>
-                                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{item.label}</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '2px 0 0' }}>{item.desc}</p>
-                                    </div>
-                                    <button onClick={() => toggleNotif(item.key)} style={{
-                                        width: 48, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
-                                        background: notifSettings[item.key] ? '#6366f1' : 'rgba(255,255,255,0.1)',
-                                        position: 'relative', transition: 'background 0.2s',
-                                    }}>
-                                        <div style={{
-                                            width: 20, height: 20, borderRadius: '50%', background: '#fff',
-                                            position: 'absolute', top: 3,
-                                            left: notifSettings[item.key] ? 25 : 3,
-                                            transition: 'left 0.2s',
-                                        }} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* ─── Followers ─── */}
-                    {activeTab === 'followers' && (
-                        <div style={cardStyle}>
-                            <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1.25rem', fontSize: '1.1rem' }}>Following</h3>
-                            {socialLoading ? (
-                                <p style={{ color: '#71717a', textAlign: 'center', padding: '2rem' }}>Loading...</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {following.map(f => (
-                                        <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}>
-                                                    {String(f.following_name || '?').charAt(0).toUpperCase()}
-                                                </div>
-                                                <span style={{ color: '#d4d4d8', fontSize: '0.9rem' }}>{f.following_name || f.following_id}</span>
-                                            </div>
-                                            <button onClick={() => setDeleteConfirm({ open: true, type: 'follow', id: f.id })}
-                                                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>
-                                                Unfollow
-                                            </button>
-                                        </div>
-                                    ))}
-                                    {following.length === 0 && (
-                                        <p style={{ color: '#52525b', textAlign: 'center', padding: '2rem' }}>
-                                            Not following anyone.
-                                        </p>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     )}
 
@@ -779,12 +679,12 @@ const SettingsPage = ({ userRole, onLogout }) => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             {userRole !== 'client' && (
                                 <div style={cardStyle}>
-                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payout Methods (Wallets)</h3>
+                                    <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payout Methods (Wallets)</h3>
                                     {wallets.map(w => (
-                                        <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                        <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 8 }}>
                                             <div>
-                                                <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{w.wallet_type}</p>
-                                                <p style={{ color: '#71717a', fontSize: '0.85rem', margin: 0 }}>{w.account_name} • {w.account_number}</p>
+                                                <p style={{ color: 'var(--text-primary)', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{w.wallet_type}</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>{w.account_name} • {w.account_number}</p>
                                             </div>
                                             <button onClick={() => setDeleteConfirm({ open: true, type: 'wallet', id: w.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
                                         </div>
@@ -808,10 +708,10 @@ const SettingsPage = ({ userRole, onLogout }) => {
 
                             {userRole !== 'creator' && (
                                 <div style={cardStyle}>
-                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payment Methods</h3>
+                                    <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Payment Methods</h3>
                                     {paymentMethods.map(pm => (
-                                        <div key={pm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
-                                            <span style={{ color: '#d4d4d8' }}>{pm.method_type} •••• {pm.masked_number}</span>
+                                        <div key={pm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 8 }}>
+                                            <span style={{ color: 'var(--text-muted)' }}>{pm.method_type} •••• {pm.masked_number}</span>
                                             <button onClick={() => setDeleteConfirm({ open: true, type: 'payment', id: pm.id })} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}><Trash2 size={16} /></button>
                                         </div>
                                     ))}
@@ -830,10 +730,10 @@ const SettingsPage = ({ userRole, onLogout }) => {
                     {activeTab === 'help' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={cardStyle}>
-                                <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Submit a Support Ticket</h3>
+                                <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Submit a Support Ticket</h3>
                                 <form onSubmit={handleSubmitTicket} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Category</label>
+                                        <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Category</label>
                                         <select value={ticketForm.category} onChange={e => setTicketForm(p => ({ ...p, category: e.target.value }))} style={inputStyle}>
                                             <option value="general">General</option>
                                             <option value="billing">Billing</option>
@@ -843,7 +743,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
                                         </select>
                                     </div>
                                     <div>
-                                        <label style={{ color: '#a1a1aa', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Message</label>
+                                        <label style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginBottom: 4 }}>Message</label>
                                         <textarea value={ticketForm.message} onChange={e => setTicketForm(p => ({ ...p, message: e.target.value }))} placeholder="Describe your issue..." required
                                             style={{ ...inputStyle, minHeight: 100, resize: 'vertical', fontFamily: 'inherit' }} />
                                     </div>
@@ -855,11 +755,11 @@ const SettingsPage = ({ userRole, onLogout }) => {
 
                             {tickets.length > 0 && (
                                 <div style={cardStyle}>
-                                    <h3 style={{ color: '#fff', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Your Tickets</h3>
+                                    <h3 style={{ color: 'var(--text-primary)', fontWeight: 700, margin: '0 0 1rem', fontSize: '1.1rem' }}>Your Tickets</h3>
                                     {tickets.map(t => (
-                                        <div key={t.id} style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+                                        <div key={t.id} style={{ padding: '0.75rem 1rem', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 8 }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                <span style={{ color: '#fff', fontWeight: 600, fontSize: '0.9rem' }}>{t.ticket_number}</span>
+                                                <span style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem' }}>{t.ticket_number}</span>
                                                 <span style={{
                                                     padding: '2px 8px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600,
                                                     background: t.status === 'resolved' ? 'rgba(16,185,129,0.1)' : 'rgba(250,204,21,0.1)',

@@ -171,7 +171,7 @@ const ClientDashboardPage = () => {
         if (!isMarketplaceCreatorVisible(c, skillsArr)) return false;
         return (
             safeText(creatorName).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            safeText(c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
+            safeText(c.user?.bio || c.bio).toLowerCase().includes(searchTerm.toLowerCase()) ||
             skillsArr.some(s => safeText(s).toLowerCase().includes(searchTerm.toLowerCase()))
         );
     });
@@ -179,7 +179,7 @@ const ClientDashboardPage = () => {
     const getCreatorReviews = (uid) => reviews.filter(r => String(r.reviewee_id) === String(uid));
     const getAvgRating = (uid) => {
         const cr = getCreatorReviews(uid);
-        return cr.length > 0 ? (cr.reduce((s, r) => s + (r.rating || 0), 0) / cr.length).toFixed(1) : null;
+        return cr.length > 0 ? (cr.reduce((s, r) => s + (Number(r.rating || 0)), 0) / cr.length).toFixed(1) : null;
     };
 
     const openOrderConfirm = (service) => {
@@ -191,11 +191,22 @@ const ClientDashboardPage = () => {
         return new Date(`${dateValue}T23:59:59`).toISOString();
     };
 
+    const getLocalToday = () => {
+        const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+        return new Date(Date.now() - tzOffset).toISOString().slice(0, 10);
+    };
+
     const handlePlaceOrder = async () => {
         const service = confirmModal.service;
         if (!service) return;
         if (!dueDateInput) {
             setOrderMsg('Please set the due date before placing the order.');
+            setOrderMsgType('error');
+            setTimeout(() => setOrderMsg(''), 4000);
+            return;
+        }
+        if (dueDateInput < getLocalToday()) {
+            setOrderMsg('Due date cannot be in the past.');
             setOrderMsgType('error');
             setTimeout(() => setOrderMsg(''), 4000);
             return;
@@ -375,7 +386,7 @@ const ClientDashboardPage = () => {
                             <input
                                 type="date"
                                 value={dueDateInput}
-                                min={new Date().toISOString().slice(0, 10)}
+                                min={getLocalToday()}
                                 onChange={(e) => setDueDateInput(e.target.value)}
                                 style={{ width: '100%', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', color: '#fff', padding: '0.7rem 0.8rem', font: 'inherit', outline: 'none' }}
                             />
@@ -417,7 +428,7 @@ const ClientDashboardPage = () => {
                                     const skills = parseSkills(c.skills);
                                     const user = getCreatorUser(c);
                                     return (
-                                        <div key={`top-${creatorUid || c.id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/creator-profile?uid=${creatorUid}`)}>
+                                        <div key={`top-${creatorUid || c.id}`} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/profile?uid=${creatorUid}`)}>
                                             <div className="cm-creator-header">
                                                 {user.avatar_url ? (
                                                     <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={creatorName} style={{ objectFit: 'cover' }} />
@@ -436,7 +447,7 @@ const ClientDashboardPage = () => {
                                                     <span className="cm-creator-rev-count">({revCount} reviews)</span>
                                                 </div>
                                             </div>
-                                            <p className="cm-creator-bio-full">{c.bio || ''}</p>
+                                            <p className="cm-creator-bio-full">{user.bio || c.bio || ''}</p>
                                             {skills.length > 0 && (
                                                 <div className="cm-creator-skills">
                                                     {skills.slice(0, 4).map((s, i) => <span key={i} className="cm-skill-chip">{s}</span>)}
@@ -447,7 +458,7 @@ const ClientDashboardPage = () => {
                                                     <span className="cm-creator-rate-label">HOURLY RATE</span>
                                                     <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
                                                 </div>
-                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
+                                                <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/profile?uid=${creatorUid}`); }}>View Profile</button>
                                             </div>
                                         </div>
                                     );
@@ -471,7 +482,7 @@ const ClientDashboardPage = () => {
                             const skills = parseSkills(c.skills);
                             const user = getCreatorUser(c);
                             return (
-                                <div key={creatorUid || c.id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/creator-profile?uid=${creatorUid}`)}>
+                                <div key={creatorUid || c.id} className="cm-creator-card" style={{ cursor: 'pointer' }} onClick={() => creatorUid && navigate(`/profile?uid=${creatorUid}`)}>
                                     <div className="cm-creator-header">
                                         {user.avatar_url ? (
                                             <img className="cm-creator-avatar-lg" src={user.avatar_url} alt={creatorName} style={{ objectFit: 'cover' }} />
@@ -501,7 +512,7 @@ const ClientDashboardPage = () => {
                                             <span className="cm-creator-rate-label">HOURLY RATE</span>
                                             <span className="cm-creator-rate">{c.starting_price ? `₱${c.starting_price}/hr` : 'Contact'}</span>
                                         </div>
-                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/creator-profile?uid=${creatorUid}`); }}>View Profile</button>
+                                        <button className="cm-view-profile-btn" onClick={(e) => { e.stopPropagation(); creatorUid && navigate(`/profile?uid=${creatorUid}`); }}>View Profile</button>
                                     </div>
                                 </div>
                             );

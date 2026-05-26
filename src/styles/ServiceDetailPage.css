@@ -1,6 +1,7 @@
 /* ── Service Detail Page ── */
 .service-detail {
-  max-width: 900px;
+  max-width: 1200px;
+  width: 100%;
   padding-bottom: 2rem;
 }
 
@@ -10,16 +11,16 @@
   gap: 0.5rem;
   font-size: 0.85rem;
   margin-bottom: 1.5rem;
-  color: #71717a;
+  color: var(--text-dim);
 }
 
-.sd-bc-active { color: #d4d4d8; font-weight: 600; }
-.sd-bc-sep { color: #3f3f46; }
+.sd-bc-active { color: var(--text-secondary); font-weight: 600; }
+.sd-bc-sep { color: var(--text-muted); }
 
 .sd-back {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
-  color: #d4d4d8;
+  color: var(--text-secondary);
   padding: 0.5rem 1rem;
   border-radius: 10px;
   cursor: pointer;
@@ -34,11 +35,11 @@
 
 .sd-back:hover {
   background: rgba(255,255,255,0.08);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .sd-hero {
-  background: #141417;
+  background: var(--bg-secondary);
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: 16px;
   overflow: hidden;
@@ -59,7 +60,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3f3f46;
+  color: var(--text-muted);
   font-size: 4rem;
   font-weight: 800;
 }
@@ -82,12 +83,12 @@
 .sd-title {
   font-size: 1.75rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-primary);
   margin: 0 0 0.5rem;
 }
 
 .sd-description {
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.95rem;
   line-height: 1.7;
   margin: 0 0 1.5rem;
@@ -111,14 +112,14 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #71717a;
+  color: var(--text-dim);
   font-weight: 600;
 }
 
 .sd-meta-value {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Sidebar */
@@ -139,7 +140,7 @@
 }
 
 .sd-sidebar-card {
-  background: #141417;
+  background: var(--bg-secondary);
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: 14px;
   padding: 1.5rem;
@@ -150,13 +151,13 @@
 .sd-price-display {
   font-size: 2rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-primary);
   margin: 0 0 0.25rem;
 }
 
 .sd-price-label {
   font-size: 0.85rem;
-  color: #71717a;
+  color: var(--text-dim);
   margin: 0 0 1.25rem;
 }
 
@@ -165,7 +166,7 @@
   padding: 0.75rem;
   border-radius: 10px;
   background: #6366f1;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 1rem;
   font-weight: 700;
   border: none;
@@ -184,7 +185,7 @@
   padding: 0.7rem;
   border-radius: 10px;
   background: rgba(255,255,255,0.05);
-  color: #d4d4d8;
+  color: var(--text-secondary);
   font-size: 0.95rem;
   font-weight: 600;
   border: 1px solid rgba(255,255,255,0.08);
@@ -198,7 +199,7 @@
 
 .sd-message-btn:hover {
   background: rgba(255,255,255,0.1);
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .sd-creator-info {
@@ -223,7 +224,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 700;
   font-size: 1.1rem;
   flex-shrink: 0;
@@ -232,12 +233,12 @@
 .sd-creator-name {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .sd-creator-rating {
   font-size: 0.85rem;
-  color: #a1a1aa;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 0.3rem;
@@ -251,7 +252,7 @@
 }
 
 .sd-order-deadline-field span {
-  color: #a1a1aa;
+  color: var(--text-muted);
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -263,7 +264,7 @@
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 10px;
   background: rgba(255,255,255,0.04);
-  color: #fff;
+  color: var(--text-primary);
   padding: 0.7rem 0.8rem;
   font: inherit;
   outline: none;
@@ -273,7 +274,7 @@
 .sd-reviews-section h3 {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-primary);
   margin: 0 0 1rem;
 }
 
@@ -296,7 +297,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 700;
   font-size: 0.85rem;
   flex-shrink: 0;
@@ -304,14 +305,14 @@
 
 .sd-review-body h5 {
   font-size: 0.9rem;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
   margin: 0 0 0.25rem;
 }
 
 .sd-review-body p {
   font-size: 0.85rem;
-  color: #a1a1aa;
+  color: var(--text-muted);
   margin: 0.25rem 0 0;
   line-height: 1.5;
 }

@@ -54,7 +54,7 @@
 .earn-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .earn-action-btn--primary {
     background: #10b981;
-    color: #fff;
+    color: var(--text-primary);
 }
 .earn-action-btn--primary:hover:not(:disabled) { background: #059669; }
 .earn-action-btn--outline {

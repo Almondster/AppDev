@@ -87,7 +87,7 @@
     border-radius: 999px;
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.12);
-    color: #e4e4e7;
+    color: var(--text-secondary);
     font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.06em;
@@ -96,14 +96,14 @@
 
 .bc-hero h1 {
     margin: 0;
-    color: #fff;
+    color: var(--text-primary);
     font-size: clamp(2rem, 3vw, 2.65rem);
     line-height: 1.08;
 }
 
 .bc-hero p {
     margin: 0.85rem 0 0;
-    color: #a1a1aa;
+    color: var(--text-muted);
     font-size: 0.96rem;
     line-height: 1.65;
 }
@@ -122,7 +122,7 @@
     padding: 0.6rem 0.8rem;
     border-radius: 10px;
     background: rgba(255,255,255,0.06);
-    color: #e4e4e7;
+    color: var(--text-secondary);
     font-size: 0.82rem;
 }
 
@@ -368,7 +368,7 @@
 .bc-upload-card__badge.is-optional {
     background: rgba(148,163,184,0.12);
     border: 1px solid rgba(148,163,184,0.16);
-    color: #cbd5e1;
+    color: var(--text-secondary);
 }
 
 .bc-upload-card__title {
@@ -698,7 +698,7 @@
 
 .bc-primary-btn {
     background: var(--accent);
-    color: #fff;
+    color: var(--text-primary);
 }
 
 .bc-primary-btn:hover:not(:disabled) {
@@ -744,7 +744,7 @@
 
 [data-theme="light"] .bc-back-btn:hover {
     background: #ffffff;
-    border-color: #cbd5e1;
+    border-color: var(--text-secondary);
     color: #0f172a;
 }
 
@@ -841,7 +841,7 @@
 
 [data-theme="light"] .bc-field input::placeholder,
 [data-theme="light"] .bc-field textarea::placeholder {
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 [data-theme="light"] .bc-field input:focus,
@@ -924,7 +924,7 @@
 
 [data-theme="light"] .bc-category-card:hover {
     background: #f8fbff;
-    border-color: #cbd5e1;
+    border-color: var(--text-secondary);
     color: #0f172a;
 }
 
@@ -976,7 +976,7 @@
 
 [data-theme="light"] .bc-secondary-btn:hover {
     background: #f8fafc;
-    border-color: #cbd5e1;
+    border-color: var(--text-secondary);
     color: #0f172a;
 }
 

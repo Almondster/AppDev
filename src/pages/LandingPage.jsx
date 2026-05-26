@@ -68,7 +68,16 @@ const LandingPage = () => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    
+    // Force dark mode on LandingPage
+    document.documentElement.setAttribute('data-theme', 'dark');
+    
+    return () => {
+        window.removeEventListener('scroll', handleScroll);
+        // Restore user's theme preference when leaving
+        const savedTheme = localStorage.getItem('createch_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    };
   }, []);
 
   const handleSectionScroll = (event, sectionId) => {

@@ -316,6 +316,7 @@ const MessagesPage = () => {
         }
 
         setSelectedChat(normalizedTargetId);
+        selectedChatRef.current = normalizedTargetId;
         autoSelectedRef.current = true;
     }, [getUserName]);
 
@@ -341,7 +342,9 @@ const MessagesPage = () => {
             if (toParam && !autoSelectedRef.current) {
                 await ensureTargetChatSelection(toParam);
             } else if (!selectedChatRef.current && hydratedMessages.length > 0) {
-                setSelectedChat(getConversationPartnerId(hydratedMessages[hydratedMessages.length - 1], myUid));
+                const partnerId = getConversationPartnerId(hydratedMessages[hydratedMessages.length - 1], myUid);
+                setSelectedChat(partnerId);
+                selectedChatRef.current = partnerId;
             }
         } catch (loadError) {
             console.error('Failed to load messages:', loadError);
@@ -856,7 +859,10 @@ const MessagesPage = () => {
                                     <div
                                         key={conversation.userId}
                                         className={`msg-conv-item ${selectedChat === conversation.userId ? 'active' : ''}`}
-                                        onClick={() => setSelectedChat(conversation.userId)}
+                                        onClick={() => {
+                                            setSelectedChat(conversation.userId);
+                                            selectedChatRef.current = String(conversation.userId);
+                                        }}
                                     >
                                         <div className="msg-conv-avatar" style={{ background: getAvatarColor(conversation.userName) }}>
                                             {getInitial(conversation.userName)}
@@ -891,10 +897,6 @@ const MessagesPage = () => {
                                         {getInitial(activeConv.userName)}
                                     </div>
                                     <span className="msg-chat-header-name">{activeConv.userName}</span>
-                                </div>
-                                <div className="msg-chat-header-actions">
-                                    <button className="msg-icon-btn"><Search size={16} /></button>
-                                    <button className="msg-icon-btn"><MoreVertical size={16} /></button>
                                 </div>
                             </div>
 
@@ -993,7 +995,6 @@ const MessagesPage = () => {
                                 )}
 
                                 <div className="msg-chat-input__row">
-                                    <button type="button" className="msg-icon-btn" disabled={Boolean(editingMessage)}><Paperclip size={18} /></button>
                                     <input
                                         ref={composerInputRef}
                                         type="text"
@@ -1013,10 +1014,6 @@ const MessagesPage = () => {
                                 <div className="msg-chat-header-user">
                                     <div className="skeleton skeleton-avatar"></div>
                                     <div className="skeleton" style={{ width: 100, height: 16 }}></div>
-                                </div>
-                                <div className="msg-chat-header-actions">
-                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
-                                    <div className="skeleton" style={{ width: 28, height: 28, borderRadius: 6 }}></div>
                                 </div>
                             </div>
 
@@ -1045,8 +1042,7 @@ const MessagesPage = () => {
                                 </div>
                             </div>
 
-                            <div className="msg-chat-input" style={{ pointerEvents: 'none' }}>
-                                <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }}></div>
+                            <div className="msg-chat-input" style={{ pointerEvents: 'none', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                                 <div className="skeleton" style={{ flex: 1, height: 42, borderRadius: 8 }}></div>
                                 <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 8 }}></div>
                             </div>

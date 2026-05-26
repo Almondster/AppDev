@@ -67,6 +67,12 @@ const ServiceDetailPage = () => {
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+  
+  const getLocalToday = () => {
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    return new Date(Date.now() - tzOffset).toISOString().slice(0, 10);
+  };
+
   const buildDueDatePayload = (dateValue) => {
     if (!dateValue) return null;
     return new Date(`${dateValue}T23:59:59`).toISOString();
@@ -75,6 +81,10 @@ const ServiceDetailPage = () => {
   const handleOrder = async () => {
     if (!dueDateInput) {
       showToast('Please set the due date before placing the order.');
+      return;
+    }
+    if (dueDateInput < getLocalToday()) {
+      showToast('Due date cannot be in the past.');
       return;
     }
     setOrdering(true);
@@ -111,7 +121,7 @@ const ServiceDetailPage = () => {
   };
 
   const avgRating = reviews.length > 0
-    ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1)
+    ? (reviews.reduce((s, r) => s + (Number(r.rating || 0)), 0) / reviews.length).toFixed(1)
     : null;
 
   const getInitial = (name) => (name || 'U').charAt(0).toUpperCase();
@@ -149,6 +159,7 @@ const ServiceDetailPage = () => {
   const creatorUser = creator?.user || {};
   const serviceTitle = safeText(service.title || service.label, 'Untitled service');
   const serviceCreatorId = safeText(service.creator_id, 'Unknown creator');
+  const actualCreatorUid = creator?.user_id || creator?.user?.id || serviceCreatorId;
   const creatorName = safeText(
     creatorUser.display_name || creatorUser.full_name || creatorUser.username || serviceCreatorId,
     'Unknown creator'
@@ -217,7 +228,7 @@ const ServiceDetailPage = () => {
                 </div>
                 <div className="sd-review-body">
                   <h5>{r.reviewer_name || r.reviewer_id || 'Anonymous'}</h5>
-                  <div className="sd-review-stars">{renderStars(r.rating || 0)}</div>
+                  <div className="sd-review-stars">{renderStars(Number(r.rating || 0))}</div>
                   <p>{r.comment || '(No comment)'}</p>
                 </div>
               </div>
@@ -239,11 +250,11 @@ const ServiceDetailPage = () => {
               </button>
             )}
 
-            <button className="sd-message-btn" onClick={() => navigate(`/messages?to=${service.creator_id}`)}>
+            <button className="sd-message-btn" onClick={() => navigate(`/messages?to=${actualCreatorUid}`)}>
               <MessageSquare size={16} /> Contact Creator
             </button>
 
-            <div className="sd-creator-info" onClick={() => navigate(`/creator-profile?uid=${service.creator_id}`)}>
+            <div className="sd-creator-info" onClick={() => navigate(`/profile?uid=${actualCreatorUid}`)}>
               <div className="sd-creator-avatar" style={{ background: getColor(creatorName) }}>
                 {getInitial(creatorName)}
               </div>
@@ -273,7 +284,7 @@ const ServiceDetailPage = () => {
               <input
                 type="date"
                 value={dueDateInput}
-                min={new Date().toISOString().slice(0, 10)}
+                min={getLocalToday()}
                 onChange={(e) => setDueDateInput(e.target.value)}
               />
             </label>
@@ -303,7 +314,7 @@ const ServiceDetailPage = () => {
               <input
                 type="date"
                 value={dueDateInput}
-                min={new Date().toISOString().slice(0, 10)}
+                min={getLocalToday()}
                 onChange={(e) => setDueDateInput(e.target.value)}
               />
             </label>

@@ -16,7 +16,7 @@ import MessagesPage from './pages/MessagesPage';
 import NotificationsPage from './pages/NotificationsPage';
 import SettingsPage from './pages/SettingsPage';
 import WalletPage from './pages/WalletPage';
-import CreatorProfilePage from './pages/CreatorProfilePage';
+import ProfilePage from './pages/ProfilePage';
 import BecomeCreatorPage from './pages/BecomeCreatorPage';
 import UsersPage from './pages/UsersPage';
 import DisputesPage from './pages/DisputesPage';
@@ -54,11 +54,11 @@ function ProtectedLayout({ isLoggedIn, userRole, userData, onLogout }) {
 }
 
 function ProtectedWorkspace({ locationKey, onLogout, userData, userRole }) {
-  const { unreadCount } = useNotificationCenter();
+  const { unreadCount, unreadMessagesCount } = useNotificationCenter();
 
   return (
     <div className="dashboard-layout page-fade">
-      <Sidebar userRole={userRole} userData={userData} onLogout={onLogout} unreadCount={unreadCount} />
+      <Sidebar userRole={userRole} userData={userData} onLogout={onLogout} unreadCount={unreadCount} unreadMessagesCount={unreadMessagesCount} />
       <div className="main-content-wrapper">
         <main className="main-content">
           <ErrorBoundary resetKey={locationKey}>
@@ -142,7 +142,7 @@ function App() {
             <Route path="/recommendations" element={<Navigate to="/" replace />} />
             <Route path="/projects" element={userRole === 'admin' ? <AdminProjectsPage /> : <ProjectsPage userRole={userRole} />} />
             <Route path="/orders" element={userRole === 'admin' ? <Navigate to="/projects" replace /> : <ProjectsPage userRole={userRole} />} />
-            <Route path="/creator-profile" element={<CreatorProfilePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/become-creator" element={<BecomeCreatorPage />} />
 
             {/* Creator-only Routes */}
