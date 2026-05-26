@@ -21,7 +21,7 @@ export const API_ORIGIN = CONFIGURED_API_ORIGIN;
 export const API_BASE = import.meta.env.DEV
   ? '/api'
   : buildApiBase(CONFIGURED_API_ORIGIN);
-const REQUEST_TIMEOUT_MS = 12000;
+const REQUEST_TIMEOUT_MS = 30000;
 const AUTH_REQUEST_TIMEOUT_MS = 30000;
 
 export const getApiOrigin = () => API_ORIGIN;

@@ -373,7 +373,7 @@ export const updateReport = (id, body) => request(`/reports/${id}/`, { method: '
 // ── Matches ────────────────────────────────────────────────────────────────
 
 export const fetchMatches = (params, options) => request('/matches/', { params, ...options });
-export const fetchSmartMatches = (body) => request('/matches/smart-search/', { method: 'POST', body });
+export const fetchSmartMatches = (body) => request('/smart-match/', { method: 'POST', body });
 
 // ── Payment Methods ────────────────────────────────────────────────────────
 
