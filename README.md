@@ -1,78 +1,113 @@
-# CREATECH Web Frontend
+# CREATECH Backend API
 
 ## Project Description
-CREATECH Web Frontend is the browser-based interface for the CREATECH platform. It allows clients, creators, and administrators to access role-based pages for services, orders, messaging, moderation, and account management.
+CREATECH Backend API is the server-side application for the CREATECH platform. It handles authentication, business logic, order management, uploads, notifications, realtime features, and database access for the web and mobile clients.
 
 ## Features
-- Role-based user interface for client, creator, and admin users
-- Authentication and login flow
-- Service browsing and management
-- Order tracking and status updates
-- Messaging and notifications interface
-- Wallet, payments, and profile management
-- Admin dashboard and moderation tools
+- JWT-based authentication and authorization
+- User, creator, and admin role handling
+- Services, orders, reviews, disputes, and reports management
+- Messaging and notification endpoints
+- File upload handling for images and order files
+- Realtime notification support
+- Database schema setup and migration helpers
+- Health check and API documentation endpoints
 
 ## Technology Stack
-- Frontend: React 19
-- Build tool: Vite
-- Routing: React Router
-- Styling: CSS and Tailwind CSS
-- Icons: Lucide React
-- Backend API: FastAPI backend
-- Deployment: Vercel or other static hosting
+- Backend: FastAPI
+- Language: Python 3.13
+- ASGI server: Uvicorn
+- ORM: SQLAlchemy
+- Database: PostgreSQL
+- Authentication: `python-jose` and `bcrypt`
+- File handling: `python-multipart`
+- Realtime support: Redis-based pub/sub fallback logic
+- Cloud storage: Cloudflare R2 via `boto3`
 
 ## System Architecture
-The web frontend communicates with the backend API over HTTP. Users access the React application in the browser, the frontend sends requests to the FastAPI backend, and the backend reads and writes application data from the database.
+The backend receives API requests from the web and mobile frontends, validates the request, performs business logic, accesses the database, and returns JSON responses. Some events also trigger realtime notification delivery and file storage operations.
 
 Basic flow:
-- User opens the web app
-- Frontend renders React pages and sends API requests
-- Backend processes business logic and database operations
-- Frontend displays returned data to the user
+- Frontend sends HTTP request to FastAPI API
+- Backend validates auth and request payload
+- Backend performs database queries or updates
+- Backend optionally triggers notifications, uploads, or realtime events
+- Backend returns JSON response to the client
 
 ## Installation & Setup
 1. Clone the repository.
-2. Open the `AppDev` folder.
-3. Install dependencies:
+2. Open the `CREATECH-BACKEND-FASTAPI` folder.
+3. Create and activate a virtual environment:
 
 ```powershell
-npm install
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-4. Start the development server:
+4. Install dependencies:
 
 ```powershell
-npm run dev -- --host 0.0.0.0 --port 5173
+pip install -r requirements.txt
 ```
 
-5. Open:
+5. Create a `.env` file and configure at least:
 
-- `http://localhost:5173`
+- Internal Database URL: postgresql://createch_db_whko_user:ciKuoTXKlJwPGhuwPjXWziGylHy1zoYN@dpg-d83l3jn7f7vs7397ph70-a/createch_db_whko
+
+- External Database URL: postgresql://createch_db_whko_user:ciKuoTXKlJwPGhuwPjXWziGylHy1zoYN@dpg-d83l3jn7f7vs7397ph70-a.singapore-postgres.render.com/createch_db_whko
+
+- Database Password: ciKuoTXKlJwPGhuwPjXWziGylHy1zoYN
+
+6. Start the backend server:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+7. Open:
+
+- Health check: `http://127.0.0.1:8000/health`
+- Swagger docs: `http://127.0.0.1:8000/docs`
 
 ## Deployment Link
-- Live Web App: `https://app-dev-khaki.vercel.app`
-- Demo Link: `[Add deployment link here]`
+- Live Backend API: `https://createch-backend-fastapi.onrender.com`
+- API Docs: `https://createch-backend-fastapi.onrender.com/docs`
+- Website Link: https://app-dev-khaki.vercel.app/
+- Mobile Link: 
 
 ## Test Account
-- Client account: `[Add test account here]`
-- Creator account: `[Add test account here]`
-- Admin account: `[Add test account here]`
+ADMIN
+admin.20260522@createch.app
+CreatechAdmin!2026
+
+CLIENT
+rydigefo@mailinator.com
+Pa$$w0rd!
+
+CREATOR
+fasixevyly@mailinator.com
+Pa$$w0rd!
 
 ## Team Members and Roles
 | Team Member | Role | Responsibilities |
 | :--- | :--- | :--- |
-| `Fel Kristian Raut` | `[Role]` | `[Responsibilities]` |
-| `Ralph John Ordiz` | `[Role]` | `[Responsibilities]` |
+| `Fel Kirstian Raut` | `` | `[Responsibilities]` |
+| `Ralph John Ordiz` | `` | `[Responsibilities]` |
 | `Ronald Rafaela` | `[Role]` | `[Responsibilities]` |
 | `Stella Marie Galinada` | `[Role]` | `[Responsibilities]` |
 
 ## Known Limitations
-- Some features depend on backend API availability
-- Authentication and live data depend on correct environment configuration
-- Realtime behavior may vary depending on backend and network availability
-- Test account details and production deployment details still need to be finalized
+- Storage limitations because it is using the cloudflare R2 for the storage of output
+- The render is free tier therefore it sometimes slow to connect to the server
 
 ## Screenshots
-- `[Insert homepage screenshot here]`
-- `[Insert dashboard screenshot here]`
-- `[Insert messaging screenshot here]`
+
+### API Documentation Home
+![CREATECH API Docs Home](./README-assets/backend-docs-home.png)
+
+### Register Request Example
+![Register Request Example](./README-assets/backend-register-request.png)
+
+### Login Response Example
+![Login Response Example](./README-assets/backend-login-response.png)
+
