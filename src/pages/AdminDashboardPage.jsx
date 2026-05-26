@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, BarChart3, AlertTriangle, ShieldCheck, Tag, Plus, Trash2, Package } from 'lucide-react';
-import { fetchUsers as apiFetchUsers, fetchOrders as apiFetchOrders, fetchSupportTickets as apiFetchTickets, fetchCategories, createCategory, deleteCategory, fetchServices } from '../api';
+import { fetchAdminStats, fetchCategories, createCategory, deleteCategory } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import { readCollection } from '../utils/collections';
 
@@ -29,29 +29,21 @@ const AdminDashboardPage = () => {
     useEffect(() => {
         (async () => {
             try {
-                const [uRes, oRes, tRes, cRes, sRes] = await Promise.all([
-                    apiFetchUsers({ includeInactive: true }),
-                    apiFetchOrders(),
-                    apiFetchTickets(),
+                const [statsRes, cRes] = await Promise.all([
+                    fetchAdminStats(),
                     fetchCategories(),
-                    fetchServices({ include_deleted: true }),
                 ]);
-                if (uRes.ok) {
-                    const users = readCollection(uRes);
-                    setUserCount(users.length);
-                }
-                if (oRes.ok) {
-                    const orders = readCollection(oRes);
-                    setOrderCount(orders.length);
-                    setTotalRevenue(orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + parseFloat(o.price || 0), 0));
-                    setRecentOrders(orders.slice(0, 3));
-                }
-                if (tRes.ok) {
-                    const tickets = readCollection(tRes);
-                    setTicketCount(tickets.length);
+
+                if (statsRes.ok) {
+                    const stats = statsRes.data || {};
+                    setUserCount(Number(stats.total_users || 0));
+                    setOrderCount(Number(stats.total_orders || 0));
+                    setTotalRevenue(Number(stats.total_revenue || 0));
+                    setTicketCount(Number(stats.total_support_tickets || 0));
+                    setServiceCount(Number(stats.total_services || 0));
+                    setRecentOrders(Array.isArray(stats.recent_orders) ? stats.recent_orders.slice(0, 3) : []);
                 }
                 if (cRes.ok) setCategories(readCollection(cRes));
-                if (sRes.ok) setServiceCount(readCollection(sRes).length);
             } catch (err) {
                 console.error('Admin dashboard error:', err);
             } finally {

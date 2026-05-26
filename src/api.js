@@ -426,6 +426,11 @@ export const updateOrderStatus = (id, status) =>
   api.post(`/orders/${id}/update_status/`, { status });
 
 // ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+export const fetchAdminStats = () => api.get('/dashboard/admin-stats');
+
+// ---------------------------------------------------------------------------
 // Reviews
 // ---------------------------------------------------------------------------
 export const fetchReviews     = () => api.get('/reviews/');
