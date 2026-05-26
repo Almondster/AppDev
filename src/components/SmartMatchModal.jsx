@@ -370,12 +370,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
       setResults(data?.matches || data?.results || []);
       setAnalysis(data?.analysis || null);
       setResultSource(data?.source || '');
-      setWarning(
-        data?.warning ||
-          (nextMode === 'ai' && data?.source && data.source !== 'sentence-transformer'
-            ? 'AI Smart Match is temporarily unavailable, so these results were ranked using guided rule-based scoring.'
-            : '')
-      );
+      setWarning('');
       setProgressIndex(PROCESSING_PERCENTAGES.length - 1);
 
       window.setTimeout(() => {
@@ -754,8 +749,6 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
           <span>{formatBudgetValue(summaryBudget)}</span>
           <span>{summaryTimeline}</span>
         </div>
-
-        {warning ? <div className="smm-callout smm-callout--warning">{warning}</div> : null}
 
         {results.length === 0 ? (
           <div className="smm-empty">
