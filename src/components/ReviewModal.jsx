@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Star, X } from 'lucide-react';
-import './ReviewModal.css';
+import '../styles/ReviewModal.css';
 
 const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 

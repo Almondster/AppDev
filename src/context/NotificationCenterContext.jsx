@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   fetchOrderNotifications,
   getApiOrigin,
@@ -8,8 +8,7 @@ import {
   markOrderNotificationRead,
 } from '../api';
 import { readCollection } from '../utils/collections';
-
-const NotificationCenterContext = createContext(null);
+import { NotificationCenterContext } from './NotificationCenterContextObject';
 
 const FALLBACK_SYNC_MS = 5000;
 const HEARTBEAT_MS = 20000;
@@ -279,12 +278,4 @@ export const NotificationCenterProvider = ({ children }) => {
       {children}
     </NotificationCenterContext.Provider>
   );
-};
-
-export const useNotificationCenter = () => {
-  const context = useContext(NotificationCenterContext);
-  if (!context) {
-    throw new Error('useNotificationCenter must be used within a NotificationCenterProvider');
-  }
-  return context;
 };

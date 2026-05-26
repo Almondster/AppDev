@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { forgotPassword, login, register } from '../api';
 import AuthBrandPanel from '../components/AuthBrandPanel';
-import GoogleIcon from '../components/GoogleIcon';
-import './LoginPage.css';
+import '../styles/LoginPage.css';
 
 const initialForm = {
   firstName: '',
@@ -138,11 +137,6 @@ const LoginPage = ({ onLogin }) => {
     setApiError('');
     setApiSuccess('');
     setForm(initialForm);
-  };
-
-  const handleGoogleAuth = () => {
-    setApiSuccess('');
-    setApiError('Google sign-in is not configured in this build yet. Use your email and password.');
   };
 
   const handleForgotPassword = async () => {

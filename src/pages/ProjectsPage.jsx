@@ -6,7 +6,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { readCollection } from '../utils/collections';
 import { getOrderFetcherForRole, isActiveCreatorOrderStatus, mapOrderStatusBucket, ORDER_STATUS_FILTERS } from '../utils/orders';
 import { humanizeLabel } from '../utils/text';
-import './ProjectsPage.css';
+import '../styles/ProjectsPage.css';
 
 const hydrateOrderParticipantNames = async (orders) => {
     const userIds = [...new Set(

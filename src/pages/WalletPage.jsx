@@ -5,7 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { readCollection } from '../utils/collections';
 import { getCurrentUser } from '../utils/currentUser';
 import { getOrderFetcherForRole, isPendingPayoutOrderStatus } from '../utils/orders';
-import './WalletPage.css';
+import '../styles/WalletPage.css';
 
 const WalletPage = ({ userRole }) => {
     const [balance, setBalance] = useState(0);

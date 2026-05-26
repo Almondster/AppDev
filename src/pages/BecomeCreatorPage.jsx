@@ -7,7 +7,7 @@ import {
     CREATOR_SUBCATEGORY_MAP,
     createInitialCreatorForm,
 } from '../constants/creatorOnboarding';
-import './BecomeCreatorPage.css';
+import '../styles/BecomeCreatorPage.css';
 
 const STEP_LABELS = [
     { number: 1, title: 'Identity', description: 'Tell us who you are.' },

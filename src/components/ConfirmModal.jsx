@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Info, CheckCircle, AlertCircle } from 'lucide-react';
-import './ConfirmModal.css';
+import '../styles/ConfirmModal.css';
 
 const ICONS = {
   info:    <Info size={24} />,

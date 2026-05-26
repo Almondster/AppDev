@@ -251,7 +251,6 @@ export const getSimilarServices = (service, services = [], limit = 8) => {
 export const getCustomersAlsoBought = (serviceId, services = []) => {
   if (!serviceId || !services || services.length === 0) return [];
 
-  const viewedServices = getViewedServices();
   const currentService = services.find((s) => s.id === serviceId);
 
   if (!currentService) return [];

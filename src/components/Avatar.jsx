@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
 export const Avatar = ({ src, alt = 'U', size = 40, className = '' }) => {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState('');
 
   const getInitial = (text) => {
     if (!text) return 'U';
@@ -28,11 +28,7 @@ export const Avatar = ({ src, alt = 'U', size = 40, className = '' }) => {
 
   const initial = getInitial(alt);
   const bgGradient = getColor(alt);
-  const shouldShowImage = Boolean(src) && !imageFailed;
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [src]);
+  const shouldShowImage = Boolean(src) && failedSrc !== src;
 
   return (
     <div
@@ -67,9 +63,7 @@ export const Avatar = ({ src, alt = 'U', size = 40, className = '' }) => {
             height: '100%',
             objectFit: 'cover',
           }}
-          onError={() => {
-            setImageFailed(true);
-          }}
+          onError={() => setFailedSrc(src)}
         />
       ) : (
         <span

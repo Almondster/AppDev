@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Star, Clock, Heart, Zap, TrendingUp, Users } from 'lucide-react';
-import './RecommendationsSection.css';
+import React from 'react';
+import { Star, Clock, Heart } from 'lucide-react';
+import '../styles/RecommendationsSection.css';
 
 const RecommendationCard = ({ service, isFavorited, onFavoriteToggle }) => {
   return (

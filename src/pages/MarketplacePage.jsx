@@ -4,7 +4,7 @@ import { fetchServices } from '../api';
 import { readCollection } from '../utils/collections';
 import SearchFilters from '../components/SearchFilters';
 import { trackSearchQuery } from '../utils/recommendations';
-import './MarketplacePage.css';
+import '../styles/MarketplacePage.css';
 
 const MarketplacePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +26,35 @@ const MarketplacePage = () => {
   const [saveSearchName, setSaveSearchName] = useState('');
   const [favoriteServices, setFavoriteServices] = useState([]);
   const suggestionsRef = useRef(null);
+
+  const applyLocalFilters = useCallback((items) => {
+    return items.filter((service) => {
+      if (filters.minRating > 0 && (service.rating || 0) < filters.minRating) {
+        return false;
+      }
+      if (
+        filters.maxDeliveryDays &&
+        (service.delivery_days || 0) > filters.maxDeliveryDays
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [filters]);
+
+  const applySorting = useCallback((items) => {
+    const sorted = [...items];
+    if (sortBy === 'price-low') {
+      sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
+    } else if (sortBy === 'price-high') {
+      sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+    } else if (sortBy === 'rating') {
+      sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (sortBy === 'recent') {
+      sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    }
+    return sorted;
+  }, [sortBy]);
 
   // Load saved searches and favorites from localStorage
   useEffect(() => {
@@ -70,36 +99,7 @@ const MarketplacePage = () => {
 
     const debounce = setTimeout(fetchFilteredServices, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery, filters]);
-
-  const applyLocalFilters = (items) => {
-    return items.filter((service) => {
-      if (filters.minRating > 0 && (service.rating || 0) < filters.minRating) {
-        return false;
-      }
-      if (
-        filters.maxDeliveryDays &&
-        (service.delivery_days || 0) > filters.maxDeliveryDays
-      ) {
-        return false;
-      }
-      return true;
-    });
-  };
-
-  const applySorting = (items) => {
-    const sorted = [...items];
-    if (sortBy === 'price-low') {
-      sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
-    } else if (sortBy === 'price-high') {
-      sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
-    } else if (sortBy === 'rating') {
-      sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    } else if (sortBy === 'recent') {
-      sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    }
-    return sorted;
-  };
+  }, [applyLocalFilters, applySorting, filters, searchQuery]);
 
   const generateSuggestions = (items) => {
     const suggestionSet = new Set();

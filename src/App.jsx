@@ -4,7 +4,8 @@ import { ProjectsProvider } from './context/providers/ProjectsProvider';
 import React from 'react';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
-import { NotificationCenterProvider, useNotificationCenter } from './context/NotificationCenterContext';
+import { NotificationCenterProvider } from './context/NotificationCenterContext';
+import { useNotificationCenter } from './context/useNotificationCenter';
 import DashboardPage from './pages/DashboardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import AdminProjectsPage from './pages/AdminProjectsPage';
@@ -22,7 +23,7 @@ import DisputesPage from './pages/DisputesPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
 import { getToken, getUserData, logout as apiLogout } from './api';
-import './index.css';
+import './styles/index.css';
 
 // ---------------------------------------------------------------------------
 // Role-based route guard — redirects non-matching roles to "/"

@@ -5,7 +5,7 @@ import { Eye, MousePointerClick, Briefcase, DollarSign, Clock, Star } from 'luci
 import { readCollection } from '../utils/collections';
 import { getCurrentUserUid } from '../utils/currentUser';
 import { getOrderFetcherForRole, isActiveCreatorOrderStatus } from '../utils/orders';
-import './CreatorDashboardPage.css';
+import '../styles/CreatorDashboardPage.css';
 
 const sameId = (a, b) => String(a) === String(b);
 

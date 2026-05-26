@@ -11,7 +11,7 @@ import {
     isMarketplaceCreatorVisible,
     isMarketplaceServiceVisible,
 } from '../utils/marketplaceContent';
-import './ClientDashboardPage.css';
+import '../styles/ClientDashboardPage.css';
 
 const ClientDashboardPage = () => {
     const [, setOrders] = useState([]);

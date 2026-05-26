@@ -13,7 +13,7 @@ import {
 import { createInitialCreatorForm } from '../constants/creatorOnboarding';
 import ConfirmModal from '../components/ConfirmModal';
 import { useTheme } from '../context/hooks/useTheme.js';
-import './SettingsPage.css';
+import '../styles/SettingsPage.css';
 
 const TABS = [
     { key: 'profile', label: 'Profile', icon: <User size={18} /> },
@@ -86,9 +86,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
     });
 
     // Followers/Following state
-    const [followers, setFollowers] = useState([]);
     const [following, setFollowing] = useState([]);
-    const [socialTab, setSocialTab] = useState('following');
     const [socialLoading, setSocialLoading] = useState(false);
 
     // Payout state
@@ -133,7 +131,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
             first_name: prev.first_name || userData?.first_name || '',
             middle_name: prev.middle_name || userData?.middle_name || '',
             last_name: prev.last_name || userData?.last_name || '',
-            phone: prev.phone || createInitialCreatorForm(userData).phone,
+            phone: prev.phone || digitsOnly(String(userData?.phone || '').replace(/^\+63/, ''), 10),
         }));
     }, [userData?.first_name, userData?.middle_name, userData?.last_name, userData?.phone]);
 
@@ -155,8 +153,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
         const loadFollowersAndFollowing = async () => {
             setSocialLoading(true);
             try {
-                const [fRes, gRes] = await Promise.all([fetchMyFollowers(), fetchMyFollowing()]);
-                if (fRes.ok) setFollowers(fRes.data.results || fRes.data || []);
+                const [, gRes] = await Promise.all([fetchMyFollowers(), fetchMyFollowing()]);
                 if (gRes.ok) {
                     const followingList = gRes.data.results || gRes.data || [];
                     const enrichedFollowing = await Promise.all(
@@ -215,7 +212,7 @@ const SettingsPage = ({ userRole, onLogout }) => {
         if (activeTab === 'help' && !isAdmin) {
             loadHelpTickets();
         }
-    }, [activeTab, isAdmin, userData?.firebase_uid]);
+    }, [activeTab, isAdmin]);
 
     // ── PROFILE ──
     const handlePhotoUpload = (e) => {

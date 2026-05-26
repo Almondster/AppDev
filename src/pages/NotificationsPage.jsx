@@ -7,9 +7,9 @@ import {
     UserPlus,
     Package,
 } from 'lucide-react';
-import { useNotificationCenter } from '../context/NotificationCenterContext';
+import { useNotificationCenter } from '../context/useNotificationCenter';
 import { getCurrentUser } from '../utils/currentUser';
-import './NotificationsPage.css';
+import '../styles/NotificationsPage.css';
 
 const FILTERS = ['all', 'unread', 'messages', 'orders', 'social'];
 

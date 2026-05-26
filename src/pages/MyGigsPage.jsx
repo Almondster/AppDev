@@ -3,7 +3,7 @@ import { ImagePlus, Plus, Search, X } from 'lucide-react';
 import { createService, deleteService, fetchMyServices, updateService } from '../api';
 import Button from '../components/Button';
 import ConfirmModal from '../components/ConfirmModal';
-import '../styles/ProjectsPage.css';
+import '../styles/MyGigsPage.css';
 import { readCollection } from '../utils/collections';
 import { getCurrentUser } from '../utils/currentUser';
 

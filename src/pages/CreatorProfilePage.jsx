@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import { readCollection } from '../utils/collections';
-import './CreatorProfilePage.css';
+import '../styles/CreatorProfilePage.css';
 
 const DEFAULT_EMPTY_MESSAGE = 'No reviews yet.';
 

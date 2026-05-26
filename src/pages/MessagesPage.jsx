@@ -11,7 +11,7 @@ import {
 } from '../api';
 import { Search, Paperclip, Send, MoreHorizontal, MoreVertical, PencilLine, Check, X } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
-import './MessagesPage.css';
+import '../styles/MessagesPage.css';
 
 const FALLBACK_SYNC_MS = 5000;
 const POST_SEND_SYNC_DELAYS_MS = [800, 2500, 6000];

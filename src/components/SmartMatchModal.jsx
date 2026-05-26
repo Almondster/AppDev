@@ -26,7 +26,7 @@ import {
   CREATOR_MAIN_CATEGORIES,
   CREATOR_SUBCATEGORY_MAP,
 } from '../constants/creatorOnboarding';
-import './SmartMatchModal.css';
+import '../styles/SmartMatchModal.css';
 
 const CATEGORY_META = [
   {

@@ -5,7 +5,7 @@ import { ArrowLeft, MessageSquare, Star, XCircle, Play, Lock, CreditCard, Upload
 import ConfirmModal from '../components/ConfirmModal';
 import ReviewModal from '../components/ReviewModal';
 import { createReview } from '../api';
-import './OrderDetailPage.css';
+import '../styles/OrderDetailPage.css';
 
 const STATUS_STYLES = {
   pending:     { bg: 'rgba(250,204,21,0.1)', color: '#facc15' },
@@ -172,7 +172,7 @@ const OrderDetailPage = () => {
   };
 
   const sanitizeFilename = (filename) => String(filename || 'upload')
-    .replace(/[^\w.\-]+/g, '-')
+    .replace(/[^\w.-]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 

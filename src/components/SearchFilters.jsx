@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { fetchCategories } from '../api';
 import { readCollection } from '../utils/collections';
-import './SearchFilters.css';
+import '../styles/SearchFilters.css';
 
 const SearchFilters = ({ filters, onFiltersChange, onClearAll }) => {
   const [categories, setCategories] = useState([]);

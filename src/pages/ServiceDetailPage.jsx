@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchService, fetchCreators, fetchReviews, createOrder, getUserData, fetchOrders } from '../api';
 import { ArrowLeft, Star, MessageSquare, Clock, Tag } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
-import './ServiceDetailPage.css';
+import '../styles/ServiceDetailPage.css';
 
 const ServiceDetailPage = () => {
   const { id } = useParams();

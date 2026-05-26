@@ -22,6 +22,7 @@ export const API_BASE = import.meta.env.DEV
   ? '/api'
   : buildApiBase(CONFIGURED_API_ORIGIN);
 const REQUEST_TIMEOUT_MS = 12000;
+const AUTH_REQUEST_TIMEOUT_MS = 30000;
 
 export const getApiOrigin = () => API_ORIGIN;
 export const resolveApiUrl = (path) => {
@@ -67,13 +68,16 @@ export const clearUserData = () => {
 // ---------------------------------------------------------------------------
 // Core fetch wrapper with auth error handling
 // ---------------------------------------------------------------------------
-async function request(method, path, body = null) {
+async function request(method, path, body = null, options = {}) {
+  const {
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  } = options;
   const headers = { 'Content-Type': 'application/json' };
   const token = getToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   const opts = { method, headers, signal: controller.signal };
   if (body) opts.body = JSON.stringify(body);
 
@@ -95,7 +99,7 @@ async function request(method, path, body = null) {
       ok: false,
       status: 0,
       data: {
-        detail: 'The server took too long to respond.',
+        detail: 'Cannot reach the server. Check the API URL, backend status, or your internet connection.',
       },
     };
   } finally {
@@ -150,11 +154,11 @@ async function request(method, path, body = null) {
 // Public API methods
 // ---------------------------------------------------------------------------
 const api = {
-  get:    (path) => request('GET', path),
-  post:   (path, body) => request('POST', path, body),
-  put:    (path, body) => request('PUT', path, body),
-  patch:  (path, body) => request('PATCH', path, body),
-  delete: (path) => request('DELETE', path),
+  get:    (path, options) => request('GET', path, null, options),
+  post:   (path, body, options) => request('POST', path, body, options),
+  put:    (path, body, options) => request('PUT', path, body, options),
+  patch:  (path, body, options) => request('PATCH', path, body, options),
+  delete: (path, options) => request('DELETE', path, null, options),
 };
 
 const buildQuery = (params = {}) => {
@@ -290,7 +294,11 @@ const fetchEmptyCollection = () => Promise.resolve({ ok: true, data: [] });
 // Auth endpoints (public — no token required)
 // ---------------------------------------------------------------------------
 export async function login(email, password) {
-  const { ok, data } = await api.post('/auth/login/', { email, password });
+  const { ok, data } = await api.post(
+    '/auth/login/',
+    { email, password },
+    { timeoutMs: AUTH_REQUEST_TIMEOUT_MS }
+  );
   if (ok && data.access) {
     setToken(data.access);
     setUserData({
@@ -309,9 +317,13 @@ export async function login(email, password) {
 }
 
 export async function register({ email, password, confirm_password, first_name, middle_name, last_name, phone, role }) {
-  const { ok, data } = await api.post('/auth/register/', {
-    email, password, confirm_password, first_name, middle_name, last_name, phone, role,
-  });
+  const { ok, data } = await api.post(
+    '/auth/register/',
+    {
+      email, password, confirm_password, first_name, middle_name, last_name, phone, role,
+    },
+    { timeoutMs: AUTH_REQUEST_TIMEOUT_MS }
+  );
   if (ok && data.access) {
     setToken(data.access);
     setUserData({

@@ -5,13 +5,11 @@ import { readCollection } from '../utils/collections';
 import {
   getTrendingServices,
   getPersonalizedRecommendations,
-  trackServiceView,
 } from '../utils/recommendations';
 import RecommendationsSection from '../components/RecommendationsSection';
-import './RecommendationsPage.css';
+import '../styles/RecommendationsPage.css';
 
 const RecommendationsPage = () => {
-  const [services, setServices] = useState([]);
   const [trendingServices, setTrendingServices] = useState([]);
   const [personalizedServices, setPersonalizedServices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +28,6 @@ const RecommendationsPage = () => {
         const res = await fetchServices();
         if (res.ok) {
           const items = readCollection(res);
-          setServices(items);
 
           // Generate recommendations
           setTrendingServices(getTrendingServices(items));

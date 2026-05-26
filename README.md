@@ -1,63 +1,78 @@
-# CREATECH: The Operating System for Creative Work
+# CREATECH Web Frontend
 
-![Project Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
-![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+## Project Description
+CREATECH Web Frontend is the browser-based interface for the CREATECH platform. It allows clients, creators, and administrators to access role-based pages for services, orders, messaging, moderation, and account management.
 
-CREATECH is a premium, multi-role web platform designed to seamlessly connect Creators with Clients while providing Administrators with powerful tracking and mediation oversight.
+## Features
+- Role-based user interface for client, creator, and admin users
+- Authentication and login flow
+- Service browsing and management
+- Order tracking and status updates
+- Messaging and notifications interface
+- Wallet, payments, and profile management
+- Admin dashboard and moderation tools
 
-Built with lightning-fast **React (Vite)** and featuring a stunning **Dark Mode Glassmorphism** design system, CREATECH abandons standard templates in favor of a bespoke, beautiful, and highly responsive user interface tailored specifically for the creative economy.
+## Technology Stack
+- Frontend: React 19
+- Build tool: Vite
+- Routing: React Router
+- Styling: CSS and Tailwind CSS
+- Icons: Lucide React
+- Backend API: FastAPI backend
+- Deployment: Vercel or other static hosting
 
----
+## System Architecture
+The web frontend communicates with the backend API over HTTP. Users access the React application in the browser, the frontend sends requests to the FastAPI backend, and the backend reads and writes application data from the database.
 
-## Key Platform Features
+Basic flow:
+- User opens the web app
+- Frontend renders React pages and sends API requests
+- Backend processes business logic and database operations
+- Frontend displays returned data to the user
 
-### 1. Tri-Role Architecture 
-The application dynamically re-configures its routing, navigation, and permissions based on the active user session:
-- **Creators:** Dedicated access to Studio analytics, gig management (`My Gigs`), unified inboxes, and a Wallet interface strictly built for withdrawing earnings.
-- **Clients:** Streamlined dashboard visualizing active hires, tracking project spend, maintaining funding sources, and reviewing active orders.
-- **Administrators:** A supreme access tier featuring platform health analytics, bi-lateral transaction tracking, suspension mediation interfaces, and platform configuration controls.
+## Installation & Setup
+1. Clone the repository.
+2. Open the `AppDev` folder.
+3. Install dependencies:
 
-### 2. Premium Glassmorphism UI
-Designed from scratch using vanilla CSS, the platform leverages advanced visual techniques:
-- **Responsive Layout:** 100vh flex-row architecture with a stationary frosted-glass sidebar and dynamic scrollable main content.
-- **Visual Depth:** Extensive use of `backdrop-filter: blur`, subtle semi-transparent borders, and deep `#101010` background contrasting with vibrant `#3b82f6` UI accents.
-- **Lucide Iconography:** Elegant, consistent, lightweight SVG icons utilized across every button and data readout.
-
-### 3. Context-Driven State Management
-Escrow transactions, active orders, and structural platform states are managed using React's `Context API` (`useProjects.jsx`). 
-- **Admin Moderation:** Project cards dynamically render 15% `Platform Fee` calculations, expose bi-lateral tracking (Creator + Client visibility), and feature "Force Suspend" flags exclusively for the Administrator scope.
-- **Strict Role Permissions:** Component level conditions prevent clients from modifying project scopes or withdrawing platform funds, securing the mock business logic.
-
----
-
-## Code Structure Highlights
-
-| Directory | Purpose |
-| :--- | :--- |
-| `/components` | Strictly reusable, stateless UI atoms (e.g., `Card.jsx`, `Button.jsx`, `Sidebar.jsx`). |
-| `/pages` | Full-scale view templates routing specific platform features (e.g., `CreatorDashboardPage.jsx`, `SettingsPage.jsx`). |
-| `/context` | Global state handlers feeding prop-drilled data globally efficiently without Redux. |
-
----
-
-## Quick Start Guide
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Almondster/AppDev.git
-
-# 2. Navigate to the directory
-cd AppDev
-
-# 3. Install NPM Core Dependencies
+```powershell
 npm install
-
-# 4. Ignite the Vite engine
-npm run dev
 ```
 
-### Local Testing
-By default, the application relies on `localStorage` to mock active sessions. 
-- You can manually toggle between roles (`Creator`, `Client`, `Admin`) directly from the universally accessible `/login` route to observe how the platform re-renders the Sidebar and UI boundaries uniquely for each user type.
+4. Start the development server:
+
+```powershell
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+5. Open:
+
+- `http://localhost:5173`
+
+## Deployment Link
+- Live Web App: `https://app-dev-khaki.vercel.app`
+- Demo Link: `[Add deployment link here]`
+
+## Test Account
+- Client account: `[Add test account here]`
+- Creator account: `[Add test account here]`
+- Admin account: `[Add test account here]`
+
+## Team Members and Roles
+| Team Member | Role | Responsibilities |
+| :--- | :--- | :--- |
+| `Fel Kristian Raut` | `[Role]` | `[Responsibilities]` |
+| `Ralph John Ordiz` | `[Role]` | `[Responsibilities]` |
+| `Ronald Rafaela` | `[Role]` | `[Responsibilities]` |
+| `Stella Marie Galinada` | `[Role]` | `[Responsibilities]` |
+
+## Known Limitations
+- Some features depend on backend API availability
+- Authentication and live data depend on correct environment configuration
+- Realtime behavior may vary depending on backend and network availability
+- Test account details and production deployment details still need to be finalized
+
+## Screenshots
+- `[Insert homepage screenshot here]`
+- `[Insert dashboard screenshot here]`
+- `[Insert messaging screenshot here]`
