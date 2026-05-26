@@ -81,8 +81,6 @@ Optional environment variables:
 - Live Backend API: `https://createch-backend-fastapi.onrender.com`
 - API Docs: `https://createch-backend-fastapi.onrender.com/docs`
 - Website Link: https://app-dev-khaki.vercel.app/
-- Mobile Link: https://drive.google.com/drive/folders/1KPN3n4nupc4CifWsG_S2WqtxUU0LLdVc?fbclid=IwY2xjawSC-z9leHRuA2FlbQIxMABicmlkETFkcjQ5VG54WWRFb1J0cHR6c3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHkEegDJhMlpD0kuR6Mz5Iy22nDkUs6reLv46fmLvN9bwHyhI25Rzg3q-Jx_U_aem_wtx7It542UigCzIgj2AFTg
-
 ## Test Account
 ADMIN
 admin.20260522@createch.app
