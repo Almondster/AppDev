@@ -19,6 +19,7 @@ const ServiceDetailPage = () => {
   const [toast, setToast] = useState('');
   const [existingOrders, setExistingOrders] = useState([]);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [dueDateInput, setDueDateInput] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -66,12 +67,21 @@ const ServiceDetailPage = () => {
   };
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
+  const buildDueDatePayload = (dateValue) => {
+    if (!dateValue) return null;
+    return new Date(`${dateValue}T23:59:59`).toISOString();
+  };
 
   const handleOrder = async () => {
+    if (!dueDateInput) {
+      showToast('Please set the due date before placing the order.');
+      return;
+    }
     setOrdering(true);
     try {
       const { ok, data } = await createOrder({
         service_id: service.id,
+        due_date: buildDueDatePayload(dueDateInput),
       });
       if (ok) {
         showToast(`Order placed for "${service.title}"! Redirecting...`);
@@ -85,6 +95,7 @@ const ServiceDetailPage = () => {
     setOrdering(false);
     setConfirmOpen(false);
     setDuplicateOpen(false);
+    setDueDateInput('');
   };
 
   const handleOrderClick = () => {
@@ -250,23 +261,62 @@ const ServiceDetailPage = () => {
       <ConfirmModal
         open={confirmOpen}
         title="Place Order?"
-        message={<>You are about to order <strong>"{service.title}"</strong> for <strong>₱{parseFloat(service.price || 0).toLocaleString()}</strong>. The creator will be notified and can accept your order.</>}
+        message={
+          <>
+            <p style={{ margin: '0 0 0.9rem' }}>
+              You are about to order <strong>"{service.title}"</strong> for{' '}
+              <strong>₱{parseFloat(service.price || 0).toLocaleString()}</strong>. Set the date
+              you need the final output.
+            </p>
+            <label className="sd-order-deadline-field">
+              <span>Required By</span>
+              <input
+                type="date"
+                value={dueDateInput}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setDueDateInput(e.target.value)}
+              />
+            </label>
+          </>
+        }
         variant="info"
         confirmLabel="Place Order"
         loading={ordering}
         onConfirm={handleOrder}
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setDueDateInput('');
+        }}
       />
 
       <ConfirmModal
         open={duplicateOpen}
         title="Duplicate Order"
-        message={<>You already have an active order for <strong>"{service?.title}"</strong>. Do you want to place another order?</>}
+        message={
+          <>
+            <p style={{ margin: '0 0 0.9rem' }}>
+              You already have an active order for <strong>"{service?.title}"</strong>. Do you
+              still want to place another one with a new due date?
+            </p>
+            <label className="sd-order-deadline-field">
+              <span>Required By</span>
+              <input
+                type="date"
+                value={dueDateInput}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setDueDateInput(e.target.value)}
+              />
+            </label>
+          </>
+        }
         variant="warning"
         confirmLabel="Order Anyway"
         loading={ordering}
         onConfirm={handleOrder}
-        onCancel={() => setDuplicateOpen(false)}
+        onCancel={() => {
+          setDuplicateOpen(false);
+          setDueDateInput('');
+        }}
       />
     </main>
   );

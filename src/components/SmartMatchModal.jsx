@@ -1,1065 +1,922 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Sparkles, Check, ChevronRight, BrainCircuit, Star, Zap, Clock, PhilippinePeso, BadgeCheck, Grid3x3, AlertCircle, TrendingUp, Target } from 'lucide-react';
-import { GlassCard } from './GlassCard';
-import { Button } from './Button';
-import { Avatar } from './Avatar';
-import { CATEGORIES, SUBCATEGORY_MAP } from '../constants';
-import { supabase } from '../lib/supabase';
-import { auth } from '../lib/firebase';
+import { useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  CheckCircle2,
+  Clock3,
+  Code2,
+  FileText,
+  Megaphone,
+  MessageSquare,
+  Mic2,
+  Palette,
+  PhilippinePeso,
+  SearchCheck,
+  Sparkles,
+  Video,
+  X,
+} from 'lucide-react';
+import Avatar from './Avatar';
 import { fetchSmartMatches } from '../api';
-import { getGeminiApiUrl, isGeminiConfigured } from '../config/gemini';
+import {
+  CREATOR_MAIN_CATEGORIES,
+  CREATOR_SUBCATEGORY_MAP,
+} from '../constants/creatorOnboarding';
+import './SmartMatchModal.css';
 
-// Match Result Type with AI insights
+const CATEGORY_META = [
+  {
+    label: 'Design & Creative',
+    description: 'Branding, logos, product visuals',
+    accent: '#8b5cf6',
+    icon: Palette,
+  },
+  {
+    label: 'Development & IT',
+    description: 'Web apps, mobile, software builds',
+    accent: '#3b82f6',
+    icon: Code2,
+  },
+  {
+    label: 'Writing & Translation',
+    description: 'Copy, editorial, localization work',
+    accent: '#f97316',
+    icon: FileText,
+  },
+  {
+    label: 'Digital Marketing',
+    description: 'Campaigns, SEO, social growth',
+    accent: '#10b981',
+    icon: Megaphone,
+  },
+  {
+    label: 'Video & Animation',
+    description: 'Editing, motion, cinematic assets',
+    accent: '#ef4444',
+    icon: Video,
+  },
+  {
+    label: 'Music & Audio',
+    description: 'Voice, mixing, composition',
+    accent: '#f59e0b',
+    icon: Mic2,
+  },
+];
 
-// Gemini Response Types
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-export const SmartMatchModal = ({
-  isOpen,
-  onClose,
-  onNavigateToMessages
-}) => {
-  const [mode, setMode] = useState('ai'); // AI Smart Mode or Guided Mode
-  const [step, setStep] = useState('form');
-  const [guidedStep, setGuidedStep] = useState('category'); // New guided steps
-  const [formData, setFormData] = useState({
-    category: '',
-    budget: 500,
-    deadline: '7 days',
-    description: '',
-    selectedSkills: []
-  });
+const DEADLINE_OPTIONS = ['3 days', '7 days', '14 days', '1 month'];
+const GUIDED_STEPS = ['category', 'skills', 'details', 'budget'];
+const PROCESSING_PERCENTAGES = [18, 42, 73, 100];
+const INVALID_PHRASES = ['test', 'demo', 'sample', 'checking', 'try only'];
 
-  // Processing State
-  const [progress, setProgress] = useState(0);
-  const [loadingText, setLoadingText] = useState('Initializing Smart Match...');
-  const [matchedCreators, setMatchedCreators] = useState([]);
+const INITIAL_FORM_DATA = {
+  category: '',
+  selectedSkills: [],
+  description: '',
+  budget: 12000,
+  deadline: '7 days',
+};
+
+const PROCESSING_LABELS = {
+  ai: [
+    'Reading your project brief...',
+    'Analyzing the strongest category and skill signals...',
+    'Ranking creators against your project needs...',
+    'Finalizing the best shortlist...',
+  ],
+  guided: [
+    'Checking your guided requirements...',
+    'Searching creators in the selected category...',
+    'Comparing skill overlap and fit...',
+    'Finalizing the best shortlist...',
+  ],
+};
+
+const SAMPLE_PROMPTS = [
+  'I need a modern logo and visual identity for a coffee brand launching this month.',
+  'I need an e-commerce website for my clothing business with checkout and product filters.',
+  'I need a short social media campaign with graphics and captions for a new product launch.',
+];
+
+const currencyFormatter = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  maximumFractionDigits: 0,
+});
+
+const toSentenceList = (items = []) => items.filter(Boolean).join(', ');
+
+const buildGuidedDescription = (formData) => {
+  if (formData.description.trim()) return formData.description.trim();
+  const skillsText = toSentenceList(formData.selectedSkills) || 'specialized support';
+  return `I need ${formData.category.toLowerCase()} help focused on ${skillsText}.`;
+};
+
+const formatBudgetValue = (value) => {
+  if (value === null || value === undefined || value === '') return 'Open budget';
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? currencyFormatter.format(numericValue) : String(value);
+};
+
+const getMatchScore = (result) => {
+  const rawScore = result?.matchScore ?? result?.score ?? 0;
+  return Math.max(0, Math.min(100, Number(rawScore) || 0));
+};
+
+const getResultId = (result) => result?.id ?? result?.creator_id ?? result?.user_id ?? null;
+
+const getResultSummary = (result) =>
+  result?.aiInsight?.reason ||
+  result?.matchReasons?.[0] ||
+  result?.serviceDescription ||
+  result?.bio ||
+  'This creator matches your selected requirements.';
+
+const getResultTitle = (result) =>
+  result?.serviceTitle || result?.jobTitle || result?.serviceCategory || 'Matched creator';
+
+const isLikelyInvalidProject = (description) => {
+  const normalized = description.trim().toLowerCase();
+  return normalized.length >= 1 && INVALID_PHRASES.some((phrase) => normalized.includes(phrase));
+};
+
+const GeminiIcon = ({ size = 16, className = '' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path
+      d="M12 2.5C12.55 6.95 14.05 9.45 16.35 11.65C18.55 13.95 21.05 15.45 21.5 16C17.05 16.55 14.55 18.05 12.35 20.35C10.05 22.55 8.55 25.05 8 25.5C7.45 21.05 5.95 18.55 3.65 16.35C1.45 14.05 -1.05 12.55 -1.5 12C2.95 11.45 5.45 9.95 7.65 7.65C9.95 5.45 11.45 2.95 12 2.5Z"
+      transform="translate(1.5 -1.5)"
+      fill="currentColor"
+      fillOpacity="0.18"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M18.2 3.5L18.62 5.08C18.9 6.16 19.74 7 20.82 7.28L22.4 7.7L20.82 8.12C19.74 8.4 18.9 9.24 18.62 10.32L18.2 11.9L17.78 10.32C17.5 9.24 16.66 8.4 15.58 8.12L14 7.7L15.58 7.28C16.66 7 17.5 6.16 17.78 5.08L18.2 3.5Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const SmartMatchModal = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState('ai');
+  const [view, setView] = useState('form');
+  const [guidedStep, setGuidedStep] = useState('category');
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+  const [results, setResults] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState('');
-  const [showInvalidModal, setShowInvalidModal] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [warning, setWarning] = useState('');
+  const [progressIndex, setProgressIndex] = useState(0);
 
-  // Get skills for selected category
-  const availableSkills = formData.category && SUBCATEGORY_MAP[formData.category] ? SUBCATEGORY_MAP[formData.category] : [];
+  const availableSkills = useMemo(
+    () => CREATOR_SUBCATEGORY_MAP[formData.category] || [],
+    [formData.category]
+  );
 
-  // Clear selected skills when category changes
-  useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      selectedSkills: []
-    }));
-  }, [formData.category]);
+  const processingLabels = PROCESSING_LABELS[mode] || PROCESSING_LABELS.ai;
+  const progressValue = PROCESSING_PERCENTAGES[progressIndex] || PROCESSING_PERCENTAGES[0];
+
   useEffect(() => {
     if (!isOpen) {
-      setStep('form');
+      setMode('ai');
+      setView('form');
       setGuidedStep('category');
-      setProgress(0);
+      setFormData(INITIAL_FORM_DATA);
+      setResults([]);
+      setAnalysis(null);
       setError('');
-      setShowInvalidModal(false);
-      setFormData({
-        category: '',
-        budget: 500,
-        deadline: '7 days',
-        description: '',
-        selectedSkills: []
-      });
+      setWarning('');
+      setProgressIndex(0);
     }
   }, [isOpen]);
-  const handleNextGuidedStep = () => {
+
+  useEffect(() => {
+    if (view !== 'processing') return undefined;
+
+    const intervalId = window.setInterval(() => {
+      setProgressIndex((current) => Math.min(current + 1, PROCESSING_PERCENTAGES.length - 1));
+    }, 850);
+
+    return () => window.clearInterval(intervalId);
+  }, [view]);
+
+  if (!isOpen) return null;
+
+  const stepIndex = GUIDED_STEPS.indexOf(guidedStep);
+
+  const openCreatorProfile = (result) => {
+    const creatorId = getResultId(result);
+    if (!creatorId) return;
+    navigate(`/creator-profile?uid=${encodeURIComponent(creatorId)}`);
+    onClose();
+  };
+
+  const openMessages = (result) => {
+    const creatorId = getResultId(result);
+    if (!creatorId) return;
+    navigate(`/messages?to=${encodeURIComponent(creatorId)}`);
+    onClose();
+  };
+
+  const updateFormField = (field, value) => {
+    setFormData((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setError('');
+    setWarning('');
+  };
+
+  const handleCategorySelect = (category) => {
+    setFormData((current) => ({
+      ...current,
+      category,
+      selectedSkills: [],
+    }));
+    setError('');
+    setWarning('');
+  };
+
+  const handleSkillToggle = (skill) => {
+    setFormData((current) => ({
+      ...current,
+      selectedSkills: current.selectedSkills.includes(skill)
+        ? current.selectedSkills.filter((item) => item !== skill)
+        : [...current.selectedSkills, skill],
+    }));
+    setError('');
+  };
+
+  const handleGuidedNext = () => {
     if (guidedStep === 'category') {
       if (!formData.category) {
-        setError('Please select a category');
+        setError('Choose a category before continuing.');
         return;
       }
       setGuidedStep('skills');
-      setError('');
-    } else if (guidedStep === 'skills') {
+      return;
+    }
+
+    if (guidedStep === 'skills') {
       if (formData.selectedSkills.length === 0) {
-        setError('Please select at least one skill');
+        setError('Select at least one skill for a guided match.');
         return;
       }
       setGuidedStep('details');
-      setError('');
-    } else if (guidedStep === 'details') {
+      return;
+    }
+
+    if (guidedStep === 'details') {
       setGuidedStep('budget');
-      setError('');
-    } else if (guidedStep === 'budget') {
-      startMatching();
-    }
-  };
-  const handleBackGuidedStep = () => {
-    if (guidedStep === 'budget') setGuidedStep('details');else if (guidedStep === 'details') setGuidedStep('skills');else if (guidedStep === 'skills') setGuidedStep('category');
-  };
-  const handleSkillToggle = skill => {
-    setFormData(prev => ({
-      ...prev,
-      selectedSkills: prev.selectedSkills.includes(skill) ? prev.selectedSkills.filter(s => s !== skill) : [...prev.selectedSkills, skill]
-    }));
-  };
-  const startMatching = async () => {
-    setStep('processing');
-    setError('');
-
-    // For AI mode, validate description
-    if (mode === 'ai' && !formData.description.trim()) {
-      setError('Please describe your project for AI analysis');
-      setStep('form');
       return;
     }
 
-    // For Guided mode, validate category
-    if (mode === 'guided' && !formData.category) {
-      setError('Please select a category');
-      setStep('form');
-      return;
-    }
-    try {
-      setProgress(10);
-      setLoadingText('Scanning creator profiles...');
+    void submitMatch('guided');
+  };
 
-      // Preferred path: backend-powered Smart Match (FastAPI),
-      // with graceful fallback to legacy local logic below.
-      const smartRes = await fetchSmartMatches({
-        mode,
-        description: formData.description,
-        category: formData.category,
-        budget: formData.budget,
-        deadline: formData.deadline,
-        selected_skills: formData.selectedSkills,
-        limit: 6,
-        save_matches: true
-      });
-      if (smartRes?.ok && smartRes?.data?.matches) {
-        setProgress(100);
-        setAiAnalysis(smartRes.data.analysis || null);
-        setMatchedCreators((smartRes.data.matches || []).slice(0, 6));
-        setTimeout(() => setStep('results'), 250);
+  const handleGuidedBack = () => {
+    if (guidedStep === 'budget') setGuidedStep('details');
+    if (guidedStep === 'details') setGuidedStep('skills');
+    if (guidedStep === 'skills') setGuidedStep('category');
+  };
+
+  const submitMatch = async (nextMode = mode) => {
+    const description = formData.description.trim();
+
+    if (nextMode === 'ai') {
+      if (description.length < 20) {
+        setError('Describe your project in at least 20 characters so Smart Match has enough signal.');
         return;
       }
 
-      // Fetch creator stats (avg_rating, review_count)
-      const {
-        data: statsData,
-        error: statsError
-      } = await supabase.from('creator_stats').select('*');
-      if (statsError) throw statsError;
-      const statsMap = new Map(statsData?.map(s => [s.firebase_uid, s]));
+      if (isLikelyInvalidProject(description)) {
+        setWarning('Please describe a real project with clear deliverables instead of a test or demo request.');
+        return;
+      }
+    }
 
-      // Fetch creators from database
-      const {
-        data: creatorsData,
-        error: dbError
-      } = await supabase.from('creators').select(`
-                    *,
-                    user:users!user_id(*)
-                `).limit(20);
-      if (dbError) throw dbError;
-      setProgress(30);
-      setLoadingText('Analyzing compatibility...');
-
-      // Get blocked users
-      const currentUser = auth.currentUser;
-      let blockedIds = [];
-      if (currentUser) {
-        const {
-          data: blocksData
-        } = await supabase.from('blocks').select('blocked_id').eq('blocker_id', currentUser.uid);
-        if (blocksData) {
-          blockedIds = blocksData.map(b => b.blocked_id);
-        }
+    if (nextMode === 'guided') {
+      if (!formData.category) {
+        setGuidedStep('category');
+        setError('Choose a category before continuing.');
+        return;
       }
 
-      // Map to UserType format
-      const creators = creatorsData.filter(c => !blockedIds.includes(c.user?.firebase_uid)).map(c => {
-        const creatorStats = statsMap.get(c.user?.firebase_uid);
-        const avgRating = creatorStats ? parseFloat(creatorStats.avg_rating || 0) : 0;
-        const reviewCount = creatorStats ? parseInt(creatorStats.total_reviews || 0) : 0;
-        return {
-          id: c.user?.firebase_uid || 'unknown',
-          name: c.user?.full_name || 'Unknown',
-          avatar: c.user?.avatar_url,
-          role: 'creator',
-          jobTitle: c.bio ? c.bio.substring(0, 50) : 'Creator',
-          bio: c.bio,
-          skills: c.skills || [],
-          location: c.user?.city || 'Remote',
-          rating: reviewCount > 0 ? avgRating : null,
-          reviewCount: reviewCount,
-          hourlyRate: parseFloat(c.starting_price) || 0,
-          verified: c.verification_status === 'verified',
-          experienceYears: c.experience_years || 0,
-          responseTime: c.turnaround_time || 'Not specified',
-          portfolioUrl: c.portfolio_url || ''
-        };
-      });
-      setProgress(60);
-      let rankedCreators;
-      let projectAnalysis = null;
+      if (formData.selectedSkills.length === 0) {
+        setGuidedStep('skills');
+        setError('Select at least one skill for a guided match.');
+        return;
+      }
+    }
 
-      // AI Smart Mode - Use Gemini
-      if (mode === 'ai' && isGeminiConfigured()) {
-        setLoadingText('AI analyzing your project...');
-        try {
-          // Step 1: Analyze project description with validation
-          projectAnalysis = await analyzeProjectWithAI(formData.description);
-          setAiAnalysis(projectAnalysis);
+    setError('');
+    setWarning('');
+    setView('processing');
+    setProgressIndex(0);
 
-          // Check if project is valid (not a test/demo)
-          if (projectAnalysis.isValid === false) {
-            setShowInvalidModal(true);
-            setStep('form');
-            return;
+    const guidedDescription = buildGuidedDescription(formData);
+    const payload =
+      nextMode === 'ai'
+        ? {
+            mode: 'ai',
+            query: description,
+            description,
+            limit: 6,
+            save_matches: true,
           }
-          setProgress(75);
-          setLoadingText('AI ranking creators...');
-
-          // Step 2: Rank creators with AI using extracted skills
-          rankedCreators = await rankCreatorsWithAI(creators, formData.description, projectAnalysis);
-
-          // Filter out creators with scores below 40 (poor matches)
-          console.log('🎯 Before filter:', rankedCreators.length, 'creators');
-          rankedCreators = rankedCreators.filter(c => c.matchScore >= 40);
-          console.log('✅ After filter (≥40):', rankedCreators.length, 'creators');
-        } catch (aiError) {
-          console.error('AI analysis failed, using fallback:', aiError);
-          setLoadingText('Using smart fallback ranking...');
-          // Use AI-extracted skills for fallback if available
-          const fallbackFormData = {
-            ...formData,
-            selectedSkills: projectAnalysis?.skills || formData.selectedSkills,
-            category: projectAnalysis?.category || formData.category
+        : {
+            mode: 'guided',
+            query: [
+              guidedDescription,
+              formData.category,
+              ...formData.selectedSkills,
+              `Budget ${formData.budget}`,
+              `Deadline ${formData.deadline}`,
+            ]
+              .filter(Boolean)
+              .join(' '),
+            description: guidedDescription,
+            category: formData.category,
+            budget: formData.budget,
+            deadline: formData.deadline,
+            selected_skills: formData.selectedSkills,
+            limit: 6,
+            save_matches: true,
           };
-          rankedCreators = fallbackRanking(creators, fallbackFormData);
-        }
-      } else {
-        // Guided Mode or AI not configured - Use fallback
-        setLoadingText('Calculating best matches...');
-        rankedCreators = fallbackRanking(creators, formData);
-      }
-      setProgress(95);
-      setLoadingText('Finalizing matches...');
 
-      // Save top matches to database
-      if (currentUser && rankedCreators.length > 0) {
-        const matchesToSave = rankedCreators.slice(0, 5).map(creator => ({
-          client_id: currentUser.uid,
-          creator_id: creator.id,
-          match_score: creator.matchScore,
-          project_description: formData.description || `${formData.category} project`,
-          reasons: creator.aiInsight ? [creator.aiInsight.reason] : creator.matchReasons,
-          status: 'new'
-        }));
-        await supabase.from('matches').insert(matchesToSave);
+    try {
+      const { ok, data } = await fetchSmartMatches(payload);
+
+      if (!ok) {
+        throw new Error(data?.detail || 'We could not find matches right now.');
       }
-      setProgress(100);
-      setMatchedCreators(rankedCreators.slice(0, 6));
-      setTimeout(() => setStep('results'), 500);
-    } catch (err) {
-      console.error("Error matching creators:", err);
-      setError('Failed to find matches. Please try again.');
-      setMatchedCreators([]);
-      setStep('form');
+
+      setResults(data?.matches || data?.results || []);
+      setAnalysis(data?.analysis || null);
+      setProgressIndex(PROCESSING_PERCENTAGES.length - 1);
+
+      window.setTimeout(() => {
+        setView('results');
+      }, 180);
+    } catch (matchError) {
+      setView('form');
+      setError(matchError?.message || 'Smart Match failed. Please try again.');
     }
   };
 
-  // AI Analysis Function (matches RN app exactly)
-  const analyzeProjectWithAI = async description => {
-    const prompt = `You are an expert project analyzer for a freelance marketplace. Analyze this project description and extract key information.
+  const renderAiForm = () => (
+    <div className="smm-form-grid">
+      <section className="smm-panel smm-panel--accent">
+        <div className="smm-panel-header">
+          <div className="smm-pill">
+            <GeminiIcon size={14} />
+            AI Smart Match
+          </div>
+          <h3>Describe the outcome you need.</h3>
+          <p>
+            Write naturally. The matcher will infer the category, highlight relevant skills, and
+            rank creators based on the brief.
+          </p>
+        </div>
 
-PROJECT DESCRIPTION:
-"${description}"
+        <div className="smm-prompt-list">
+          {SAMPLE_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              className="smm-prompt-chip"
+              onClick={() => updateFormField('description', prompt)}
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
 
-⚠️ VALIDATION FIRST:
-- If this is a test post, demo request, or platform functionality check with NO actual work required, return {"isValid": false}
-- If the description is vague, random text, or doesn't clearly describe a real project need, return {"isValid": false}
-- Only proceed if this is a REAL project request with clear deliverables
+        <div className="smm-feature-list">
+          <div className="smm-feature-item">
+            <CheckCircle2 size={16} />
+            AI extracts category and strongest skills from your brief.
+          </div>
+          <div className="smm-feature-item">
+            <CheckCircle2 size={16} />
+            Backend matching still falls back to heuristic ranking if needed.
+          </div>
+          <div className="smm-feature-item">
+            <CheckCircle2 size={16} />
+            Prefer more control? Switch to Guided Match and choose exact skills yourself.
+          </div>
+        </div>
+      </section>
 
-YOUR TASK (only if valid):
-1. Identify the main category from: ${CATEGORIES.join(', ')}
-2. Extract relevant skills/subcategories needed
-3. Extract the **EXACT** budget if stated (e.g., "120,000 php"). Only estimate if not stated.
-4. Extract the **EXACT** timeline if stated (e.g., "5 days"). Only estimate if not stated.
+      <section className="smm-panel">
+        <label className="smm-field-label" htmlFor="smart-match-description">
+          Project brief
+        </label>
+        <textarea
+          id="smart-match-description"
+          className="smm-textarea"
+          value={formData.description}
+          onChange={(event) => updateFormField('description', event.target.value)}
+          placeholder="Example: I need a clean e-commerce website for my clothing brand with product filters, cart, payment integration, and a polished mobile experience."
+        />
+        <div className="smm-char-hint">
+          <span>
+            {formData.description.trim().length < 20
+              ? `${20 - formData.description.trim().length} more characters needed`
+              : 'Ready to analyze'}
+          </span>
+          <span>{formData.description.trim().length} chars</span>
+        </div>
 
-Respond ONLY with valid JSON:
-{
-  "isValid": true/false,
-  "category": "exact category name from list",
-  "skills": ["skill1", "skill2", "skill3"],
-  "budget": "exact value or estimated range",
-  "timeline": "exact value or estimated timeline",
-  "description": "cleaned/improved version of the project description"
-}
+        {warning ? <div className="smm-callout smm-callout--warning">{warning}</div> : null}
+        {error ? <div className="smm-callout smm-callout--error">{error}</div> : null}
 
-IMPORTANT: Return ONLY the JSON object, no markdown, no other text.`;
-    const response = await fetch(getGeminiApiUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    });
-    if (!response.ok) throw new Error('Gemini API failed');
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        <div className="smm-footer-actions">
+          <button type="button" className="smm-btn smm-btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="smm-btn smm-btn--primary"
+            onClick={() => submitMatch('ai')}
+            disabled={formData.description.trim().length < 20}
+          >
+            Find Matches with AI
+            <ArrowRight size={15} />
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No valid JSON in response');
-    return JSON.parse(jsonMatch[0]);
+  const renderGuidedStep = () => (
+    <div className="smm-form-grid">
+      <section className="smm-panel">
+        <div className="smm-stepper" aria-label="Guided smart match steps">
+          {GUIDED_STEPS.map((step, index) => (
+            <div
+              key={step}
+              className={`smm-step ${
+                step === guidedStep ? 'is-active' : index < stepIndex ? 'is-complete' : ''
+              }`}
+            >
+              <span className="smm-step-index">{index + 1}</span>
+              <span className="smm-step-label">{step}</span>
+            </div>
+          ))}
+        </div>
+
+        {guidedStep === 'category' ? (
+          <>
+            <div className="smm-panel-header smm-panel-header--compact">
+              <div className="smm-pill">
+                <SearchCheck size={14} />
+                Guided Match
+              </div>
+              <h3>Choose the main category first.</h3>
+              <p>Select the lane that best matches the work you want to hire for.</p>
+            </div>
+
+            <div className="smm-category-grid">
+              {CATEGORY_META.filter((item) => CREATOR_MAIN_CATEGORIES.includes(item.label)).map((item) => {
+                const Icon = item.icon;
+                const isActive = formData.category === item.label;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`smm-category-card ${isActive ? 'is-active' : ''}`}
+                    style={{ '--smm-accent': item.accent }}
+                    onClick={() => handleCategorySelect(item.label)}
+                  >
+                    <span className="smm-category-icon">
+                      <Icon size={22} />
+                    </span>
+                    <strong>{item.label}</strong>
+                    <span>{item.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {guidedStep === 'skills' ? (
+          <>
+            <div className="smm-panel-header smm-panel-header--compact">
+              <h3>Select the skills you need.</h3>
+              <p>Choose every skill that matters for this project so matching is more precise.</p>
+            </div>
+
+            <div className="smm-skill-grid">
+              {availableSkills.map((skill) => (
+                <button
+                  key={skill}
+                  type="button"
+                  className={`smm-skill-chip ${
+                    formData.selectedSkills.includes(skill) ? 'is-active' : ''
+                  }`}
+                  onClick={() => handleSkillToggle(skill)}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {guidedStep === 'details' ? (
+          <>
+            <div className="smm-panel-header smm-panel-header--compact">
+              <h3>Add extra project details.</h3>
+              <p>
+                This step is optional, but a short brief helps the results feel less generic.
+              </p>
+            </div>
+
+            <label className="smm-field-label" htmlFor="guided-match-description">
+              Extra details
+            </label>
+            <textarea
+              id="guided-match-description"
+              className="smm-textarea smm-textarea--short"
+              value={formData.description}
+              onChange={(event) => updateFormField('description', event.target.value)}
+              placeholder="Optional: mention style, audience, deliverables, or any non-negotiable requirements."
+            />
+          </>
+        ) : null}
+
+        {guidedStep === 'budget' ? (
+          <>
+            <div className="smm-panel-header smm-panel-header--compact">
+              <h3>Set your budget and delivery target.</h3>
+              <p>This helps prioritize creators whose offers are aligned with your project scope.</p>
+            </div>
+
+            <div className="smm-budget-card">
+              <div className="smm-budget-top">
+                <span className="smm-field-label">Budget target</span>
+                <strong>{formatBudgetValue(formData.budget)}</strong>
+              </div>
+              <input
+                className="smm-range"
+                type="range"
+                min="500"
+                max="50000"
+                step="500"
+                value={formData.budget}
+                onChange={(event) => updateFormField('budget', Number(event.target.value))}
+              />
+              <div className="smm-range-labels">
+                <span>{formatBudgetValue(500)}</span>
+                <span>{formatBudgetValue(50000)}</span>
+              </div>
+            </div>
+
+            <div className="smm-deadline-grid">
+              {DEADLINE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={`smm-deadline-chip ${
+                    formData.deadline === option ? 'is-active' : ''
+                  }`}
+                  onClick={() => updateFormField('deadline', option)}
+                >
+                  <Clock3 size={14} />
+                  {option}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {warning ? <div className="smm-callout smm-callout--warning">{warning}</div> : null}
+        {error ? <div className="smm-callout smm-callout--error">{error}</div> : null}
+
+        <div className="smm-footer-actions">
+          <button type="button" className="smm-btn smm-btn--ghost" onClick={onClose}>
+            Cancel
+          </button>
+          {guidedStep !== 'category' ? (
+            <button type="button" className="smm-btn smm-btn--secondary" onClick={handleGuidedBack}>
+              <ArrowLeft size={15} />
+              Back
+            </button>
+          ) : null}
+          <button type="button" className="smm-btn smm-btn--primary" onClick={handleGuidedNext}>
+            {guidedStep === 'budget' ? 'Find Matches' : 'Next'}
+            <ArrowRight size={15} />
+          </button>
+        </div>
+      </section>
+
+      <aside className="smm-panel smm-panel--summary">
+        <div className="smm-panel-header smm-panel-header--compact">
+          <h3>Current brief</h3>
+          <p>Guided mode stays transparent so you can see exactly what will be matched.</p>
+        </div>
+
+        <div className="smm-summary-list">
+          <div className="smm-summary-row">
+            <span>Category</span>
+            <strong>{formData.category || 'Not selected yet'}</strong>
+          </div>
+          <div className="smm-summary-row">
+            <span>Skills</span>
+            <strong>
+              {formData.selectedSkills.length > 0
+                ? `${formData.selectedSkills.length} selected`
+                : 'No skills selected yet'}
+            </strong>
+          </div>
+          <div className="smm-summary-row">
+            <span>Budget</span>
+            <strong>{formatBudgetValue(formData.budget)}</strong>
+          </div>
+          <div className="smm-summary-row">
+            <span>Deadline</span>
+            <strong>{formData.deadline}</strong>
+          </div>
+        </div>
+
+        {formData.selectedSkills.length > 0 ? (
+          <div className="smm-summary-skills">
+            {formData.selectedSkills.map((skill) => (
+              <span key={skill}>{skill}</span>
+            ))}
+          </div>
+        ) : null}
+
+        {formData.description.trim() ? (
+          <div className="smm-callout smm-callout--info">{formData.description.trim()}</div>
+        ) : (
+          <div className="smm-callout smm-callout--info">
+            Add optional project notes if you want the match reasoning to be less generic.
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+
+  const renderProcessing = () => (
+    <div className="smm-processing">
+        <div className="smm-processing-core">
+          <div className="smm-spinner">
+            <GeminiIcon size={32} />
+          </div>
+        <strong>{progressValue}%</strong>
+        <p>{processingLabels[progressIndex]}</p>
+      </div>
+
+      <div className="smm-progress">
+        <div className="smm-progress-bar" style={{ width: `${progressValue}%` }} />
+      </div>
+
+      <div className="smm-processing-steps">
+        {processingLabels.map((label, index) => (
+          <div
+            key={label}
+            className={`smm-processing-step ${index <= progressIndex ? 'is-active' : ''}`}
+          >
+            <span className="smm-processing-dot" />
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderResults = () => {
+    const summaryCategory = analysis?.category || formData.category || 'AI-detected category';
+    const summarySkills = analysis?.skills?.length ? analysis.skills : formData.selectedSkills;
+    const summaryBudget = analysis?.budget || formatBudgetValue(formData.budget);
+    const summaryTimeline = analysis?.timeline || formData.deadline;
+
+    return (
+      <div className="smm-results">
+        <div className="smm-results-head">
+          <div>
+            <div className="smm-pill">
+              <Sparkles size={14} />
+              {mode === 'ai' ? 'AI-ranked shortlist' : 'Guided shortlist'}
+            </div>
+            <h3>{results.length} creator{results.length === 1 ? '' : 's'} ready to review</h3>
+            <p>
+              {mode === 'ai'
+                ? 'The results were ranked from your brief, then refined by the backend matcher.'
+                : 'The results were ranked from the category, skills, budget, and deadline you selected.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="smm-btn smm-btn--ghost"
+            onClick={() => {
+              setView('form');
+              setError('');
+              setWarning('');
+            }}
+          >
+            Adjust Search
+          </button>
+        </div>
+
+        <div className="smm-summary-chips">
+          <span>{summaryCategory}</span>
+          {summarySkills?.slice(0, 4).map((skill) => (
+            <span key={skill}>{skill}</span>
+          ))}
+          <span>{formatBudgetValue(summaryBudget)}</span>
+          <span>{summaryTimeline}</span>
+        </div>
+
+        {results.length === 0 ? (
+          <div className="smm-empty">
+            <AlertTriangle size={28} />
+            <strong>No strong matches yet</strong>
+            <p>Try broadening the category, adding a few more details, or lowering constraints.</p>
+          </div>
+        ) : (
+          <div className="smm-results-grid">
+            {results.map((result) => {
+              const score = getMatchScore(result);
+              const creatorId = getResultId(result);
+              const scoreTone = score >= 85 ? 'is-high' : score >= 65 ? 'is-mid' : 'is-low';
+
+              return (
+                <article
+                  key={`${creatorId || result.name}-${result.serviceId || result.serviceTitle || score}`}
+                  className="smm-result-card"
+                >
+                  <div className="smm-result-top">
+                    <div className="smm-result-person">
+                      <Avatar
+                        src={result.avatar}
+                        alt={result.name || 'Creator'}
+                        size={54}
+                        className="smm-result-avatar"
+                      />
+                      <div>
+                        <div className="smm-result-name-row">
+                          <strong>{result.name || 'Creator'}</strong>
+                          {result.verified ? (
+                            <span className="smm-verified">
+                              <BadgeCheck size={13} />
+                              Verified
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="smm-result-role">{getResultTitle(result)}</span>
+                      </div>
+                    </div>
+
+                    <div className={`smm-result-score ${scoreTone}`}>{score}%</div>
+                  </div>
+
+                  <div className="smm-result-facts">
+                    <span>
+                      <PhilippinePeso size={13} />
+                      {result.hourlyRate ? `${formatBudgetValue(result.hourlyRate)}/hr` : 'Custom pricing'}
+                    </span>
+                    <span>
+                      <Clock3 size={13} />
+                      {result.responseTime || 'Timeline to confirm'}
+                    </span>
+                    <span>
+                      <SearchCheck size={13} />
+                      {result.rating ? `${Number(result.rating).toFixed(1)} rating` : 'New listing'}
+                    </span>
+                  </div>
+
+                  <p className="smm-result-insight">{getResultSummary(result)}</p>
+
+                  {result.aiInsight ? (
+                    <div className="smm-result-ai">
+                      <div className="smm-result-ai-row">
+                        <span>Strength</span>
+                        <strong>{result.aiInsight.strength}</strong>
+                      </div>
+                      {result.aiInsight.concern ? (
+                        <div className="smm-result-ai-row">
+                          <span>Note</span>
+                          <strong>{result.aiInsight.concern}</strong>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {Array.isArray(result.skills) && result.skills.length > 0 ? (
+                    <div className="smm-result-skills">
+                      {result.skills.slice(0, 4).map((skill) => (
+                        <span key={`${creatorId || result.name}-${skill}`}>{skill}</span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="smm-result-actions">
+                    <button
+                      type="button"
+                      className="smm-btn smm-btn--secondary"
+                      onClick={() => openMessages(result)}
+                    >
+                      <MessageSquare size={15} />
+                      Message
+                    </button>
+                    <button
+                      type="button"
+                      className="smm-btn smm-btn--primary"
+                      onClick={() => openCreatorProfile(result)}
+                    >
+                      View Profile
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  // AI Ranking Function (matches RN app's sophisticated analysis)
-  const rankCreatorsWithAI = async (creators, projectDesc, analysis) => {
-    const creatorsInfo = creators.slice(0, 10).map((c, index) => ({
-      index,
-      name: c.name,
-      bio: c.bio || 'No bio provided',
-      skills: c.skills || [],
-      experience: c.experienceYears || '0',
-      pricing: c.hourlyRate ? `₱${c.hourlyRate}/hr` : 'Not specified',
-      turnaround: c.responseTime || 'Not specified',
-      portfolio: c.portfolioUrl || 'No portfolio'
-    }));
-    const prompt = `You are an elite AI matching system for a freelance marketplace. Conduct a comprehensive analysis of project requirements against creator profiles to find the perfect match.
+  return createPortal(
+    <div className="smm-overlay" role="dialog" aria-modal="true" aria-labelledby="smart-match-title">
+      <div className="smm-backdrop" onClick={onClose} />
+      <div className="smm-shell" onClick={(event) => event.stopPropagation()}>
+        <div className="smm-header">
+          <div className="smm-header-copy">
+            <div className="smm-badge">
+              <Sparkles size={15} />
+              Smart Match
+            </div>
+            <div>
+              <h2 id="smart-match-title">Find creators faster, with better signal.</h2>
+              <p>
+                Start with AI, or drop into Guided Match when you want tighter control over the
+                category and required skills.
+              </p>
+            </div>
+          </div>
 
-📋 PROJECT DETAILS:
-Category: ${analysis.category}
-Required Skills: ${analysis.skills.join(', ')}
-Budget: ${analysis.budget}
-Timeline: ${analysis.timeline}
-Description: ${projectDesc}
+          <button type="button" className="smm-close" onClick={onClose} aria-label="Close smart match">
+            <X size={18} />
+          </button>
+        </div>
 
-👥 AVAILABLE CREATORS:
-${creatorsInfo.map(c => `
-${c.name}
-• Bio: ${c.bio}
-• Skills: ${c.skills.join(', ')}
-• Experience: ${c.experience} years
-• Pricing: ${c.pricing}
-• Turnaround: ${c.turnaround}
-• Portfolio: ${c.portfolio}`).join('\n')}
+        <div className="smm-mode-row">
+          <button
+            type="button"
+            className={`smm-mode-btn ${mode === 'ai' ? 'is-active' : ''}`}
+            onClick={() => {
+              setMode('ai');
+              setView('form');
+              setError('');
+              setWarning('');
+            }}
+          >
+            <GeminiIcon size={16} />
+            AI Smart Match
+          </button>
+          <button
+            type="button"
+            className={`smm-mode-btn ${mode === 'guided' ? 'is-active' : ''}`}
+            onClick={() => {
+              setMode('guided');
+              setView('form');
+              setError('');
+              setWarning('');
+            }}
+          >
+            <SearchCheck size={16} />
+            Guided Match
+          </button>
+        </div>
 
-🎯 YOUR TASK:
-For each creator, provide:
-1. **Match Score (0-100)**: How well they fit this specific project
-2. **Personalized Reason**: Why they're a good/bad fit for THIS project
-3. **Strength**: Their #1 advantage for this project
-4. **Concern**: Main risk or limitation (if score < 80)
-
-📊 EVALUATION CRITERIA (STRICT):
-✓ **Skills must DIRECTLY match** - Generic skills like "Support & IT" don't match "Web Development" projects
-✓ **Experience must be RELEVANT** - A voice actress can't do web development, even if they claim 69 years experience
-✓ **Category alignment is MANDATORY** - Creative designers cannot do IT projects, and vice versa
-✓ Portfolio relevance to project category
-✓ Budget compatibility (reject if creator pricing is 10x+ over budget)
-✓ Timeline feasibility given turnaround time
-✓ Bio demonstrates understanding of similar work
-
-💡 BE INTELLIGENT AND STRICT:
-- Give 0-40 scores if skills are completely misaligned with project category
-- Don't stretch interpretations ("platform testing" ≠ "platform development")
-- A designer with illustration skills cannot do software development
-- Reject joke profiles, test accounts, or obviously fake experience
-- Only score 60+ if there's CLEAR skill and category alignment
-- Consider if a 5-year expert is overkill for a simple project
-- Flag if pricing is suspiciously low/high for stated experience
-
-Respond ONLY with valid JSON:
-[
-  {
-    "index": 0,
-    "score": 95,
-    "reason": "Perfect match: 5y experience in mobile apps, portfolio shows 12 similar projects, pricing aligns with your budget",
-    "strength": "Proven track record with 4.8★ rating and specialization in your exact category",
-    "concern": ""
-  }
-]
-
-IMPORTANT: Return ONLY the JSON array, no markdown, no other text.`;
-    const response = await fetch(getGeminiApiUrl(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    });
-    if (!response.ok) {
-      console.error('Gemini API failed:', response.status, response.statusText);
-      throw new Error('Gemini ranking failed');
-    }
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    console.log('🤖 Gemini AI Response:', text.substring(0, 500)); // Debug log
-
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.error('No JSON in AI response:', text);
-      throw new Error('No valid JSON array in response');
-    }
-    const rankings = JSON.parse(jsonMatch[0]);
-    console.log('✅ AI Rankings parsed:', rankings.length, 'creators');
-    rankings.slice(0, 3).forEach(r => {
-      console.log(`  Creator ${r.index}: Score ${r.score} - ${r.reason.substring(0, 60)}...`);
-    });
-
-    // Map rankings to MatchResult and validate scores
-    const results = rankings.map(rank => {
-      const creator = creators[rank.index];
-      if (!creator) {
-        console.warn('Creator not found at index:', rank.index);
-        return null;
-      }
-
-      // Validate AI score is reasonable
-      if (rank.score > 100 || rank.score < 0) {
-        console.warn(`Invalid score ${rank.score} for creator ${creator.name}, capping to valid range`);
-        rank.score = Math.max(0, Math.min(100, rank.score));
-      }
-      return {
-        ...creator,
-        matchScore: rank.score,
-        matchReasons: [rank.strength, `AI Match: ${rank.score}%`],
-        aiInsight: {
-          score: rank.score,
-          reason: rank.reason,
-          strength: rank.strength,
-          concern: rank.concern
-        }
-      };
-    }).filter(Boolean);
-
-    // Sort by score descending
-    return results.sort((a, b) => b.matchScore - a.matchScore);
-  };
-
-  // Fallback ranking (when AI not available) - matches RN app logic
-  const fallbackRanking = (creators, formData) => {
-    console.log('📊 Fallback ranking with skills:', formData.selectedSkills);
-    return creators.map(creator => {
-      // Count unique matches by checking if each SELECTED skill exists in creator's skills
-      // This prevents duplicate skills in creator profile from inflating the score
-      const creatorSkills = new Set(creator.skills || []);
-      const matchCount = formData.selectedSkills.filter(s => creatorSkills.has(s)).length;
-      const matchPercentage = Math.round(matchCount / formData.selectedSkills.length * 100);
-      return {
-        ...creator,
-        matchScore: matchPercentage,
-        matchReasons: [`${matchCount}/${formData.selectedSkills.length} skills match`]
-      };
-    }).filter(c => c.matchScore > 0) // Only show creators with at least 1 matching skill
-    .sort((a, b) => b.matchScore - a.matchScore);
-  };
-  if (!isOpen) return null;
-  return /*#__PURE__*/createPortal(/*#__PURE__*/_jsxs("div", {
-    className: "fixed inset-0 z-[100] flex items-center justify-center p-4",
-    children: [/*#__PURE__*/_jsx("div", {
-      className: "absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity",
-      onClick: onClose
-    }), /*#__PURE__*/_jsxs("div", {
-      className: "relative w-full max-w-5xl bg-gradient-to-br from-zinc-900/95 to-black/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[90vh] backdrop-blur-xl",
-      children: [/*#__PURE__*/_jsxs("div", {
-        className: "p-6 border-b border-white/10 bg-black/30 flex flex-col gap-6",
-        children: [/*#__PURE__*/_jsxs("div", {
-          className: "flex items-center justify-between",
-          children: [/*#__PURE__*/_jsxs("div", {
-            className: "flex items-center gap-3",
-            children: [/*#__PURE__*/_jsx("div", {
-              className: "w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/30",
-              children: /*#__PURE__*/_jsx(Sparkles, {
-                className: "text-white w-5 h-5"
-              })
-            }), /*#__PURE__*/_jsxs("div", {
-              children: [/*#__PURE__*/_jsx("h2", {
-                className: "text-xl font-semibold text-white",
-                children: "Smart Match AI"
-              }), /*#__PURE__*/_jsx("p", {
-                className: "text-xs text-zinc-400",
-                children: "Intelligent talent matching powered by Gemini"
-              })]
-            })]
-          }), /*#__PURE__*/_jsx("button", {
-            onClick: onClose,
-            className: "p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors",
-            children: /*#__PURE__*/_jsx(X, {
-              size: 20
-            })
-          })]
-        }), step === 'form' && /*#__PURE__*/_jsxs("div", {
-          className: "bg-white/5 p-1 rounded-xl flex border border-white/10 relative",
-          children: [/*#__PURE__*/_jsx("div", {
-            className: `absolute top-1 bottom-1 rounded-lg bg-white/10 border border-white/10 shadow-sm transition-all duration-300 ease-out ${mode === 'ai' ? 'left-1 w-[calc(50%-4px)]' : 'left-[calc(50%+4px)] w-[calc(50%-8px)]'}`
-          }), /*#__PURE__*/_jsxs("button", {
-            onClick: () => setMode('ai'),
-            className: `flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 relative z-10 ${mode === 'ai' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`,
-            children: [/*#__PURE__*/_jsx(BrainCircuit, {
-              size: 16,
-              className: mode === 'ai' ? 'text-purple-400' : ''
-            }), "AI Smart Mode"]
-          }), /*#__PURE__*/_jsxs("button", {
-            onClick: () => setMode('guided'),
-            className: `flex-1 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 relative z-10 ${mode === 'guided' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`,
-            children: [/*#__PURE__*/_jsx(Grid3x3, {
-              size: 16,
-              className: mode === 'guided' ? 'text-blue-400' : ''
-            }), "Guided Mode"]
-          })]
-        }), error && /*#__PURE__*/_jsxs("div", {
-          className: "p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm animate-in slide-in-from-top-2",
-          children: [/*#__PURE__*/_jsx(AlertCircle, {
-            size: 16
-          }), error]
-        })]
-      }), /*#__PURE__*/_jsxs("div", {
-        className: "flex-1 overflow-y-auto p-6 md:p-8",
-        children: [step === 'form' && /*#__PURE__*/_jsxs("div", {
-          className: "space-y-6 animate-in slide-in-from-right-4 duration-300",
-          children: [mode === 'ai' && /*#__PURE__*/_jsxs("div", {
-            className: "space-y-6",
-            children: [/*#__PURE__*/_jsxs("div", {
-              className: "bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-6",
-              children: [/*#__PURE__*/_jsxs("div", {
-                className: "flex items-start gap-3 mb-4",
-                children: [/*#__PURE__*/_jsx("div", {
-                  className: "p-2 bg-purple-500/20 rounded-lg",
-                  children: /*#__PURE__*/_jsx(BrainCircuit, {
-                    className: "text-purple-300 w-5 h-5"
-                  })
-                }), /*#__PURE__*/_jsxs("div", {
-                  className: "flex-1",
-                  children: [/*#__PURE__*/_jsx("h3", {
-                    className: "text-white font-medium mb-1",
-                    children: "AI-Powered Project Analysis"
-                  }), /*#__PURE__*/_jsx("p", {
-                    className: "text-sm text-zinc-400",
-                    children: "Describe your project in natural language. Our AI will analyze your needs and find the perfect creators."
-                  })]
-                })]
-              }), /*#__PURE__*/_jsx("textarea", {
-                value: formData.description,
-                onChange: e => setFormData({
-                  ...formData,
-                  description: e.target.value
-                }),
-                placeholder: "Example: I need a modern logo design for my tech startup. Looking for someone experienced with minimalist design, bold typography, and tech aesthetics. Budget is around $500-1000, need it done in 2 weeks...",
-                rows: 6,
-                className: "w-full bg-black/30 border border-white/20 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 resize-none backdrop-blur-sm"
-              }), /*#__PURE__*/_jsxs("div", {
-                className: "mt-4 flex items-center gap-2 text-xs text-zinc-500",
-                children: [/*#__PURE__*/_jsx(Sparkles, {
-                  size: 12,
-                  className: "text-purple-400"
-                }), /*#__PURE__*/_jsx("span", {
-                  children: "AI will extract: category, skills, budget range, timeline"
-                })]
-              })]
-            }), /*#__PURE__*/_jsxs(Button, {
-              variant: "primary",
-              onClick: startMatching,
-              className: "w-full bg-gradient-to-r from-purple-600 to-blue-600 border-none py-4 text-lg",
-              children: [/*#__PURE__*/_jsx(Sparkles, {
-                size: 20,
-                className: "mr-2"
-              }), "Analyze & Find Matches"]
-            }), !isGeminiConfigured() && /*#__PURE__*/_jsxs("div", {
-              className: "p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-3 text-amber-300 text-sm",
-              children: [/*#__PURE__*/_jsx(AlertCircle, {
-                size: 16,
-                className: "mt-0.5 shrink-0"
-              }), /*#__PURE__*/_jsxs("div", {
-                children: [/*#__PURE__*/_jsx("p", {
-                  className: "font-medium mb-1",
-                  children: "Gemini API not configured"
-                }), /*#__PURE__*/_jsx("p", {
-                  className: "text-xs text-amber-400/70",
-                  children: "AI mode will use smart fallback ranking. Add your Gemini API key in config/gemini.ts for full AI capabilities."
-                })]
-              })]
-            })]
-          }), mode === 'guided' && /*#__PURE__*/_jsxs("div", {
-            className: "space-y-6",
-            children: [/*#__PURE__*/_jsx("div", {
-              className: "flex items-center justify-between mb-6 px-2",
-              children: ['Category', 'Skills', 'Details', 'Budget'].map((s, i) => {
-                const stepIndex = ['category', 'skills', 'details', 'budget'].indexOf(guidedStep);
-                const isActive = i <= stepIndex;
-                return /*#__PURE__*/_jsxs("div", {
-                  className: "flex flex-col items-center gap-2",
-                  children: [/*#__PURE__*/_jsx("div", {
-                    className: `w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${isActive ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-zinc-500 border border-white/10'}`,
-                    children: i + 1
-                  }), /*#__PURE__*/_jsx("span", {
-                    className: `text-[10px] font-medium ${isActive ? 'text-white' : 'text-zinc-600'}`,
-                    children: s
-                  })]
-                }, s);
-              })
-            }), guidedStep === 'category' && /*#__PURE__*/_jsxs("div", {
-              className: "space-y-4 animate-in slide-in-from-right-4 duration-300",
-              children: [/*#__PURE__*/_jsxs("label", {
-                className: "text-sm font-medium text-zinc-300 flex items-center gap-2",
-                children: [/*#__PURE__*/_jsx(Target, {
-                  size: 14,
-                  className: "text-purple-400"
-                }), "Select Project Category"]
-              }), /*#__PURE__*/_jsx("div", {
-                className: "grid grid-cols-2 gap-3",
-                children: CATEGORIES.map(c => /*#__PURE__*/_jsxs("button", {
-                  onClick: () => setFormData({
-                    ...formData,
-                    category: c
-                  }),
-                  className: `p-4 rounded-xl border text-left transition-all group relative overflow-hidden ${formData.category === c ? 'bg-gradient-to-br from-purple-600/20 to-blue-600/20 border-purple-500/50 text-white shadow-lg shadow-purple-500/10' : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white hover:border-white/20'}`,
-                  children: [/*#__PURE__*/_jsx("div", {
-                    className: `absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10 opacity-0 transition-opacity ${formData.category === c ? 'opacity-100' : 'group-hover:opacity-100'}`
-                  }), /*#__PURE__*/_jsx("span", {
-                    className: "font-medium text-sm relative z-10",
-                    children: c
-                  }), formData.category === c && /*#__PURE__*/_jsx("div", {
-                    className: "absolute top-3 right-3 text-purple-400 animate-in zoom-in duration-300",
-                    children: /*#__PURE__*/_jsx(Check, {
-                      size: 16
-                    })
-                  })]
-                }, c))
-              })]
-            }), guidedStep === 'skills' && /*#__PURE__*/_jsxs("div", {
-              className: "space-y-4 animate-in slide-in-from-right-4 duration-300",
-              children: [/*#__PURE__*/_jsxs("label", {
-                className: "text-sm font-medium text-zinc-300 flex items-center gap-2",
-                children: [/*#__PURE__*/_jsx(Zap, {
-                  size: 14,
-                  className: "text-blue-400"
-                }), "Select Required Skills", /*#__PURE__*/_jsxs("span", {
-                  className: "text-zinc-500 text-xs font-normal ml-auto",
-                  children: [formData.selectedSkills.length, " selected"]
-                })]
-              }), /*#__PURE__*/_jsx("div", {
-                className: "bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-1",
-                children: /*#__PURE__*/_jsx("div", {
-                  className: "flex flex-wrap gap-2 p-4 max-h-[300px] overflow-y-auto custom-scrollbar",
-                  children: availableSkills.map(skill => {
-                    const isSelected = formData.selectedSkills.includes(skill);
-                    return /*#__PURE__*/_jsxs("button", {
-                      onClick: () => handleSkillToggle(skill),
-                      className: `px-3 py-1.5 rounded-lg text-xs font-medium transition-all border flex items-center gap-1.5 ${isSelected ? 'bg-white text-black border-white shadow-lg shadow-white/10 scale-105' : 'bg-white/5 text-zinc-400 border-white/5 hover:bg-white/10 hover:border-white/20 hover:text-white'}`,
-                      children: [isSelected && /*#__PURE__*/_jsx(Check, {
-                        size: 10
-                      }), skill]
-                    }, skill);
-                  })
-                })
-              })]
-            }), guidedStep === 'details' && /*#__PURE__*/_jsxs("div", {
-              className: "space-y-4 animate-in slide-in-from-right-4 duration-300",
-              children: [/*#__PURE__*/_jsxs("label", {
-                className: "text-sm font-medium text-zinc-300 flex items-center gap-2",
-                children: [/*#__PURE__*/_jsx(BrainCircuit, {
-                  size: 14,
-                  className: "text-purple-400"
-                }), "Project Description"]
-              }), /*#__PURE__*/_jsxs("div", {
-                className: "relative",
-                children: [/*#__PURE__*/_jsx("textarea", {
-                  value: formData.description,
-                  onChange: e => setFormData({
-                    ...formData,
-                    description: e.target.value
-                  }),
-                  placeholder: "Describe your project goals, style preferences, and specific requirements...",
-                  rows: 8,
-                  className: "w-full bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 resize-none transition-all"
-                }), /*#__PURE__*/_jsxs("div", {
-                  className: "absolute bottom-3 right-3 text-xs text-zinc-500",
-                  children: [formData.description.length, " chars"]
-                })]
-              })]
-            }), guidedStep === 'budget' && /*#__PURE__*/_jsxs("div", {
-              className: "space-y-8 animate-in slide-in-from-right-4 duration-300",
-              children: [/*#__PURE__*/_jsxs("div", {
-                className: "space-y-4 bg-white/5 p-6 rounded-2xl border border-white/10",
-                children: [/*#__PURE__*/_jsxs("label", {
-                  className: "text-sm font-medium text-zinc-300 flex justify-between items-center",
-                  children: [/*#__PURE__*/_jsxs("span", {
-                    className: "flex items-center gap-2",
-                    children: [/*#__PURE__*/_jsx(PhilippinePeso, {
-                      size: 16,
-                      className: "text-emerald-400"
-                    }), " Max Budget"]
-                  }), /*#__PURE__*/_jsxs("span", {
-                    className: "text-2xl font-bold text-white",
-                    children: ["\u20B1", formData.budget.toLocaleString()]
-                  })]
-                }), /*#__PURE__*/_jsx("input", {
-                  type: "range",
-                  min: "500",
-                  max: "50000",
-                  step: "500",
-                  value: formData.budget,
-                  onChange: e => setFormData({
-                    ...formData,
-                    budget: parseInt(e.target.value)
-                  }),
-                  className: "w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400 transition-all"
-                }), /*#__PURE__*/_jsxs("div", {
-                  className: "flex justify-between text-[10px] text-zinc-500 font-mono uppercase tracking-wider",
-                  children: [/*#__PURE__*/_jsx("span", {
-                    children: "\u20B1500"
-                  }), /*#__PURE__*/_jsx("span", {
-                    children: "\u20B150,000+"
-                  })]
-                })]
-              }), /*#__PURE__*/_jsxs("div", {
-                className: "space-y-4",
-                children: [/*#__PURE__*/_jsxs("label", {
-                  className: "text-sm font-medium text-zinc-300 flex items-center gap-2",
-                  children: [/*#__PURE__*/_jsx(Clock, {
-                    size: 16,
-                    className: "text-blue-400"
-                  }), "Deadline"]
-                }), /*#__PURE__*/_jsx("div", {
-                  className: "grid grid-cols-4 gap-3",
-                  children: ['3 days', '7 days', '14 days', '1 month'].map(time => /*#__PURE__*/_jsxs("button", {
-                    onClick: () => setFormData({
-                      ...formData,
-                      deadline: time
-                    }),
-                    className: `py-3 px-2 text-xs rounded-xl border transition-all font-medium flex flex-col items-center gap-1 ${formData.deadline === time ? 'bg-white text-black border-white shadow-lg scale-105' : 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10 hover:border-white/20 hover:text-white'}`,
-                    children: [/*#__PURE__*/_jsx("span", {
-                      className: `w-2 h-2 rounded-full ${formData.deadline === time ? 'bg-blue-500' : 'bg-white/20'}`
-                    }), time]
-                  }, time))
-                })]
-              })]
-            }), /*#__PURE__*/_jsxs("div", {
-              className: "flex items-center gap-3 pt-6 mt-2 border-t border-white/5",
-              children: [guidedStep !== 'category' && /*#__PURE__*/_jsx(Button, {
-                variant: "secondary",
-                onClick: handleBackGuidedStep,
-                className: "px-6 hover:bg-white/10",
-                children: "Back"
-              }), /*#__PURE__*/_jsxs(Button, {
-                variant: "primary",
-                onClick: handleNextGuidedStep,
-                className: "flex-1 bg-gradient-to-r from-purple-600 to-blue-600 border-none hover:shadow-lg hover:shadow-purple-500/20 transition-all",
-                children: [guidedStep === 'budget' ? 'Find Best Matches' : 'Next Step', /*#__PURE__*/_jsx(ChevronRight, {
-                  size: 16,
-                  className: "ml-1"
-                })]
-              })]
-            })]
-          })]
-        }), step === 'processing' && /*#__PURE__*/_jsxs("div", {
-          className: "flex flex-col items-center justify-center py-16 animate-in fade-in duration-500",
-          children: [/*#__PURE__*/_jsxs("div", {
-            className: "relative w-32 h-32 mb-8",
-            children: [/*#__PURE__*/_jsx("div", {
-              className: "absolute inset-0 rounded-full border-t-2 border-purple-500 animate-spin"
-            }), /*#__PURE__*/_jsx("div", {
-              className: "absolute inset-2 rounded-full border-r-2 border-blue-500 animate-spin",
-              style: {
-                animationDirection: 'reverse',
-                animationDuration: '1.5s'
-              }
-            }), /*#__PURE__*/_jsx("div", {
-              className: "absolute inset-4 rounded-full border-t-2 border-purple-400 animate-spin",
-              style: {
-                animationDuration: '2s'
-              }
-            }), /*#__PURE__*/_jsx("div", {
-              className: "absolute inset-0 flex items-center justify-center",
-              children: /*#__PURE__*/_jsx("div", {
-                className: "w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 backdrop-blur-sm flex items-center justify-center border border-white/10",
-                children: /*#__PURE__*/_jsx(BrainCircuit, {
-                  size: 32,
-                  className: "text-white animate-pulse"
-                })
-              })
-            })]
-          }), /*#__PURE__*/_jsxs("h3", {
-            className: "text-3xl font-light text-white mb-2",
-            children: [progress, "%"]
-          }), /*#__PURE__*/_jsx("p", {
-            className: "text-zinc-400 text-sm font-mono mb-8 animate-pulse",
-            children: loadingText
-          }), /*#__PURE__*/_jsxs("div", {
-            className: "w-full max-w-md space-y-4",
-            children: [/*#__PURE__*/_jsx("div", {
-              className: "h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10",
-              children: /*#__PURE__*/_jsx("div", {
-                className: "h-full bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 transition-all duration-500 ease-out relative",
-                style: {
-                  width: `${progress}%`
-                },
-                children: /*#__PURE__*/_jsx("div", {
-                  className: "absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"
-                })
-              })
-            }), /*#__PURE__*/_jsxs("div", {
-              className: "grid grid-cols-4 gap-2 text-xs text-zinc-500",
-              children: [/*#__PURE__*/_jsxs("div", {
-                className: `text-center transition-colors ${progress >= 30 ? 'text-purple-400' : ''}`,
-                children: [/*#__PURE__*/_jsx("div", {
-                  className: `w-2 h-2 rounded-full mx-auto mb-1 ${progress >= 30 ? 'bg-purple-400' : 'bg-white/10'}`
-                }), "Scan"]
-              }), /*#__PURE__*/_jsxs("div", {
-                className: `text-center transition-colors ${progress >= 60 ? 'text-blue-400' : ''}`,
-                children: [/*#__PURE__*/_jsx("div", {
-                  className: `w-2 h-2 rounded-full mx-auto mb-1 ${progress >= 60 ? 'bg-blue-400' : 'bg-white/10'}`
-                }), "Analyze"]
-              }), /*#__PURE__*/_jsxs("div", {
-                className: `text-center transition-colors ${progress >= 85 ? 'text-purple-400' : ''}`,
-                children: [/*#__PURE__*/_jsx("div", {
-                  className: `w-2 h-2 rounded-full mx-auto mb-1 ${progress >= 85 ? 'bg-purple-400' : 'bg-white/10'}`
-                }), "Rank"]
-              }), /*#__PURE__*/_jsxs("div", {
-                className: `text-center transition-colors ${progress >= 100 ? 'text-emerald-400' : ''}`,
-                children: [/*#__PURE__*/_jsx("div", {
-                  className: `w-2 h-2 rounded-full mx-auto mb-1 ${progress >= 100 ? 'bg-emerald-400' : 'bg-white/10'}`
-                }), "Done"]
-              })]
-            })]
-          })]
-        }), step === 'results' && /*#__PURE__*/_jsxs("div", {
-          className: "space-y-6 animate-in slide-in-from-bottom-8 duration-500",
-          children: [/*#__PURE__*/_jsxs("div", {
-            className: "flex items-center justify-between",
-            children: [/*#__PURE__*/_jsxs("div", {
-              children: [/*#__PURE__*/_jsxs("h3", {
-                className: "text-2xl font-semibold text-white flex items-center gap-2",
-                children: [/*#__PURE__*/_jsx(TrendingUp, {
-                  size: 24,
-                  className: "text-emerald-400"
-                }), "Top ", matchedCreators.length, " Matches Found"]
-              }), /*#__PURE__*/_jsx("p", {
-                className: "text-sm text-zinc-400 mt-1",
-                children: mode === 'ai' ? 'AI-ranked creators based on your project description' : 'Best matches for your requirements'
-              })]
-            }), /*#__PURE__*/_jsx(Button, {
-              variant: "secondary",
-              size: "sm",
-              onClick: () => {
-                setStep('form');
-                setError('');
-              },
-              children: "Modify Search"
-            })]
-          }), matchedCreators.length === 0 ? /*#__PURE__*/_jsxs("div", {
-            className: "py-16 text-center",
-            children: [/*#__PURE__*/_jsx("div", {
-              className: "w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4",
-              children: /*#__PURE__*/_jsx(AlertCircle, {
-                size: 32,
-                className: "text-zinc-500"
-              })
-            }), /*#__PURE__*/_jsx("p", {
-              className: "text-zinc-400",
-              children: "No matches found. Try adjusting your criteria."
-            }), /*#__PURE__*/_jsx(Button, {
-              variant: "secondary",
-              size: "sm",
-              onClick: () => setStep('form'),
-              className: "mt-4",
-              children: "Try Again"
-            })]
-          }) : /*#__PURE__*/_jsx("div", {
-            className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6",
-            children: matchedCreators.map(creator => /*#__PURE__*/_jsxs(GlassCard, {
-              hoverEffect: true,
-              className: "flex flex-col relative group overflow-visible",
-              children: [/*#__PURE__*/_jsx("div", {
-                className: "absolute -top-3 -right-3 z-10",
-                children: /*#__PURE__*/_jsx("div", {
-                  className: `w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm shadow-lg border-2 border-black ${creator.matchScore >= 90 ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-black shadow-emerald-500/40' : creator.matchScore >= 80 ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-blue-500/40' : 'bg-gradient-to-br from-purple-400 to-purple-600 text-white shadow-purple-500/40'}`,
-                  children: creator.matchScore
-                })
-              }), /*#__PURE__*/_jsxs("div", {
-                className: "flex items-center gap-3 mb-4",
-                children: [/*#__PURE__*/_jsxs("div", {
-                  className: "relative",
-                  children: [/*#__PURE__*/_jsx(Avatar, {
-                    src: creator.avatar,
-                    alt: creator.name,
-                    size: 64,
-                    className: "w-16 h-16 rounded-full border-2 border-white/20 object-cover"
-                  }), creator.verified && /*#__PURE__*/_jsx("div", {
-                    className: "absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full p-1 border-2 border-black",
-                    children: /*#__PURE__*/_jsx(BadgeCheck, {
-                      size: 12,
-                      fill: "currentColor"
-                    })
-                  })]
-                }), /*#__PURE__*/_jsxs("div", {
-                  className: "flex-1 min-w-0",
-                  children: [/*#__PURE__*/_jsx("h4", {
-                    className: "text-white font-semibold truncate",
-                    children: creator.name
-                  }), /*#__PURE__*/_jsx("p", {
-                    className: "text-xs text-zinc-400 line-clamp-1",
-                    children: creator.jobTitle
-                  }), /*#__PURE__*/_jsxs("div", {
-                    className: "flex items-center gap-2 mt-1",
-                    children: [/*#__PURE__*/_jsxs("div", {
-                      className: "flex items-center gap-1 text-amber-400 text-xs",
-                      children: [/*#__PURE__*/_jsx(Star, {
-                        size: 10,
-                        fill: "currentColor"
-                      }), " ", creator.rating != null ? typeof creator.rating === 'number' ? creator.rating.toFixed(1) : creator.rating : 'New']
-                    }), /*#__PURE__*/_jsx("span", {
-                      className: "text-xs text-zinc-600",
-                      children: "\u2022"
-                    }), /*#__PURE__*/_jsx("span", {
-                      className: "text-xs text-zinc-500",
-                      children: creator.location
-                    })]
-                  })]
-                })]
-              }), creator.aiInsight && /*#__PURE__*/_jsxs("div", {
-                className: "mb-4 space-y-2",
-                children: [/*#__PURE__*/_jsx("div", {
-                  className: "bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-3 space-y-2",
-                  children: /*#__PURE__*/_jsxs("div", {
-                    className: "flex items-start gap-2",
-                    children: [/*#__PURE__*/_jsx(Sparkles, {
-                      size: 12,
-                      className: "text-purple-400 mt-0.5 shrink-0"
-                    }), /*#__PURE__*/_jsx("p", {
-                      className: "text-xs text-white/90 leading-relaxed",
-                      children: creator.aiInsight.reason
-                    })]
-                  })
-                }), /*#__PURE__*/_jsxs("div", {
-                  className: "grid grid-cols-2 gap-2",
-                  children: [/*#__PURE__*/_jsxs("div", {
-                    className: "bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2",
-                    children: [/*#__PURE__*/_jsx("p", {
-                      className: "text-[9px] text-emerald-400 uppercase font-semibold mb-0.5",
-                      children: "Strength"
-                    }), /*#__PURE__*/_jsx("p", {
-                      className: "text-[10px] text-white/80 leading-tight",
-                      children: creator.aiInsight.strength
-                    })]
-                  }), /*#__PURE__*/_jsxs("div", {
-                    className: "bg-amber-500/10 border border-amber-500/20 rounded-lg p-2",
-                    children: [/*#__PURE__*/_jsx("p", {
-                      className: "text-[9px] text-amber-400 uppercase font-semibold mb-0.5",
-                      children: "Note"
-                    }), /*#__PURE__*/_jsx("p", {
-                      className: "text-[10px] text-white/80 leading-tight",
-                      children: creator.aiInsight.concern
-                    })]
-                  })]
-                })]
-              }), !creator.aiInsight && creator.skills && creator.skills.length > 0 && /*#__PURE__*/_jsx("div", {
-                className: "mb-4 flex flex-wrap gap-1.5",
-                children: creator.skills.slice(0, 4).map((skill, idx) => /*#__PURE__*/_jsx("span", {
-                  className: "text-[10px] px-2 py-1 rounded-full bg-white/5 text-zinc-400 border border-white/10",
-                  children: skill
-                }, idx))
-              }), !creator.aiInsight && creator.matchReasons && /*#__PURE__*/_jsxs("div", {
-                className: "mb-4 bg-white/[0.03] p-3 rounded-lg border border-white/[0.05]",
-                children: [/*#__PURE__*/_jsx("p", {
-                  className: "text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-2",
-                  children: "Why this match?"
-                }), /*#__PURE__*/_jsx("div", {
-                  className: "flex flex-wrap gap-1.5",
-                  children: creator.matchReasons.map((reason, idx) => /*#__PURE__*/_jsxs("span", {
-                    className: "text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1",
-                    children: [/*#__PURE__*/_jsx(Check, {
-                      size: 8
-                    }), " ", reason]
-                  }, idx))
-                })]
-              }), /*#__PURE__*/_jsxs("div", {
-                className: "mt-auto space-y-3",
-                children: [/*#__PURE__*/_jsxs("div", {
-                  className: "flex justify-between items-center text-xs",
-                  children: [/*#__PURE__*/_jsxs("div", {
-                    className: "flex items-center gap-1 text-zinc-400",
-                    children: [/*#__PURE__*/_jsx(PhilippinePeso, {
-                      size: 12
-                    }), /*#__PURE__*/_jsxs("span", {
-                      className: "text-white font-medium",
-                      children: [creator.hourlyRate, "/hr"]
-                    })]
-                  }), /*#__PURE__*/_jsxs("div", {
-                    className: "flex items-center gap-1 text-zinc-500",
-                    children: [/*#__PURE__*/_jsx(Clock, {
-                      size: 12
-                    }), /*#__PURE__*/_jsx("span", {
-                      children: "Fast reply"
-                    })]
-                  })]
-                }), /*#__PURE__*/_jsxs("div", {
-                  className: "flex gap-2",
-                  children: [/*#__PURE__*/_jsx(Button, {
-                    className: "flex-1 bg-white text-black hover:bg-zinc-200 border-none",
-                    size: "sm",
-                    onClick: () => {
-                      if (onNavigateToMessages) {
-                        const budgetDisplay = aiAnalysis ? aiAnalysis.budget : `₱${formData.budget}`;
-                        const deadlineDisplay = aiAnalysis ? aiAnalysis.timeline : formData.deadline;
-                        const message = formData.description ? `Hi ${creator.name}, I'd like to discuss a project.\n\n${formData.description}\n\nBudget: ${budgetDisplay}\nDeadline: ${deadlineDisplay}` : `Hi ${creator.name}, I found you via Smart Match. I have a ${formData.category} project I'd like to discuss.\n\nBudget: ${budgetDisplay}\nDeadline: ${deadlineDisplay}`;
-                        onNavigateToMessages(creator.id, message, true // fromSmartMatch
-                        );
-                      }
-                      onClose();
-                    },
-                    children: "Message"
-                  }), /*#__PURE__*/_jsx(Button, {
-                    variant: "secondary",
-                    className: "flex-1",
-                    size: "sm",
-                    children: "Profile"
-                  })]
-                })]
-              })]
-            }, creator.id))
-          })]
-        })]
-      }), step === 'results' && /*#__PURE__*/_jsx("div", {
-        className: "p-6 border-t border-white/10 bg-black/30 flex justify-end",
-        children: /*#__PURE__*/_jsx(Button, {
-          onClick: onClose,
-          className: "bg-white text-black hover:bg-zinc-200",
-          children: "Close"
-        })
-      })]
-    }), showInvalidModal && /*#__PURE__*/_jsx("div", {
-      className: "absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-50",
-      children: /*#__PURE__*/_jsx("div", {
-        className: "bg-gradient-to-br from-zinc-900/95 to-black/95 border border-white/10 rounded-2xl p-8 max-w-md w-full backdrop-blur-xl",
-        children: /*#__PURE__*/_jsxs("div", {
-          className: "flex flex-col items-center text-center",
-          children: [/*#__PURE__*/_jsx("div", {
-            className: "w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mb-6",
-            children: /*#__PURE__*/_jsx(AlertCircle, {
-              size: 40,
-              className: "text-amber-400"
-            })
-          }), /*#__PURE__*/_jsx("h3", {
-            className: "text-xl font-semibold text-white mb-3",
-            children: "Not a Valid Project"
-          }), /*#__PURE__*/_jsx("p", {
-            className: "text-sm text-zinc-400 leading-relaxed mb-6",
-            children: "Our AI detected this might be a request with little to no information or a nonsensical request with no relation to the Smart Match's purpose. Please describe a real project with clear deliverables and requirements to find the best creators."
-          }), /*#__PURE__*/_jsx(Button, {
-            onClick: () => setShowInvalidModal(false),
-            className: "w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white border-none",
-            children: "Try Again"
-          })]
-        })
-      })
-    })]
-  }), document.body);
+        <div className="smm-body">
+          {view === 'form' ? (mode === 'ai' ? renderAiForm() : renderGuidedStep()) : null}
+          {view === 'processing' ? renderProcessing() : null}
+          {view === 'results' ? renderResults() : null}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 };
+
+export { SmartMatchModal };
+export default SmartMatchModal;

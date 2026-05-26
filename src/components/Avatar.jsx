@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export const Avatar = ({ src, alt = 'U', size = 40, className = '' }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+
   const getInitial = (text) => {
     if (!text) return 'U';
     const str = String(text).trim();
@@ -26,31 +28,59 @@ export const Avatar = ({ src, alt = 'U', size = 40, className = '' }) => {
 
   const initial = getInitial(alt);
   const bgGradient = getColor(alt);
+  const shouldShowImage = Boolean(src) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [src]);
 
   return (
     <div
-      className={`flex items-center justify-center rounded-full font-semibold text-white overflow-hidden ring-2 ring-white/10 transition-transform hover:scale-105 ${className}`}
+      className={className}
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         width: size,
         height: size,
         minWidth: size,
         minHeight: size,
-        background: src ? 'transparent' : bgGradient,
+        background: shouldShowImage ? 'transparent' : bgGradient,
         fontSize: `${size * 0.4}px`,
+        color: '#fff',
+        fontWeight: 600,
+        borderRadius: '999px',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        border: '2px solid rgba(255, 255, 255, 0.1)',
+        transition: 'transform 0.18s ease',
       }}
       title={alt}
     >
-      {src ? (
+      {shouldShowImage ? (
         <img
           src={src}
           alt={alt}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            e.target.style.display = 'none';
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+          onError={() => {
+            setImageFailed(true);
           }}
         />
       ) : (
-        <span className="font-bold tracking-tight">{initial}</span>
+        <span
+          style={{
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+            lineHeight: 1,
+          }}
+        >
+          {initial}
+        </span>
       )}
     </div>
   );

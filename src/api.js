@@ -86,7 +86,7 @@ async function request(method, path, body = null) {
         ok: false,
         status: 408,
         data: {
-          detail: 'The server took too long to respond. Check that the backend is running and try again.',
+          detail: 'The server took too long to respond.',
         },
       };
     }
@@ -95,7 +95,7 @@ async function request(method, path, body = null) {
       ok: false,
       status: 0,
       data: {
-        detail: 'Cannot connect to the server. Check that the backend is running and accessible.',
+        detail: 'The server took too long to respond.',
       },
     };
   } finally {
@@ -185,7 +185,7 @@ async function uploadMultipart(path, formData) {
     return {
       ok: false,
       status: 0,
-      data: { detail: 'Cannot connect to the server. Check that the backend is running and accessible.' },
+      data: { detail: 'The server took too long to respond.' },
     };
   }
 
@@ -241,7 +241,7 @@ export async function uploadStorageFile(options) {
     return {
       ok: false,
       status: 0,
-      data: { detail: 'Cannot connect to the server. Check that the backend is running and accessible.' },
+      data: { detail: 'The server took too long to respond.' },
     };
   }
 

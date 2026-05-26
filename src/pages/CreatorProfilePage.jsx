@@ -98,6 +98,7 @@ const CreatorProfilePage = () => {
     const [blockConfirm, setBlockConfirm] = useState(false);
     const [existingOrders, setExistingOrders] = useState([]);
     const [duplicateModal, setDuplicateModal] = useState({ open: false, service: null });
+    const [dueDateInput, setDueDateInput] = useState('');
 
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -205,6 +206,11 @@ const CreatorProfilePage = () => {
         setTimeout(() => setToast(''), 3500);
     };
 
+    const buildDueDatePayload = (dateValue) => {
+        if (!dateValue) return null;
+        return new Date(`${dateValue}T23:59:59`).toISOString();
+    };
+
     const handleFollow = async () => {
         if (isFollowing && followId) {
             setUnfollowConfirm(true);
@@ -300,10 +306,17 @@ const CreatorProfilePage = () => {
     const handleOrderService = async () => {
         const service = confirmModal.service || duplicateModal.service;
         if (!service) return;
+        if (!dueDateInput) {
+            showToast('Please set the due date before placing the order.');
+            return;
+        }
 
         setOrderLoading(true);
         try {
-            const { ok } = await createOrder({ service_id: service.id });
+            const { ok } = await createOrder({
+                service_id: service.id,
+                due_date: buildDueDatePayload(dueDateInput),
+            });
             showToast(ok ? `Order placed for "${service.title}"!` : 'Failed to place order.');
         } catch {
             showToast('Connection error.');
@@ -311,6 +324,7 @@ const CreatorProfilePage = () => {
         setOrderLoading(false);
         setConfirmModal({ open: false, service: null });
         setDuplicateModal({ open: false, service: null });
+        setDueDateInput('');
     };
 
     const initiateOrder = (service) => {
@@ -689,8 +703,23 @@ const CreatorProfilePage = () => {
                 message={
                     confirmModal.service ? (
                         <>
-                            Order <strong>{confirmModal.service.title}</strong> for{' '}
-                            <strong>{formatCurrency(confirmModal.service?.price)}</strong>?
+                            <p style={{ margin: '0 0 0.9rem' }}>
+                                Order <strong>{confirmModal.service.title}</strong> for{' '}
+                                <strong>{formatCurrency(confirmModal.service?.price)}</strong>? Set the date you
+                                need the completed output.
+                            </p>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                <span style={{ color: '#a1a1aa', fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                                    Required By
+                                </span>
+                                <input
+                                    type="date"
+                                    value={dueDateInput}
+                                    min={new Date().toISOString().slice(0, 10)}
+                                    onChange={(event) => setDueDateInput(event.target.value)}
+                                    style={{ width: '100%', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', color: '#fff', padding: '0.7rem 0.8rem', font: 'inherit', outline: 'none' }}
+                                />
+                            </label>
                         </>
                     ) : (
                         ''
@@ -700,7 +729,10 @@ const CreatorProfilePage = () => {
                 confirmLabel="Place Order"
                 loading={orderLoading}
                 onConfirm={handleOrderService}
-                onCancel={() => setConfirmModal({ open: false, service: null })}
+                onCancel={() => {
+                    setConfirmModal({ open: false, service: null });
+                    setDueDateInput('');
+                }}
             />
 
             {reportModal && (
@@ -762,12 +794,34 @@ const CreatorProfilePage = () => {
             <ConfirmModal
                 open={duplicateModal.open}
                 title="Duplicate Order"
-                message={duplicateModal.service ? <>You already have an active order for <strong>"{duplicateModal.service.title}"</strong>. Do you want to place another order?</> : ''}
+                message={duplicateModal.service ? (
+                    <>
+                        <p style={{ margin: '0 0 0.9rem' }}>
+                            You already have an active order for <strong>"{duplicateModal.service.title}"</strong>.
+                            You can still place another one, but set a separate due date for it.
+                        </p>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                            <span style={{ color: '#a1a1aa', fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                                Required By
+                            </span>
+                            <input
+                                type="date"
+                                value={dueDateInput}
+                                min={new Date().toISOString().slice(0, 10)}
+                                onChange={(event) => setDueDateInput(event.target.value)}
+                                style={{ width: '100%', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', color: '#fff', padding: '0.7rem 0.8rem', font: 'inherit', outline: 'none' }}
+                            />
+                        </label>
+                    </>
+                ) : ''}
                 variant="warning"
                 confirmLabel="Order Anyway"
                 loading={orderLoading}
                 onConfirm={handleOrderService}
-                onCancel={() => setDuplicateModal({ open: false, service: null })}
+                onCancel={() => {
+                    setDuplicateModal({ open: false, service: null });
+                    setDueDateInput('');
+                }}
             />
         </section>
     );

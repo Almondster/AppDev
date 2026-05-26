@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Send, Star, MapPin, Clock, Sparkles, Building2, ChevronDown, X } from 'lucide-react';
-import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, fetchReviews, fetchSmartMatches, fetchCategories } from '../api';
+import { Search, Star, MapPin, Clock, Sparkles, Building2 } from 'lucide-react';
+import { fetchMyOrders as apiFetchOrders, fetchServices, fetchCreators, createOrder, fetchReviews, fetchCategories } from '../api';
 import ConfirmModal from '../components/ConfirmModal';
 import { CreatorSkeleton, ServiceSkeleton } from '../components/MarketplaceSkeletons';
+import SmartMatchModal from '../components/SmartMatchModal';
 import { readCollection } from '../utils/collections';
 import {
     isMarketplaceCategoryVisible,
@@ -32,12 +33,10 @@ const ClientDashboardPage = () => {
     // Confirm modal state
     const [confirmModal, setConfirmModal] = useState({ open: false, service: null });
     const [orderLoading, setOrderLoading] = useState(false);
+    const [dueDateInput, setDueDateInput] = useState('');
 
     // Smart Match state
     const [matchModal, setMatchModal] = useState(false);
-    const [matchDesc, setMatchDesc] = useState('');
-    const [matchResults, setMatchResults] = useState([]);
-    const [matching, setMatching] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -187,13 +186,25 @@ const ClientDashboardPage = () => {
         setConfirmModal({ open: true, service });
     };
 
+    const buildDueDatePayload = (dateValue) => {
+        if (!dateValue) return null;
+        return new Date(`${dateValue}T23:59:59`).toISOString();
+    };
+
     const handlePlaceOrder = async () => {
         const service = confirmModal.service;
         if (!service) return;
+        if (!dueDateInput) {
+            setOrderMsg('Please set the due date before placing the order.');
+            setOrderMsgType('error');
+            setTimeout(() => setOrderMsg(''), 4000);
+            return;
+        }
         setOrderLoading(true);
         try {
             const { ok, data } = await createOrder({
                 service_id: service.id,
+                due_date: buildDueDatePayload(dueDateInput),
             });
             if (ok) {
                 setOrderMsg(`Order placed for "${service.title || service.label}"!`);
@@ -211,6 +222,7 @@ const ClientDashboardPage = () => {
         }
         setOrderLoading(false);
         setConfirmModal({ open: false, service: null });
+        setDueDateInput('');
     };
 
     const getInitial = (name) => safeText(name, 'U').charAt(0).toUpperCase();
@@ -349,100 +361,38 @@ const ClientDashboardPage = () => {
             <ConfirmModal
                 open={confirmModal.open}
                 title="Place Order?"
-                message={confirmModal.service ? <>You are about to order <strong>"{confirmModal.service.title || confirmModal.service.label}"</strong> for <strong>₱{parseFloat(confirmModal.service.price || 0).toLocaleString()}</strong>.</> : ''}
+                message={confirmModal.service ? (
+                    <>
+                        <p style={{ margin: '0 0 0.9rem' }}>
+                            You are about to order <strong>"{confirmModal.service.title || confirmModal.service.label}"</strong> for{' '}
+                            <strong>₱{parseFloat(confirmModal.service.price || 0).toLocaleString()}</strong>.
+                            Set the date you need the output delivered.
+                        </p>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                            <span style={{ color: '#a1a1aa', fontSize: '0.76rem', fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                                Required By
+                            </span>
+                            <input
+                                type="date"
+                                value={dueDateInput}
+                                min={new Date().toISOString().slice(0, 10)}
+                                onChange={(e) => setDueDateInput(e.target.value)}
+                                style={{ width: '100%', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', color: '#fff', padding: '0.7rem 0.8rem', font: 'inherit', outline: 'none' }}
+                            />
+                        </label>
+                    </>
+                ) : ''}
                 variant="info"
                 confirmLabel="Place Order"
                 loading={orderLoading}
                 onConfirm={handlePlaceOrder}
-                onCancel={() => setConfirmModal({ open: false, service: null })}
+                onCancel={() => {
+                    setConfirmModal({ open: false, service: null });
+                    setDueDateInput('');
+                }}
             />
 
-            {/* Smart Match Modal */}
-            {matchModal && (
-                <div className="confirm-overlay" onClick={() => { setMatchModal(false); setMatchResults([]); }}>
-                    <div className="confirm-modal" style={{ maxWidth: 520, width: '95%' }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h3 className="confirm-modal__title" style={{ margin: 0 }}><Sparkles size={18} style={{ verticalAlign: 'middle', marginRight: 6, color: '#a855f7' }} /> Smart Match</h3>
-                            <button onClick={() => { setMatchModal(false); setMatchResults([]); }} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer' }}><X size={20} /></button>
-                        </div>
-
-                        {matchResults.length === 0 ? (
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                setMatching(true);
-                                try {
-                                    const { ok, data } = await fetchSmartMatches({
-                                        mode: 'ai',
-                                        query: matchDesc,
-                                        description: matchDesc,
-                                        limit: 5,
-                                        save_matches: true,
-                                    });
-
-                                    if (!ok) {
-                                        setOrderMsg(data?.detail || 'Matching failed.');
-                                        setOrderMsgType('error');
-                                        setTimeout(() => setOrderMsg(''), 4000);
-                                        return;
-                                    }
-
-                                    const results = data?.matches || data?.results || [];
-                                    setMatchResults(results);
-                                } catch {
-                                    setOrderMsg('Matching failed.');
-                                    setOrderMsgType('error');
-                                    setTimeout(() => setOrderMsg(''), 4000);
-                                }
-                                setMatching(false);
-                            }}>
-                                <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: '0 0 1rem' }}>Describe your project and we'll find the best creators for you.</p>
-                                <textarea
-                                    value={matchDesc}
-                                    onChange={e => setMatchDesc(e.target.value)}
-                                    placeholder="e.g. I need a modern logo design for my coffee shop brand with minimalist style..."
-                                    required
-                                    style={{ width: '100%', minHeight: 100, padding: '0.75rem', borderRadius: 10, background: 'var(--bg-input, #18181b)', border: '1px solid var(--border, #27272a)', color: '#fff', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', marginBottom: '1rem' }}
-                                />
-                                <div className="confirm-modal__actions">
-                                    <button type="button" className="confirm-modal__btn confirm-modal__btn--cancel" onClick={() => setMatchModal(false)}>Cancel</button>
-                                    <button type="submit" className="confirm-modal__btn confirm-modal__btn--confirm" style={{ background: '#a855f7' }} disabled={matching}>
-                                        {matching ? 'Finding matches...' : 'Find Creators'}
-                                    </button>
-                                </div>
-                            </form>
-                        ) : (
-                            <div>
-                                <p style={{ color: '#a1a1aa', fontSize: '0.85rem', margin: '0 0 1rem' }}>Top matches for: <em>"{matchDesc.slice(0, 60)}..."</em></p>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: 320, overflowY: 'auto' }}>
-                                    {matchResults.map((m) => {
-                                        const creatorName = m.name || 'Creator';
-                                        const creatorId = m.id || m.creator_id || m.user_id;
-                                        const skillsPreview = Array.isArray(m.skills) ? m.skills.join(', ') : (m.skills || '');
-                                        const score = m.matchScore ?? m.score ?? 0;
-                                        return (
-                                            <div key={`${creatorId}-${m.serviceId || 'service'}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}
-                                                onClick={() => { setMatchModal(false); setMatchResults([]); navigate(`/creator-profile?uid=${creatorId}`); }}>
-                                                <div style={{ width: 36, height: 36, borderRadius: '50%', background: getAvatarColor(creatorName), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
-                                                    {getInitial(creatorName)}
-                                                </div>
-                                                <div style={{ flex: 1 }}>
-                                                    <p style={{ color: '#fff', fontWeight: 600, margin: 0, fontSize: '0.95rem' }}>{creatorName}</p>
-                                                    <p style={{ color: '#71717a', fontSize: '0.8rem', margin: 0 }}>{m.serviceTitle || m.jobTitle || 'Matched creator'}</p>
-                                                    <p style={{ color: '#71717a', fontSize: '0.8rem', margin: '2px 0 0' }}>{skillsPreview.slice(0, 70) || (m.matchReasons || []).join(' ').slice(0, 70)}</p>
-                                                </div>
-                                                <div style={{ background: `rgba(168,85,247,${score > 70 ? 0.2 : 0.1})`, color: '#c084fc', padding: '4px 10px', borderRadius: 8, fontWeight: 700, fontSize: '0.85rem' }}>
-                                                    {score}%
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <button onClick={() => setMatchResults([])} style={{ marginTop: '1rem', padding: '0.5rem 1rem', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#a1a1aa', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>Try Different Description</button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
+            <SmartMatchModal isOpen={matchModal} onClose={() => setMatchModal(false)} />
 
             {viewMode === 'creators' && (
                 <>

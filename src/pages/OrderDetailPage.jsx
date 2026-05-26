@@ -25,7 +25,7 @@ const OrderDetailPage = () => {
   const navigate = useNavigate();
   const userData = getUserData();
   const isCreator = userData?.role === 'creator';
-  const canManageDueDate = userData?.role === 'creator' || userData?.role === 'admin';
+  const canManageDueDate = userData?.role === 'client' || userData?.role === 'admin';
 
   const [order, setOrder] = useState(null);
   const [timeline, setTimeline] = useState([]);
@@ -349,7 +349,7 @@ const OrderDetailPage = () => {
   }
 
   const st = STATUS_STYLES[order.status] || STATUS_STYLES.pending;
-  const showDueDateEditor = canManageDueDate && !['pending', 'completed', 'cancelled', 'rejected', 'refunded'].includes(order.status);
+  const showDueDateEditor = canManageDueDate && !['completed', 'cancelled', 'rejected', 'refunded'].includes(order.status);
 
   return (
     <main className="order-detail">
@@ -406,7 +406,7 @@ const OrderDetailPage = () => {
                 onChange={(e) => setDueDateInput(e.target.value)}
               />
               <button className="od-action-btn od-action-btn--outline" disabled={actionLoading || !dueDateInput}>
-                Save Due Date
+                Save Required Date
               </button>
             </form>
           )}

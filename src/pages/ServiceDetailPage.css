@@ -239,6 +239,32 @@
   gap: 0.3rem;
 }
 
+.sd-order-deadline-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+
+.sd-order-deadline-field span {
+  color: #a1a1aa;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sd-order-deadline-field input {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  color: #fff;
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  outline: none;
+}
+
 /* Reviews section */
 .sd-reviews-section h3 {
   font-size: 1.1rem;
