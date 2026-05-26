@@ -135,6 +135,14 @@
 .smm-body {
   overflow: auto;
   padding: 1.5rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.smm-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .smm-form-grid {
@@ -939,6 +947,10 @@
 }
 
 @media (max-width: 980px) {
+  .smm-shell {
+    width: min(100%, 920px);
+  }
+
   .smm-form-grid {
     grid-template-columns: 1fr;
   }
@@ -946,14 +958,25 @@
   .smm-panel--summary {
     position: static;
   }
+
+  .smm-stepper,
+  .smm-deadline-grid,
+  .smm-processing-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .smm-results-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
   .smm-overlay {
-    padding: 0.75rem;
+    padding: 0.5rem;
   }
 
   .smm-shell {
+    width: 100%;
     max-height: 96vh;
     border-radius: 16px;
   }
@@ -973,6 +996,14 @@
     flex-direction: column;
   }
 
+  .smm-header h2 {
+    font-size: 1.18rem;
+  }
+
+  .smm-header p {
+    font-size: 0.86rem;
+  }
+
   .smm-mode-row,
   .smm-footer-actions,
   .smm-results-head,
@@ -988,11 +1019,85 @@
     grid-template-columns: 1fr;
   }
 
+  .smm-summary-row,
+  .smm-result-top,
+  .smm-result-person {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .smm-result-top {
     align-items: flex-start;
   }
 
   .smm-result-score {
     align-self: flex-start;
+  }
+
+  .smm-results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .smm-processing {
+    min-height: 360px;
+    padding: 1.35rem 0.25rem;
+  }
+
+  .smm-processing strong {
+    font-size: 1.45rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .smm-shell {
+    max-height: 100vh;
+    border-radius: 14px;
+  }
+
+  .smm-header,
+  .smm-mode-row,
+  .smm-body {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .smm-header {
+    padding-top: 1rem;
+    padding-bottom: 0.9rem;
+  }
+
+  .smm-body {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .smm-mode-btn,
+  .smm-btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .smm-pill,
+  .smm-badge {
+    white-space: normal;
+  }
+
+  .smm-category-card,
+  .smm-panel,
+  .smm-result-card,
+  .smm-budget-card {
+    padding: 0.9rem;
+  }
+
+  .smm-result-facts span,
+  .smm-result-skills span,
+  .smm-summary-chips span,
+  .smm-summary-skills span {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .smm-range-labels {
+    font-size: 0.68rem;
   }
 }

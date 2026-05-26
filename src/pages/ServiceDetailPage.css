@@ -132,6 +132,10 @@
   .sd-layout {
     grid-template-columns: 1fr;
   }
+
+  .sd-sidebar-card {
+    position: static;
+  }
 }
 
 .sd-sidebar-card {
@@ -316,4 +320,85 @@
   display: flex;
   gap: 2px;
   margin-bottom: 0.25rem;
+}
+
+@media (max-width: 720px) {
+  .service-detail {
+    max-width: 100%;
+  }
+
+  .sd-hero-body {
+    padding: 1.2rem 1.1rem 1.35rem;
+  }
+
+  .sd-hero-image,
+  .sd-hero-placeholder {
+    height: 220px;
+  }
+
+  .sd-title {
+    font-size: 1.4rem;
+  }
+
+  .sd-description {
+    font-size: 0.9rem;
+  }
+
+  .sd-meta-row {
+    gap: 1rem;
+  }
+
+  .sd-meta-item {
+    min-width: calc(50% - 0.5rem);
+  }
+
+  .sd-sidebar-card {
+    padding: 1.1rem;
+  }
+}
+
+@media (max-width: 540px) {
+  .sd-back {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sd-breadcrumb {
+    flex-wrap: wrap;
+  }
+
+  .sd-hero {
+    border-radius: 14px;
+  }
+
+  .sd-hero-body {
+    padding: 1rem;
+  }
+
+  .sd-title {
+    font-size: 1.22rem;
+  }
+
+  .sd-meta-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sd-meta-item {
+    min-width: 100%;
+  }
+
+  .sd-order-btn,
+  .sd-message-btn {
+    font-size: 0.92rem;
+  }
+
+  .sd-creator-info,
+  .sd-review-item {
+    align-items: flex-start;
+  }
+
+  .sd-review-body {
+    min-width: 0;
+  }
 }

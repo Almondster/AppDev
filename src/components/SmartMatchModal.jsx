@@ -387,8 +387,8 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
           </div>
           <h3>Describe the outcome you need.</h3>
           <p>
-            Write naturally. The matcher will infer the category, highlight relevant skills, and
-            rank creators based on the brief.
+            Write naturally. The sentence-transformer matcher will infer the category, highlight
+            relevant skills, and rank creators from the brief.
           </p>
         </div>
 
@@ -408,15 +408,15 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
         <div className="smm-feature-list">
           <div className="smm-feature-item">
             <CheckCircle2 size={16} />
-            AI extracts category and strongest skills from your brief.
+            AI sends your brief to the sentence-transformer Smart Match service.
           </div>
           <div className="smm-feature-item">
             <CheckCircle2 size={16} />
-            Backend matching still falls back to heuristic ranking if needed.
+            Results are ranked by semantic similarity instead of manual rule scoring.
           </div>
           <div className="smm-feature-item">
             <CheckCircle2 size={16} />
-            Prefer more control? Switch to Guided Match and choose exact skills yourself.
+            Prefer deterministic filtering? Switch to Guided Match and use rule-based matching.
           </div>
         </div>
       </section>
@@ -518,7 +518,7 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
           <>
             <div className="smm-panel-header smm-panel-header--compact">
               <h3>Select the skills you need.</h3>
-              <p>Choose every skill that matters for this project so matching is more precise.</p>
+              <p>Choose every skill that matters so the rule-based guided search can score the shortlist.</p>
             </div>
 
             <div className="smm-skill-grid">
@@ -718,8 +718,8 @@ const SmartMatchModal = ({ isOpen, onClose }) => {
             <h3>{results.length} creator{results.length === 1 ? '' : 's'} ready to review</h3>
             <p>
               {mode === 'ai'
-                ? 'The results were ranked from your brief, then refined by the backend matcher.'
-                : 'The results were ranked from the category, skills, budget, and deadline you selected.'}
+                ? 'The results were ranked directly by the sentence-transformer Smart Match service.'
+                : 'The results were ranked by rule-based scoring from the category, skills, budget, and deadline you selected.'}
             </p>
           </div>
 
