@@ -52,11 +52,19 @@ pip install -r requirements.txt
 
 5. Create a `.env` file and configure at least:
 
-- Internal Database URL: postgresql://createch_db_whko_user:ciKuoTXKlJwPGhuwPjXWziGylHy1zoYN@dpg-d83l3jn7f7vs7397ph70-a/createch_db_whko
+- `DATABASE_URL`
+- `SECRET_KEY`
 
-- External Database URL: postgresql://createch_db_whko_user:ciKuoTXKlJwPGhuwPjXWziGylHy1zoYN@dpg-d83l3jn7f7vs7397ph70-a.singapore-postgres.render.com/createch_db_whko
-
-- Database Password: ciKuoTXKlJwPGhuwPjXWziGylHy1zoYN
+Optional environment variables:
+- `RENDER_INTERNAL_DATABASE_URL`
+- `CREATECH_EAGER_SCHEMA_INIT`
+- `CREATECH_R2_BUCKET`
+- `CREATECH_R2_REGION`
+- `CREATECH_R2_ACCOUNT_ID`
+- `CREATECH_R2_ENDPOINT_URL`
+- `CREATECH_R2_ACCESS_KEY_ID`
+- `CREATECH_R2_SECRET_ACCESS_KEY`
+- `CREATECH_REDIS_URL`
 
 6. Start the backend server:
 
@@ -73,7 +81,7 @@ pip install -r requirements.txt
 - Live Backend API: `https://createch-backend-fastapi.onrender.com`
 - API Docs: `https://createch-backend-fastapi.onrender.com/docs`
 - Website Link: https://app-dev-khaki.vercel.app/
-- Mobile Link: 
+- Mobile Link: https://expo.dev/accounts/ralphjohnordizo/projects/createch-app/builds/279f07ad-3ba1-4c04-bb04-f92602a03a83
 
 ## Test Account
 ADMIN
@@ -97,8 +105,8 @@ Pa$$w0rd!
 | `Stella Marie Galinada` | `[Role]` | `[Responsibilities]` |
 
 ## Known Limitations
-- Storage limitations because it is using the cloudflare R2 for the storage of output
-- The render is free tier therefore it sometimes slow to connect to the server
+- Storage limitations because it uses Cloudflare R2 for uploaded output
+- The backend is hosted on a free-tier Render instance, so cold starts can slow initial requests
 
 ## Screenshots
 
@@ -110,4 +118,3 @@ Pa$$w0rd!
 
 ### Login Response Example
 ![Login Response Example](./README-assets/backend-login-response.png)
-
