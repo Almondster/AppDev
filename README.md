@@ -81,6 +81,8 @@ Optional environment variables:
 - Live Backend API: `https://createch-backend-fastapi.onrender.com`
 - API Docs: `https://createch-backend-fastapi.onrender.com/docs`
 - Website Link: https://app-dev-khaki.vercel.app/
+- Mobile Link: https://expo.dev/accounts/ralphjohnordizo/projects/createch-app/builds/279f07ad-3ba1-4c04-bb04-f92602a03a83?fbclid=IwY2xjawSDwS5leHRuA2FlbQIxMABicmlkETFJcDlxMkFmdDR1dk1CbDNIc3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHmi05wWC1cwhE3wAV_9rLNTqKo_2h3GhTRjG9PYZfxrwvsHQ9NI3Bi0XbqMO_aem_eW2LWF-j5cN4sNHrFVbdUw
+
 ## Test Account
 ADMIN
 admin.20260522@createch.app
@@ -106,4 +108,22 @@ Pa$$w0rd!
 - Storage limitations because it is using the cloudflare R2 for the storage of output
 - The render is free tier therefore it sometimes slow to connect to the server
 
-## SCREENSHOTS
+## Screenshots
+
+### Landing Page
+![Landing Page](./README-assets/landing-page.png)
+
+### Sign In
+![Sign In](./README-assets/sign-in.png)
+
+### Create Account
+![Create Account](./README-assets/create-account.png)
+
+### Dashboard
+![Dashboard](./README-assets/dashboard.png)
+
+### Smart Match
+![Smart Match](./README-assets/smart-match.png)
+
+### Creator Studio
+![Creator Studio](./README-assets/creator-studio.png)
